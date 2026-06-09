@@ -3,8 +3,21 @@ name = "starbunk-rs"
 version = "2026.0.1"
 edition = "2021"
 
+[lib]
+name = "starbunk"
+
 [dependencies]
-serenity = "0.12"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-futures = "0.3"
-poise = "0.6"
+serenity = { version = "0.12", features = ["client", "gateway", "model", "http", "rustls_backend", "cache"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+regex = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+rand = "0.8"
+anyhow = "1"
+chrono = "0.4"
+sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"] }
+pgvector = { version = "0.4", features = ["sqlx"] }
