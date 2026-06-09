@@ -1,7 +1,7 @@
 /target
 .env
 *.env.local
-wiki/raw/CHANGELOG-*.md
+wiki/raw
 /bluebot
 /bunkbot
 /covabot
