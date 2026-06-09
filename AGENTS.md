@@ -9,33 +9,26 @@ read it directly.
 ## !! MANDATORY: KEEP THE WIKI UP TO DATE !!
 
 > **This rule applies to every agent, every task, without exception.**
-> There is no situation where skipping a wiki update is acceptable.
 
 1. **Before starting any task** — read the relevant `wiki/` page(s) for the area you will touch.
 2. **After completing any task** — update the relevant wiki page(s) to reflect any changes to architecture, behavior, configuration, or patterns.
 3. **For every significant change or PR** — add an entry to `wiki/Changelog.md` under today's date.
 4. If a wiki page does not exist for the area you are working in, **create it**.
-5. Create new pages freely. Use plain relative links to connect related pages.
-6. Keep `wiki/raw/` for local drafts and staged content (do not commit to Git). Promote to `wiki/` on merge.
 
 The wiki lives at `wiki/` in the repo root. Start at `wiki/Home.md`.
 
-### What counts as "meaningful"
-
-Any change that affects: architecture, configuration, a bot's behavior,
-infrastructure, deployment, testing strategy, a new feature, or a bug fix with
-a non-obvious root cause.
+Any change that affects: architecture, configuration, a bot's behavior, infrastructure, deployment,
+testing strategy, a new feature, or a bug fix with a non-obvious root cause counts as "meaningful".
 
 ---
 
 ## CHANGELOG Workflow
 
-Every branch that introduces meaningful changes maintains its own changelog
-entry in `wiki/raw/`.
+Every branch that introduces meaningful changes maintains its own changelog entry in `wiki/raw/`.
 
 ### While working on a branch
 
-Create or update `wiki/raw/CHANGELOG-<branch-name>.md` as you go. Format:
+Create or update `wiki/raw/CHANGELOG-<branch-name>.md` as you go:
 
 ```markdown
 ## [Unreleased] — <branch-name>
@@ -50,133 +43,50 @@ Create or update `wiki/raw/CHANGELOG-<branch-name>.md` as you go. Format:
 - ...
 ```
 
-Keep this file local-only (do not commit it to Git; it is ignored by `.gitignore`). It is the local staging area for the real changelog.
+Keep this file local-only (do not commit it to Git; it is ignored by `.gitignore`).
 
 ### On merge (PR completion)
 
 Prepend the branch entry into `wiki/Changelog.md` under the current date, then
-delete `wiki/raw/CHANGELOG-<branch-name>.md`. The permanent changelog lives at
-`wiki/Changelog.md`.
-
----
-
-## !! MANDATORY: USE AVAILABLE SKILLS AND TOOLS PROACTIVELY !!
-
-> **Do not wait to be told.** When a situation matches an available skill or
-> tool capability, use it immediately without prompting.
-
-Examples:
-- Starting a non-trivial implementation → use a plan / task breakdown first
-- Code has been written or changed → review it for simplicity and quality
-- A PR needs deployment → use the deploy skill/tool
-- Tests are available → run them before declaring a task done
+delete `wiki/raw/CHANGELOG-<branch-name>.md`.
 
 ---
 
 ## !! MANDATORY: TEST-DRIVEN DEVELOPMENT (TDD) WORKFLOW !!
 
 > **This rule applies to every agent, every task involving logic, behavior, or ports, without exception.**
-> There is no situation where implementing code without first writing failing tests is acceptable.
 
 1. **Two-PR Sequence constraint**:
-   - **PR 1: Test-Only / Behavior Definition**: You MUST only add/improve Rust tests (`#[test]`, `#[tokio::test]`) defining the expected behavior. No implementation changes are allowed. This PR must fail the newly added tests (Red phase). Minimal stubs/traits may be added only to allow compilation.
+   - **PR 1: Test-Only / Behavior Definition**: Add/improve Rust tests (`#[test]`, `#[tokio::test]`) defining expected behavior. No implementation changes. This PR must fail the new tests (Red phase). Minimal stubs/traits may be added only to allow compilation.
    - **PR 2: Implementation**: Only after the test-only PR is approved or merged may you write the Rust code to satisfy those tests (Green/Refactor phase).
-2. **Finding Reference Behavior**: Look up legacy Go behavior in the sibling directory `../starbunk-go/cmd/<bot>/` first, or JS in `../starbunk-js/src/<bot>/`.
+2. **Finding Reference Behavior**: Look up legacy Go behavior in `../starbunk-go/cmd/<bot>/` first, or JS in `../starbunk-js/src/<bot>/`.
 3. For full details and step-by-step examples, read [[wiki/development/TDD.md]].
 
 ---
 
-## Self-Correction Protocol
-
-When something doesn't work as expected, work through this sequence before
-retrying or escalating.
-
-### 0. Before touching any file — sync and read
+## Before Every Change
 
 1. Confirm you are on the correct branch and it is up to date with `main`.
-2. **Read every file you are about to change.** Never edit from memory or from
-   a previous read earlier in the conversation.
-3. If your change touches `src/shared/`, grep all callers first:
-   ```bash
-   grep -rn "SymbolYouAreChanging" src/
-   ```
-   You need to know the full blast radius before writing a single line.
+2. **Read every file you are about to change.** Never edit from memory.
+3. If your change touches `crates/starbunk-shared/`, grep all callers first to know the blast radius.
 
-### 1. After any code change — verify in this order
-
-```bash
-cargo build --all         # all packages compile (catches import errors fast)
-cargo clippy -- -D warnings  # catches common Rust mistakes
-cargo test                # all tests pass
-```
-
-If you changed anything in `src/shared/` (shared code), also build every bot
-individually to confirm nothing silently broke:
-
-```bash
-for bot in bluebot bunkbot covabot djcova ratbot; do
-    cargo build --bin $bot || echo "BROKEN: $bot"
-done
-```
-
-Run fmt check and clippy before opening a PR:
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-```
-
-### 2. Read errors completely before acting
-
-- **Never retry a failed command with identical input.** If it failed once, it
-  will fail again.
-- Read the full error output. The root cause is usually in the first or last
-  few lines, not buried in the middle.
-- If a clippy error appears, fix exactly what is reported. Do not add `#[allow(...)]`
-  suppressions to make it disappear — that hides a real problem.
-- If a test fails, decide: **is the test wrong, or is the code wrong?** Fix
-  the right thing.
-
-### 3. DevOps drift check
-
-If you touched any of: `src/bin/`, `docker-compose.yml`, `docker/docker-compose.yml`,
-`.github/workflows/`, `scripts/deployment/health-check.sh`:
-
+After code changes, run `/check` (build + clippy + test + fmt). If DevOps files were touched, also run:
 ```bash
 bash scripts/devops-validate.sh
 ```
 
-A `FAIL` here blocks CI. Fix it before opening or updating a PR.
+When CI fails: read the full log, identify the exact root cause, fix only what is broken.
+When unsure: run `/check` and read the relevant `wiki/` page before guessing.
 
-### 4. Wiki / code consistency check
-
-Before closing a task, ask for each file you changed:
+**Wiki / code consistency** — for each file changed:
 
 | Changed area | Wiki page to verify |
 |---|---|
 | A bot's behaviour, commands, config | `wiki/bots/<Bot>.md` |
-| `src/shared/` contracts or architecture | `wiki/infrastructure/Architecture.md` |
+| `crates/starbunk-shared/` | `wiki/infrastructure/Architecture.md` |
 | CI/CD workflows | `wiki/development/CI-CD.md` |
 | Testing patterns | `wiki/development/Testing.md` |
 | Deployment, Docker, health checks | `wiki/infrastructure/Deployment.md` |
-
-Mismatch between code and docs is a bug. Update the docs.
-
-### 5. When CI fails on a PR
-
-1. Read the failing job log in full — don't skim.
-2. Identify the exact root cause before writing any fix.
-3. Fix only what is broken; don't refactor unrelated code in the same commit.
-4. Push the fix and wait for the check to re-run.
-5. If the same check fails twice with the same message, stop and investigate
-   the environment or assumptions before trying again.
-
-### 6. When you are unsure whether a change is correct
-
-- Run `cargo build --all` and `cargo test` first.
-- Check the relevant `wiki/` page.
-- Check git log for the file (`git log --oneline -10 <file>`).
-- If still unsure, ask. Do not guess and ship.
 
 ---
 
@@ -189,47 +99,20 @@ A task is **not complete** until:
 - [ ] `bash scripts/devops-validate.sh` exits cleanly (if any bot or CI/CD file was touched)
 - [ ] `cargo test` passes locally
 - [ ] The relevant `wiki/` page(s) have been updated
-- [ ] An entry has been added to `wiki/Changelog.md` (or to a local draft `wiki/raw/CHANGELOG-<branch>.md` if the PR is still open)
-- [ ] The change follows the Two-PR TDD sequence constraint (PR 1: Test-Only, PR 2: Implementation)
+- [ ] An entry has been added to `wiki/Changelog.md` (or `wiki/raw/CHANGELOG-<branch>.md` if the PR is still open)
+- [ ] The change follows the Two-PR TDD sequence (PR 1: Test-Only, PR 2: Implementation)
 - [ ] Rust tests are added or improved to fully cover the behavior changes
-
-"The code works locally" is not done. "The PR is open" is not done.
-
----
-
-## Git Commit Standards
-
-All commits to the repository must conform to the **Conventional Commits** specification. This is enforced by a custom git `commit-msg` hook installed at `.git/hooks/commit-msg`.
-
-### Format
-Every commit message header (first line) must follow this pattern:
-```
-<type>(<scope>): <subject>
-```
-
-- **`<type>`**: Must be one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-- **`<scope>`**: Optional but highly recommended (e.g., `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`, `shared`, `wiki`, `agents`, `git`).
-- **`<subject>`**: Present-tense, starting with a lowercase letter, and ending without a period (e.g. `add opt-out command`, not `Add opt-out command.`).
-- **Header Length**: Maximum of 72 characters.
-
-Use the `.gitmessage` template file in the repository root to format commit messages.
 
 ---
 
 ## Development Constraints
 
-- **Never commit secrets or local config** — `.env` files, tokens, and anything
-  under `config/`, `local/`, or `data/` directories must not be committed.
-- **Maintain container isolation** — each bot is its own Cargo crate under
-  `crates/<bot>/` and its own container. Cross-bot shared logic belongs in
-  `crates/starbunk-shared/`, not copied between bots.
-- **Self-message guard** — every message handler must check `msg.author.id != ctx.cache.current_user().id`
-  (or use the `NOT_SELF` filter) to prevent bot reply loops.
-- **Non-blocking handlers** — Serenity event handlers run on a shared async executor.
-  Any slow operation (LLM calls, HTTP, audio processing) must be spawned with `tokio::spawn`
-  so it cannot stall other handlers.
-- **Use correct Docker service names** — internal service communication uses the
-  service names defined in `docker-compose.yml` (e.g. `starbunk-rs-bunkbot`).
+- **Never commit secrets or local config** — `.env` files, tokens, and anything under `config/`, `local/`, or `data/` directories must not be committed.
+- **Maintain container isolation** — each bot is its own Cargo crate under `crates/<bot>/` and its own container. Cross-bot shared logic belongs in `crates/starbunk-shared/`, not copied between bots.
+- **Self-message guard** — every message handler must check `msg.author.id != ctx.cache.current_user().id` (or use the `NOT_SELF` filter) to prevent bot reply loops.
+- **Non-blocking handlers** — Serenity event handlers run on a shared async executor. Any slow operation (LLM calls, HTTP, audio processing) must be spawned with `tokio::spawn`.
+- **Use correct Docker service names** — internal service communication uses service names defined in `docker-compose.yml` (e.g. `starbunk-rs-bunkbot`).
+- **Never push directly to `main`** — all changes go through a PR. Never use `--no-verify`.
 
 ---
 
@@ -240,44 +123,30 @@ These rules apply to every file written or changed in this project, without exce
 ### File discipline
 
 - **Target ≤ 150 lines per file.** When a file grows beyond that, split by responsibility.
-- **One concept per file.** A file owns one thing: a trait, a set of related filter primitives,
-  one strategy, one client implementation, etc.
-- **`mod.rs` files are wiring only.** They declare submodules, import the `Handler` struct, and
-  expose `pub async fn run()`. No business logic belongs there.
-- **Business logic lives in named submodules.** Name them for what they do:
-  `strategy.rs`, `conversation.rs`, `engagement.rs`, `tagger.rs`.
+- **One concept per file.** A file owns one thing: a trait, a set of related filter primitives, one strategy, one client implementation, etc.
+- **`mod.rs` files are wiring only.** They declare submodules and expose `pub async fn run()`. No business logic.
 - **No copy-paste between bots.** If two bots need the same logic, it belongs in `crates/starbunk-shared/`.
 
 ### Bot isolation
 
-- Each bot crate in `crates/<bot>/` is fully self-contained. It may import from
-  `crates/starbunk-shared/` but **never** from another bot's crate.
-- The dependency graph is strictly one-directional: `crates/<bot>/` → `crates/starbunk-shared/`.
-- Bots must not share mutable state. Any state that looks shared (e.g. webhook caches)
-  belongs in `crates/starbunk-shared/` with proper `Arc<Mutex<_>>` or `DashMap` protection.
+- Each bot crate may import from `crates/starbunk-shared/` but **never** from another bot's crate.
+- Bots must not share mutable state. Any shared state belongs in `crates/starbunk-shared/` with `Arc<Mutex<_>>` or `DashMap`.
 
 ### Types and traits
 
-- **Expose dependencies as `Arc<dyn Trait>`**, not concrete types. This is mandatory for
-  testability. A handler that holds `Arc<dyn MessageService>` can be tested with a mock;
-  one that holds `DiscordMessageService` cannot.
-- **`#[derive(Debug)]`** on every public `struct` and `enum`. Missing `Debug` prevents
-  use in `?` chains and `tracing` macro format strings.
-- **`LazyLock<Regex>`** (from `std::sync`) for all compiled regular expressions. Never
-  call `Regex::new(...)` inside a hot path. Pattern: `static PAT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"...").expect("pattern name"));`
-- Prefer `impl Trait` in return position for free functions returning a single concrete type.
-  Use `Box<dyn Trait>` or `Arc<dyn Trait>` when the type is stored in a struct or collection.
-- **No unnecessary clones.** Pass references where ownership is not required. Clone only
-  when you genuinely need a new owner (e.g. crossing a `tokio::spawn` boundary).
+- **Expose dependencies as `Arc<dyn Trait>`**, not concrete types. This is mandatory for testability.
+- **`#[derive(Debug)]`** on every public `struct` and `enum`.
+- **`LazyLock<Regex>`** for all compiled regular expressions. Never call `Regex::new(...)` inside a hot path:
+  ```rust
+  static PAT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"...").expect("pattern name"));
+  ```
+- **No unnecessary clones.** Pass references where ownership is not required.
 
 ### Error handling
 
-- Application code (`src/bin/`, `src/bots/`) uses `anyhow::Result`. `run()` returns
-  `anyhow::Result<()>`.
-- **Never `.unwrap()` in production code.** Use `?` or `.map_err(|e| anyhow::anyhow!("{}", e))`.
-  The only exceptions are: `expect()` on values that are programmer errors (e.g. a static
-  `Regex::new(...)` that cannot fail), and test code.
-- In Serenity event handlers where an error must not crash the bot, use the pattern:
+- Application code uses `anyhow::Result`. `run()` returns `anyhow::Result<()>`.
+- **Never `.unwrap()` in production code.** Use `?` or `.expect("reason")` only on programmer-error panics.
+- In Serenity event handlers, log errors instead of propagating:
   ```rust
   if let Err(e) = sender.send(channel_id, &resp).await {
       tracing::error!(strategy = name, "failed to send: {}", e);
@@ -286,106 +155,41 @@ These rules apply to every file written or changed in this project, without exce
 
 ### Async
 
-- All slow work (LLM calls, HTTP requests, DB queries, audio processing) must be spawned
-  with `tokio::spawn`. Event handlers that block will stall the entire Serenity executor.
-- Use `tokio::sync::OnceCell` for handler-level values that are initialized once at
-  connection time (e.g. `ReplyBot`, `WebhookService` inside a handler struct).
-- Declare `async fn` only where the function actually awaits something. Synchronous
-  helpers should be plain `fn`.
+- All slow work (LLM, HTTP, DB, audio) must be spawned with `tokio::spawn`.
+- Declare `async fn` only where the function actually awaits something.
 
 ### Testing
 
-- **Test names describe behavior, not implementation.** Prefer `triggers_on_blue_variants`
-  over `test_blue_regex`. Prefer `first_match_wins_second_strategy_not_called` over
-  `test_reply_bot`.
-- **`build_msg` / `fake_ctx` helpers** live at the top of `mod tests`. Never add
-  test-only constructors to production structs; build `serenity::Message` values with
-  `serde_json::json!` and `.expect("description")`.
-- **Mock types** (`MockSender`, `MockStrategy`, etc.) belong in the `mod tests` block of
-  the file that uses them. Move to `tests/` only when the mock must be shared across
-  multiple test files.
-- **Dangling pointer pattern** is acceptable in tests whose strategies/filters declare
-  `_ctx` and never dereference it:
-  ```rust
-  // SAFETY: this filter never dereferences ctx.
-  let ctx_ptr = std::ptr::NonNull::<Context>::dangling();
-  filter.check(unsafe { ctx_ptr.as_ref() }, &msg);
-  ```
-  Always include the safety comment.
-- Every `Strategy` implementation must have tests for: (1) `should_trigger` returns true
-  on canonical inputs, (2) `should_trigger` returns false on non-matching inputs, and
-  (3) `response` returns the expected string.
-- Every new `MessageFilter` primitive must have tests for the pass case, the fail case,
-  and its composition inside `all_of` / `any_of`.
-
----
-
-## Commands
-
-```bash
-# Run all tests
-cargo test
-
-# Run tests in a specific module
-cargo test --lib shared::middleware
-
-# Run a single test by name
-cargo test test_blue_strategy
-
-# Build a specific bot
-cargo build --bin bunkbot
-
-# Build all bots
-cargo build --bins
-
-# Run a bot locally (requires DISCORD_TOKEN env var)
-DISCORD_TOKEN=<token> cargo run --bin bunkbot
-
-# Build and run all containers (local dev — builds from source)
-docker compose -f docker/docker-compose.yml up -d --build
-
-# Build a single container (local dev)
-docker compose -f docker/docker-compose.yml up -d --build bunkbot
-
-# Validate DevOps file consistency (REQUIRED after any bot or CI/CD change)
-bash scripts/devops-validate.sh
-```
+- **Test names describe behavior:** `triggers_on_blue_variants` not `test_blue_regex`.
+- **`build_msg` / `fake_ctx` helpers** live at the top of `mod tests`. Build `serenity::Message` values with `serde_json::json!`.
+- **Mock types** belong in the `mod tests` block of the file that uses them.
+- Every `Strategy` must test: triggers on canonical input, does not trigger on non-matching input, returns the expected response.
+- Every `MessageFilter` must test: pass case, fail case, and composition inside `all_of` / `any_of`.
 
 ---
 
 ## !! DevOps File Maintenance — MANDATORY !!
 
-> **This section applies to every agent and every task. Skipping it is not
-> acceptable.** The CI pipeline enforces this check — drift will cause the
-> `validate_devops` job to fail and block the entire pipeline.
-
-### The rule
-
-Every bot that has a crate under `crates/<botname>/` **must** be registered in **all
-six** of the following files. They must always be kept in sync with each other:
+Every bot crate under `crates/<botname>/` **must** be registered in **all six** of the following files:
 
 | File | What to update |
 |---|---|
-| `docker-compose.yml` | Add a service with `image: ghcr.io/andrewgari/starbunk-rs-<bot>:${IMAGE_TAG:-latest}` |
-| `docker/docker-compose.yml` | Add a service with `BOT_NAME: <bot>` build arg |
+| `docker-compose.yml` | Add service with `image: ghcr.io/andrewgari/starbunk-rs-<bot>:${IMAGE_TAG:-latest}` |
+| `docker/docker-compose.yml` | Add service with `BOT_NAME: <bot>` build arg |
 | `.github/workflows/ci.yml` | Add `crates/<bot>/**` to the paths-filter block |
 | `.github/workflows/main.yml` | Add `<bot>` to the docker build matrix |
 | `scripts/deployment/health-check.sh` | Add `"<bot>"` to the `EXPECTED_SERVICES` array |
-| `AGENTS.md` | Update the bot list everywhere it appears in this file |
+| `AGENTS.md` | Update the bot list in Architecture and Bots sections |
 
-### Validation step — run this after every relevant change
+Run `bash scripts/devops-validate.sh` after any change and fix every `FAIL` before opening a PR.
 
-```bash
-bash scripts/devops-validate.sh
-```
-
-Fix every `FAIL` line before marking the task complete.
+To add a new bot, use the `/add-bot` skill — it walks through all required steps.
 
 ---
 
 ## Architecture
 
-This is a **Rust Cargo workspace** housing 5 independent Discord bots (`bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`), each as its own crate under `crates/<botname>/` with its own binary and Discord token.
+This is a **Rust Cargo workspace** housing 5 independent Discord bots (`bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`), each as its own crate under `crates/<botname>/`.
 
 ### Workspace layout
 
@@ -402,29 +206,11 @@ crates/
 
 ### Shared libraries (`crates/starbunk-shared/`)
 
-- **`discord`** — Messaging abstraction. `MessageService` trait wraps Serenity for sending, replying, editing, and deleting messages. `send_message_with_identity` uses a per-channel webhook to post as a custom user/avatar.
-
-- **`llm`** — `LlmService` trait + `TieredRegistry` for High/Medium/Low tier routing across Anthropic, Google, Ollama, and OpenAI providers.
-
-- **`memory`** — Semantic memory with pgvector. Async fact extraction and recall for context injection.
-
+- **`discord`** — `MessageService` trait wraps Serenity for sending, replying, editing, and deleting. `send_message_with_identity` posts as a custom user/avatar via webhook.
+- **`llm`** — `LlmService` trait + `TieredRegistry` for High/Medium/Low tier routing across Anthropic, Google, Ollama, and OpenAI.
+- **`memory`** — Semantic memory with pgvector. Async fact extraction and recall.
 - **`middleware`** — Composable `MessageFilter` trait with primitives and combinators.
-
 - **`replybot`** — Strategy-pattern dispatcher for reply-style bots.
-
-### Bot pattern
-
-```rust
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-    bunkbot::run().await
-}
-```
-
-### Discord intents
-
-`run_bot` uses `GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT`. DJCova additionally needs `GatewayIntents::GUILD_VOICE_STATES`.
 
 ### Module structure per bot crate
 
@@ -434,16 +220,11 @@ crates/<bot>/
   src/
     lib.rs        # Handler struct, EventHandler impl, pub fn run() — wiring only
     strategy.rs   # Strategy implementations (for reply-style bots)
-    <concern>.rs  # One file per additional domain concern (conversation, tagger, etc.)
+    <concern>.rs  # One file per additional domain concern
     main.rs       # Entry point: calls <bot>::run()
 ```
 
-### Testing
-
-Tests use Rust's built-in `#[test]` / `#[tokio::test]`. Unit tests live in `#[cfg(test)]`
-blocks inside the file under test. Integration tests live in `tests/`. Test helpers and
-mock types are co-located with the tests that use them — see the Rust Code Standards
-section for naming and placement rules.
+Discord intents: `run_bot` uses `GUILD_MESSAGES | MESSAGE_CONTENT`. DJCova additionally needs `GUILD_VOICE_STATES`.
 
 ---
 
@@ -452,97 +233,19 @@ section for naming and placement rules.
 Current bots: `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`.
 
 ### bluebot
-Pattern-matching bot. Detects references to "blue" or Blue Mage in messages and
-replies with contextual or character-themed responses. Ported from starbunk-js via starbunk-go.
-See `wiki/bots/BlueBot.md`.
+Pattern-matching bot. Detects references to "blue" or Blue Mage and replies with contextual responses. See `wiki/bots/BlueBot.md`.
 
 ### bunkbot
-Administrative backbone and general reply bot. Handles high message volume with
-fast reaction times. May use webhooks to post as other identities.
-See `wiki/bots/BunkBot.md`.
+Administrative backbone and general reply bot. High message volume, fast reaction times. May use webhooks to post as other identities. See `wiki/bots/BunkBot.md`.
 
 ### covabot
-AI personality emulator. Responds to conversational mentions with LLM-driven
-replies that mimic a specific user's tone. Depends on an LLM provider (Ollama /
-Anthropic / Gemini / OpenAI). See `wiki/bots/CovaBot.md`.
+AI personality emulator. Responds to conversational mentions with LLM-driven replies that mimic a specific user's tone. See `wiki/bots/CovaBot.md`.
 
 ### djcova
-Voice channel music streaming service. Joins voice on demand, plays YouTube
-audio, manages a per-guild queue. Requires additional voice intents.
-See `wiki/bots/DJCova.md`.
+Voice channel music streaming service. Joins voice on demand, plays YouTube audio, manages a per-guild queue. See `wiki/bots/DJCova.md`.
 
 ### ratbot
-Rat-themed **Secret Santa bot** that organises the guild's "Ratmas" gift
-exchange. Handles sign-ups, randomly assigns gifters to recipients (no
-self-assignment), notifies participants via DM.
-See `wiki/bots/RatBot.md`.
-
----
-
-## Adding a new bot — complete checklist
-
-> After completing every step, run `bash scripts/devops-validate.sh`.
-> All checks must pass before the work is done.
-
-1. **Create** `crates/<newbot>/Cargo.toml` (lib + bin crate, depends on `starbunk-shared`).
-2. **Create** `crates/<newbot>/src/lib.rs` with Handler + EventHandler + `pub async fn run()`.
-3. **Create** `crates/<newbot>/src/main.rs` calling `<newbot>::run().await`.
-4. **Add** `"crates/<newbot>"` to the `members` list in the root `Cargo.toml`.
-5. **Create** `wiki/bots/<NewBot>.md` documenting the bot.
-
-4. **`docker-compose.yml`** — add a service block:
-   ```yaml
-   <newbot>:
-     image: ghcr.io/andrewgari/starbunk-rs-<newbot>:${IMAGE_TAG:-latest}
-     container_name: starbunk-rs-<newbot>
-     restart: unless-stopped
-     environment:
-       - DISCORD_TOKEN=${NEWBOT_TOKEN:-${STARBUNK_TOKEN}}
-       - RUST_LOG=${RUST_LOG:-info}
-     logging:
-       driver: "json-file"
-       options:
-         max-size: "10m"
-         max-file: "3"
-     labels:
-       - "com.centurylinklabs.watchtower.enable=true"
-   ```
-
-5. **`docker/docker-compose.yml`** — add a service block:
-   ```yaml
-   <newbot>:
-     build:
-       context: ..
-       dockerfile: docker/Dockerfile
-       args:
-         BOT_NAME: <newbot>
-     container_name: starbunk-rs-<newbot>
-     restart: unless-stopped
-     environment:
-       - DISCORD_TOKEN=${NEWBOT_TOKEN:-${STARBUNK_TOKEN}}
-       - RUST_LOG=${RUST_LOG:-info}
-     logging:
-       driver: "json-file"
-       options:
-         max-size: "10m"
-         max-file: "3"
-   ```
-
-8. **`.github/workflows/ci.yml`** — add path filter `crates/<newbot>/**`.
-
-7. **`.github/workflows/main.yml`** — add `<newbot>` to the docker build matrix.
-
-8. **`scripts/deployment/health-check.sh`** — add `"<newbot>"` to `EXPECTED_SERVICES`.
-
-9. **`AGENTS.md`** — update the bot list in the Architecture and Bots sections.
-
-10. **Run validation**:
-    ```bash
-    bash scripts/devops-validate.sh
-    ```
-
-11. **Update `wiki/Home.md`** and add `wiki/bots/<NewBot>.md`.
-12. **Add an entry to `wiki/Changelog.md`**.
+Rat-themed Secret Santa bot. Handles sign-ups, randomly assigns gifters to recipients, notifies via DM. See `wiki/bots/RatBot.md`.
 
 ---
 
@@ -553,11 +256,7 @@ See `wiki/bots/RatBot.md`.
 | Required status checks | `Validate DevOps Consistency`, `Lint`, `Test` |
 | Branches must be up to date | Yes (strict mode) |
 | Required PR approvals | 1 |
-| Dismiss stale reviews on new commits | Yes |
 | Force pushes | Blocked |
-| Branch deletion | Blocked |
-
-- **Never push directly to `main`.** All changes go through a PR.
 
 ---
 
