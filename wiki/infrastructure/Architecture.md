@@ -2,54 +2,56 @@
 
 ## Overview
 
-Starbunk-Rs is a Rust monorepo. Each bot is an independent binary with its own
-Docker container and Discord token. The runtime is async/await with the Tokio
+Starbunk-Rs is a **Rust Cargo workspace**. Each bot is an independent crate with
+its own Docker container and Discord token. The runtime is async/await with the Tokio
 executor; Discord is handled by the Serenity framework.
 
 ```
 starbunk-rs/
-  src/
-    bin/
-      bluebot.rs    # binary entry point
-      bunkbot.rs
-      covabot.rs
-      djcova.rs
-      ratbot.rs
-    bots/           # per-bot implementation modules
-      bluebot/
-      bunkbot/
-      covabot/
-      djcova/
-      ratbot/
-      mod.rs
-    shared/         # shared libraries
-      discord/      # Identity, MessageService, WebhookService
-      llm/          # LLM abstraction + multi-provider clients
-      memory/       # Semantic memory with pgvector
-      middleware/   # MessageFilter composable gates
-      replybot/     # Reply bot dispatcher (Strategy pattern)
-      mod.rs
-    lib.rs          # run_bot(), default_intents(), re-exports
-    main.rs         # stub — use specific bot binaries
+  Cargo.toml          # workspace root with [workspace.dependencies]
+  crates/
+    starbunk-shared/  # lib crate — all shared code + run_bot + default_intents
+      src/
+        lib.rs
+        discord/      # Identity, MessageService, WebhookService
+        llm/          # LLM abstraction + multi-provider clients
+        memory/       # Semantic memory with pgvector
+        middleware/   # MessageFilter composable gates
+        replybot/     # Reply bot dispatcher (Strategy pattern)
+    bluebot/          # lib + bin crate
+      src/
+        lib.rs        # Handler, EventHandler impl, pub fn run()
+        strategy.rs   # BlueStrategy
+        main.rs       # entry point
+    bunkbot/          # lib + bin crate (same pattern)
+    covabot/          # lib + bin crate
+      src/
+        lib.rs
+        conversation.rs
+        engagement.rs
+        tagger.rs
+        main.rs
+    djcova/           # lib + bin crate (same pattern as bunkbot)
+    ratbot/           # lib + bin crate (same pattern as bunkbot)
   docker/
     Dockerfile              # single multi-stage build; BOT_NAME arg selects binary
     docker-compose.yml      # local dev — builds from source
   docker-compose.yml        # production — pulls GHCR images
   .github/workflows/
-    ci.yml      # PR checks
+    ci.yml      # PR checks (per-package test matrix)
     main.yml    # build + push images on merge
     deploy.yml  # deploy to Tower server
 ```
 
-## Shared Libraries (`src/shared/`)
+## Shared Libraries (`crates/starbunk-shared/`)
 
-### `src/lib.rs`
+### `lib.rs`
 
 - `run_bot(name, intents, handler)` — reads `DISCORD_TOKEN`, creates a Serenity
   client with the provided handler, starts the gateway, blocks until shutdown.
 - `default_intents()` — returns `GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT`.
 
-### `src/shared/discord`
+### `discord`
 
 Three single-responsibility layers:
 
@@ -72,35 +74,33 @@ Three single-responsibility layers:
   ```rust
   #[async_trait]
   pub trait MessageService: Send + Sync {
-      // Bot's own identity — admin, errors, ephemeral messages
-      async fn send_message(&self, channel_id: ChannelId, content: &str) -> Result<Message>;
-      // Caller-provided identity — service decides transport (direct API vs webhook)
-      async fn send_message_with_identity(&self, channel_id: ChannelId, content: &str, id: &Identity) -> Result<Message>;
+      async fn send(&self, channel_id: ChannelId, content: &str) -> Result<Message>;
+      async fn send_with_identity(&self, channel_id: ChannelId, content: &str, id: Identity) -> Result<Message>;
       async fn reply(&self, channel_id: ChannelId, message_id: MessageId, content: &str) -> Result<Message>;
       async fn edit(&self, channel_id: ChannelId, message_id: MessageId, content: &str) -> Result<Message>;
       async fn delete(&self, channel_id: ChannelId, message_id: MessageId) -> Result<()>;
-      async fn close(&self) -> Result<()>;
+      async fn close(&self);
   }
   ```
 
-### `src/shared/llm`
+### `llm`
 
 - `LlmService` trait — unified abstraction for bots to interact with Large Language Models.
 - `Registry` trait — factory pattern for separating High, Medium, and Low capability tiers via `.env`.
 - `TieredRegistry` — concrete implementation using env-configured providers.
 - Multi-provider clients: Anthropic, Google, Ollama, OpenAI.
 
-### `src/shared/memory`
+### `memory`
 
 - `MemoryService` trait — semantic memory system.
 - Asynchronously uses Low-tier LLMs to extract facts from incoming messages.
 - Uses `pgvector` inside PostgreSQL to store text alongside embedding vectors.
 - `recall()` injects past facts into the bot's system prompt context.
 
-### `src/shared/middleware`
+### `middleware`
 
-Composable message filter gates. Every bot must supply a `MessageFilter` to
-`run_bot`; no message can be processed without passing the filter.
+Composable message filter gates. Every bot must supply a `MessageFilter`; no
+message can be processed without passing the filter.
 
 **Trait**
 
@@ -127,26 +127,16 @@ pub fn any_of(filters: Vec<Arc<dyn MessageFilter>>) -> Arc<dyn MessageFilter>
 pub fn not(f: Arc<dyn MessageFilter>) -> Arc<dyn MessageFilter>
 ```
 
-**Example composition**
+### `replybot`
 
-```rust
-// Bots always fail. Non-bots pass freely, except a specific user
-// who only triggers when the message contains "bingo".
-let filter = all_of(vec![
-    NOT_BOT.clone(),
-    any_of(vec![
-        not(author_id("111111")),
-        content_contains("bingo"),
-    ]),
-]);
-```
-
-See [[../development/MessageFiltering|Message Filtering]] for the full design.
+Strategy-pattern dispatcher for reply-style bots. `ReplyBot` iterates strategies
+in order; the first strategy whose `should_trigger` returns true sends its response
+and stops.
 
 ## Bot Pattern
 
 ```rust
-use starbunk::shared::middleware;
+use starbunk_shared::middleware;
 
 struct MyHandler {
     filter: Arc<dyn MessageFilter>,
@@ -156,11 +146,8 @@ struct MyHandler {
 #[async_trait]
 impl EventHandler for MyHandler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if !self.filter.check(&ctx, &msg) {
-            return;
-        }
-        // Audit has already passed. Business logic here.
-        self.sender.send_message(msg.channel_id, "response").await.ok();
+        if !self.filter.check(&ctx, &msg) { return; }
+        self.sender.send(msg.channel_id, "response").await.ok();
     }
 }
 
@@ -173,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
         middleware::HAS_CONTENT.clone(),
     ]);
     let handler = MyHandler { filter, sender: ... };
-    starbunk::run_bot("BotName", starbunk::default_intents(), handler).await
+    starbunk_shared::run_bot("BotName", starbunk_shared::default_intents(), handler).await
 }
 ```
 
@@ -181,6 +168,19 @@ async fn main() -> anyhow::Result<()> {
 
 Default: `GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT`.
 DJCova additionally needs `GatewayIntents::GUILD_VOICE_STATES`.
+
+## CI: Per-Package Test Targeting
+
+The CI `test` job runs `cargo test -p <package>` per changed crate, not `--all`:
+
+| Changed files | Packages tested |
+|---|---|
+| `crates/bluebot/**` | `bluebot` |
+| `crates/covabot/**` | `covabot` |
+| `crates/starbunk-shared/src/replybot/**` | `starbunk-shared`, `bluebot` |
+| `crates/starbunk-shared/src/llm/**` | `starbunk-shared`, `covabot` |
+| `crates/starbunk-shared/src/discord/**` | `starbunk-shared`, all bots |
+| `Cargo.toml`, `Cargo.lock` | all packages |
 
 ## See Also
 

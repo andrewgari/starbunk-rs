@@ -44,3 +44,17 @@ Add an entry under today's date for every PR or significant change.
 - Full wiki documentation ported and translated from starbunk-go.
 - `AGENTS.md` and `CLAUDE.md` with Rust-specific guidance.
 - `.env.example` with all environment variable documentation.
+
+## 2026-06-09
+
+### Changed
+- **Workspace refactor**: migrated from a single Cargo package to a multi-crate
+  workspace (`crates/starbunk-shared`, `crates/bluebot`, `crates/bunkbot`,
+  `crates/covabot`, `crates/djcova`, `crates/ratbot`).
+- CI `test` job now runs `cargo test -p <package>` per changed crate instead of
+  `cargo test --all`, enabling true per-bot test isolation.
+- Dockerfile updated for workspace layout (copies all crate manifests, uses
+  `cargo build -p <bot>`).
+- `devops-validate.sh` discovers bots from `crates/` instead of `src/bin/`.
+- `AGENTS.md` and `wiki/infrastructure/Architecture.md` updated to reflect new
+  workspace structure.
