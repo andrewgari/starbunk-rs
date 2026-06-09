@@ -21,8 +21,10 @@ git checkout -b <branch-name>
 
 **Always use worktrees**: You must isolate your work by adding a git worktree. This prevents state conflicts and keeps your workspace clean.
 ```bash
-mkdir -p "$(dirname ".gemini/worktrees/<branch-name>")"
-git worktree add .gemini/worktrees/<branch-name> <branch-name>
+BRANCH=<branch-name>
+mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
+git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
+    /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
 ```
 *(Note: All subsequent code modifications must be performed inside this worktree directory.)*
 
