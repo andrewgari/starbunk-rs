@@ -113,6 +113,53 @@ A task is **not complete** until:
 - **Non-blocking handlers** — Serenity event handlers run on a shared async executor. Any slow operation (LLM calls, HTTP, audio processing) must be spawned with `tokio::spawn`.
 - **Use correct Docker service names** — internal service communication uses service names defined in `docker-compose.yml` (e.g. `starbunk-rs-bunkbot`).
 - **Never push directly to `main`** — all changes go through a PR. Never use `--no-verify`.
+- **One worktree per PR** — every task lives in its own git worktree. See the Worktree Lifecycle section below.
+
+---
+
+## Worktree Lifecycle
+
+Every PR gets its own isolated git worktree. This prevents branch state from leaking between tasks and
+makes cleanup deterministic.
+
+### Starting a task
+
+```bash
+# 1. Sync main
+git checkout main && git pull origin main
+
+# 2. Create a branch and worktree together
+BRANCH=feat/my-feature
+git checkout -b $BRANCH
+mkdir -p .claude/worktrees
+git worktree add .claude/worktrees/${BRANCH//\//-} $BRANCH
+
+# 3. All code changes happen inside the worktree
+cd .claude/worktrees/${BRANCH//\//-}
+```
+
+Or just use `/task` — it calls the `task-runner` agent which handles worktree creation automatically.
+
+### Ending a task (PR merged or closed)
+
+Worktrees are cleaned up automatically:
+- The `post-merge` git hook fires `scripts/cleanup-worktrees.sh --apply` in the background after every local merge.
+- For PRs merged via the GitHub UI, run cleanup manually:
+
+```bash
+bash scripts/cleanup-worktrees.sh          # dry-run — shows what would be removed
+bash scripts/cleanup-worktrees.sh --apply  # actually remove merged/closed worktrees
+```
+
+The script calls `gh pr view <branch>` for each worktree. If the PR state is `MERGED` or `CLOSED`,
+the worktree is removed and the local branch is deleted.
+
+### Rules
+
+- **Never work directly on `main`** inside a worktree — always on a feature branch.
+- **Worktrees live under `.claude/worktrees/`** — this path is gitignored.
+- **One worktree = one PR.** Do not reuse a worktree for a second PR.
+- **Run cleanup before starting a new task** if you suspect stale worktrees are accumulating.
 
 ---
 
