@@ -16,5 +16,52 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Skill(task)",
+      "Skill(deploy)",
+      "Skill(review-pr-comments)",
+      "Skill(health-check)",
+      "Skill(ci-diagnose)",
+      "Skill(build)",
+      "Skill(check)",
+      "Skill(test)",
+      "Skill(lint)",
+      "Skill(docker)",
+      "Skill(logs)",
+      "Skill(triage-issues)",
+      "Bash(git:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh issue:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo run:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker:*)",
+      "Bash(bash scripts/devops-validate.sh)",
+      "Bash(bash scripts/devops-validate.sh:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(chmod +x:*)",
+      "Bash(mkdir -p:*)",
+      "Bash(touch:*)",
+      "Bash(ssh tower:*)",
+      "Bash(tower:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:discord.com)",
+      "WebFetch(domain:docs.discord.com)"
+    ]
   }
 }
