@@ -20,6 +20,11 @@ the skill immediately — don't describe what you'd do, just do it.
 | User asks about Claude Code / Anthropic API | `claude-code-guide` agent |
 | Setting up hooks or automated behaviors | `/update-config` |
 
+## Task Integration & Discretionary Loading
+If the user asks to implement a feature, fix a bug, or perform any refactoring/coding task directly in chat without explicitly typing `/task`:
+1. **Recognize the context**: Identify that the request constitutes a "task" (branch -> worktree -> build/test -> PR -> CI watch).
+2. **Take action**: Proactively ask or recommend that the user invoke the `/task` command, OR load and execute the `/task` workflow at your own discretion to handle the workflow properly in an isolated worktree. Never work directly on `main` or bypass the worktree setup.
+
 Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. If tests fail,
 fixing them is part of the task.
 
