@@ -1,1 +1,9 @@
 /target
+.env
+*.env.local
+wiki/raw/CHANGELOG-*.md
+/bluebot
+/bunkbot
+/covabot
+/djcova
+/ratbot

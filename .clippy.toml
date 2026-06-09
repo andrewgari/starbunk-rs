@@ -1,0 +1,8 @@
+# Clippy configuration for starbunk-rs
+# Rust equivalent of .golangci.yml
+
+# Enforce a maximum complexity limit
+cognitive-complexity-threshold = 30
+
+# Disallow wildcard imports except in tests
+warn-on-all-wildcard-imports = true

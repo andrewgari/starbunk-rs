@@ -1,0 +1,125 @@
+version: "3.8"
+name: starbunk-rs
+# Local development — builds all bots from source.
+# Usage: docker compose -f docker/docker-compose.yml up -d --build
+
+services:
+  bluebot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: bluebot
+    container_name: starbunk-rs-bluebot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${BLUEBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bunkbot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: bunkbot
+    container_name: starbunk-rs-bunkbot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${BUNKBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  covabot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: covabot
+    container_name: starbunk-rs-covabot
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DISCORD_TOKEN=${COVABOT_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:-starbunk}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - LLM_TIER_HIGH_PROVIDER=${LLM_TIER_HIGH_PROVIDER:-anthropic}
+      - LLM_TIER_HIGH_MODEL=${LLM_TIER_HIGH_MODEL:-claude-3-5-sonnet-latest}
+      - LLM_TIER_MEDIUM_PROVIDER=${LLM_TIER_MEDIUM_PROVIDER:-google}
+      - LLM_TIER_MEDIUM_MODEL=${LLM_TIER_MEDIUM_MODEL:-gemini-1.5-flash}
+      - LLM_TIER_LOW_PROVIDER=${LLM_TIER_LOW_PROVIDER:-openai}
+      - LLM_TIER_LOW_MODEL=${LLM_TIER_LOW_MODEL:-text-embedding-3-small}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  djcova:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: djcova
+    container_name: starbunk-rs-djcova
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DJCOVA_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ratbot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: ratbot
+    container_name: starbunk-rs-ratbot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${RATBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: starbunk-rs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-starbunk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-starbunk}
+      POSTGRES_DB: ${POSTGRES_DB:-starbunk_memory}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-starbunk} -d ${POSTGRES_DB:-starbunk_memory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,28 @@
+# GitHub PR labels used by the semver versioning workflow.
+#
+# Apply these labels to a PR before merging to control which version component
+# is bumped. If no version label is present the workflow falls back to
+# conventional-commit title inference, then defaults to a patch bump.
+#
+# Seed these labels in the repo once with:
+#   gh label create "bump:major"   --color "d73a4a" --description "Breaking change — bumps major version (X.0.0)"
+#   gh label create "bump:minor"   --color "0075ca" --description "New feature — bumps minor version (0.X.0)"
+#   gh label create "bump:patch"   --color "0e8a16" --description "Bug fix or chore — bumps patch version (0.0.X)"
+#   gh label create "breaking"     --color "b60205" --description "Contains a breaking change (alias for bump:major)"
+
+labels:
+  - name: "bump:major"
+    color: "d73a4a"
+    description: "Breaking change — bumps major version (X.0.0)"
+
+  - name: "bump:minor"
+    color: "0075ca"
+    description: "New feature — bumps minor version (0.X.0)"
+
+  - name: "bump:patch"
+    color: "0e8a16"
+    description: "Bug fix or chore — bumps patch version (0.0.X)"
+
+  - name: "breaking"
+    color: "b60205"
+    description: "Contains a breaking change (alias for bump:major)"
