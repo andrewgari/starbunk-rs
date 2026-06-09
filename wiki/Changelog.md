@@ -5,6 +5,17 @@ Add an entry under today's date for every PR or significant change.
 
 ---
 
+## 2026-06-09 — Test parity with starbunk-go
+
+### Added
+- `middleware/author`: `author_named_is_case_sensitive` test.
+- `middleware/content`: `has_attachment_passes_with_attachment` test.
+- `middleware/mod`: BunkBot policy composition, Jeff-bot weekday-rejection, and Scenario 2 (`AnyOf`/`AllOf`/`Chance`) complex composition tests — all matching Go's `auditor_test.go`.
+- `replybot/bot`: `SpyStrategy` helper with `Arc<AtomicUsize>` trigger counter shareable across box boundary; 9 new tests covering condition-pass, condition-fallthrough, mixed conditioned/unconditioned, AllOf multi-criteria, and NotSelf-via-bot-id — matching Go's `bot_test.go`.
+- Total starbunk-shared tests: 65 (up from ~47).
+
+---
+
 ## 2026-06-09 — Code parity, TDD, and idiomatic Rust refinements
 
 ### Added
