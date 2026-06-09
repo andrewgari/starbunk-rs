@@ -1,0 +1,21 @@
+[package]
+name    = "djcova"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "djcova"
+path = "src/lib.rs"
+
+[[bin]]
+name = "djcova"
+path = "src/main.rs"
+
+[dependencies]
+starbunk-shared.workspace    = true
+serenity.workspace           = true
+tokio.workspace              = true
+async-trait.workspace        = true
+anyhow.workspace             = true
+tracing.workspace            = true
+tracing-subscriber.workspace = true

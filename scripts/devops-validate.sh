@@ -1,5 +1,5 @@
 #!/bin/bash
-# Validates that all DevOps files are consistent with the bots defined in src/bin/.
+# Validates that all DevOps files are consistent with the bots defined in crates/.
 #
 # Run this script any time you add, remove, or rename a bot, or after editing
 # any CI/CD or Docker file. It is also executed as a CI check on every PR.
@@ -16,21 +16,26 @@ ERRORS=0
 fail() { echo "  FAIL  $1"; ERRORS=$((ERRORS + 1)); }
 ok()   { echo "  ok    $1"; }
 
-# ── Discover bots from src/bin/ ───────────────────────────────────────────────
+# ── Discover bots from crates/ ────────────────────────────────────────────────
+# A bot crate is any directory under crates/ that has a src/main.rs and is
+# not the shared library.
 BOTS=()
-for file in src/bin/*.rs; do
-  bot=$(basename "$file" .rs)
-  if [ -f "src/bin/${bot}.rs" ]; then
+for dir in crates/*/; do
+  bot=$(basename "$dir")
+  if [ "$bot" == "starbunk-shared" ]; then
+    continue
+  fi
+  if [ -f "crates/${bot}/src/main.rs" ]; then
     BOTS+=("$bot")
   fi
 done
 
 if [ ${#BOTS[@]} -eq 0 ]; then
-  echo "ERROR: No bots found under src/bin/. Is this the repo root?"
+  echo "ERROR: No bots found under crates/. Is this the repo root?"
   exit 1
 fi
 
-echo "Bots discovered in src/bin/: ${BOTS[*]}"
+echo "Bots discovered in crates/: ${BOTS[*]}"
 echo ""
 
 # ── Check each file for every bot ────────────────────────────────────────────
@@ -51,11 +56,11 @@ for bot in "${BOTS[@]}"; do
     fail "docker/docker-compose.yml: missing BOT_NAME: ${bot}"
   fi
 
-  # 3. .github/workflows/ci.yml — build matrix
-  if grep -q "src/bin/${bot}" .github/workflows/ci.yml 2>/dev/null; then
-    ok ".github/workflows/ci.yml: filter includes src/bin/${bot}"
+  # 3. .github/workflows/ci.yml — path filter for crate directory
+  if grep -q "crates/${bot}/" .github/workflows/ci.yml 2>/dev/null; then
+    ok ".github/workflows/ci.yml: filter includes crates/${bot}/"
   else
-    fail ".github/workflows/ci.yml: missing 'src/bin/${bot}' in path filter"
+    fail ".github/workflows/ci.yml: missing 'crates/${bot}/' in path filter"
   fi
 
   # 4. .github/workflows/main.yml — docker build matrix
@@ -75,7 +80,7 @@ for bot in "${BOTS[@]}"; do
   echo ""
 done
 
-# ── Reverse check: warn about services in compose not backed by a src/bin/ ───
+# ── Reverse check: warn about services in compose not backed by a crates/ dir ─
 echo "[reverse check]"
 while IFS= read -r svc; do
   # Strip the "starbunk-rs-" prefix if present to get the bot name.
@@ -84,10 +89,10 @@ while IFS= read -r svc; do
     continue
   fi
 
-  if [ ! -f "src/bin/${bot}.rs" ]; then
-    fail "docker-compose.yml: service '${svc}' has no matching src/bin/${bot}.rs"
+  if [ ! -f "crates/${bot}/src/main.rs" ]; then
+    fail "docker-compose.yml: service '${svc}' has no matching crates/${bot}/src/main.rs"
   else
-    ok "docker-compose.yml: service '${svc}' backed by src/bin/${bot}.rs"
+    ok "docker-compose.yml: service '${svc}' backed by crates/${bot}/src/main.rs"
   fi
 done < <(grep -E '^  [a-z]' docker-compose.yml | grep -v '#' | sed 's/://g' | sed 's/^ *//' || true)
 

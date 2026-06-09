@@ -113,10 +113,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "bluebot"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "regex",
+ "serde_json",
+ "serenity",
+ "starbunk-shared",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
+name = "bunkbot"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serenity",
+ "starbunk-shared",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "bytecount"
@@ -245,6 +273,22 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "covabot"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "rand 0.8.6",
+ "serde",
+ "serde_json",
+ "serenity",
+ "starbunk-shared",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -400,6 +444,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "djcova"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serenity",
+ "starbunk-shared",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1455,6 +1512,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
+name = "ratbot"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serenity",
+ "starbunk-shared",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2073,7 +2143,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
-name = "starbunk-rs"
+name = "starbunk-shared"
 version = "2026.0.1"
 dependencies = [
  "anyhow",
@@ -2089,7 +2159,6 @@ dependencies = [
  "sqlx",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

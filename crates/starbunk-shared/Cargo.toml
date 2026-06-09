@@ -1,0 +1,22 @@
+[package]
+name    = "starbunk-shared"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "starbunk_shared"
+
+[dependencies]
+serenity.workspace     = true
+tokio.workspace        = true
+async-trait.workspace  = true
+serde.workspace        = true
+serde_json.workspace   = true
+reqwest.workspace      = true
+regex.workspace        = true
+tracing.workspace      = true
+rand.workspace         = true
+anyhow.workspace       = true
+chrono.workspace       = true
+sqlx.workspace         = true
+pgvector.workspace     = true

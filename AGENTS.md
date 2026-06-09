@@ -201,9 +201,9 @@ A task is **not complete** until:
 
 - **Never commit secrets or local config** — `.env` files, tokens, and anything
   under `config/`, `local/`, or `data/` directories must not be committed.
-- **Maintain container isolation** — each bot binary under `src/bin/` is its
-  own container. Cross-bot shared logic belongs in `src/shared/`, not copied
-  between bots.
+- **Maintain container isolation** — each bot is its own Cargo crate under
+  `crates/<bot>/` and its own container. Cross-bot shared logic belongs in
+  `crates/starbunk-shared/`, not copied between bots.
 - **Self-message guard** — every message handler must check `msg.author.id != ctx.cache.current_user().id`
   (or use the `NOT_SELF` filter) to prevent bot reply loops.
 - **Non-blocking handlers** — Serenity event handlers run on a shared async executor.
@@ -227,15 +227,15 @@ These rules apply to every file written or changed in this project, without exce
   expose `pub async fn run()`. No business logic belongs there.
 - **Business logic lives in named submodules.** Name them for what they do:
   `strategy.rs`, `conversation.rs`, `engagement.rs`, `tagger.rs`.
-- **No copy-paste between bots.** If two bots need the same logic, it belongs in `src/shared/`.
+- **No copy-paste between bots.** If two bots need the same logic, it belongs in `crates/starbunk-shared/`.
 
 ### Bot isolation
 
-- Each bot in `src/bots/<bot>/` is fully self-contained. It may import from `src/shared/`
-  but **never** from another bot's submodule (`src/bots/<other>/`).
-- The dependency graph is strictly one-directional: `bin/` → `bots/` → `shared/`.
+- Each bot crate in `crates/<bot>/` is fully self-contained. It may import from
+  `crates/starbunk-shared/` but **never** from another bot's crate.
+- The dependency graph is strictly one-directional: `crates/<bot>/` → `crates/starbunk-shared/`.
 - Bots must not share mutable state. Any state that looks shared (e.g. webhook caches)
-  belongs in `src/shared/` with proper `Arc<Mutex<_>>` or `DashMap` protection.
+  belongs in `crates/starbunk-shared/` with proper `Arc<Mutex<_>>` or `DashMap` protection.
 
 ### Types and traits
 
@@ -342,14 +342,14 @@ bash scripts/devops-validate.sh
 
 ### The rule
 
-Every bot that lives under `src/bin/<botname>.rs` **must** be registered in **all
+Every bot that has a crate under `crates/<botname>/` **must** be registered in **all
 six** of the following files. They must always be kept in sync with each other:
 
 | File | What to update |
 |---|---|
 | `docker-compose.yml` | Add a service with `image: ghcr.io/andrewgari/starbunk-rs-<bot>:${IMAGE_TAG:-latest}` |
 | `docker/docker-compose.yml` | Add a service with `BOT_NAME: <bot>` build arg |
-| `.github/workflows/ci.yml` | Add `src/bin/<bot>.rs` to the paths-filter block |
+| `.github/workflows/ci.yml` | Add `crates/<bot>/**` to the paths-filter block |
 | `.github/workflows/main.yml` | Add `<bot>` to the docker build matrix |
 | `scripts/deployment/health-check.sh` | Add `"<bot>"` to the `EXPECTED_SERVICES` array |
 | `AGENTS.md` | Update the bot list everywhere it appears in this file |
@@ -366,19 +366,32 @@ Fix every `FAIL` line before marking the task complete.
 
 ## Architecture
 
-This is a **Rust monorepo** housing 5 independent Discord bots (`bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`), each with its own binary entry point in `src/bin/<botname>.rs` and its own Discord token.
+This is a **Rust Cargo workspace** housing 5 independent Discord bots (`bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`), each as its own crate under `crates/<botname>/` with its own binary and Discord token.
 
-### Shared libraries (`src/shared/`)
+### Workspace layout
 
-- **`src/shared/discord`** — Messaging abstraction. `MessageService` trait wraps Serenity for sending, replying, editing, and deleting messages. `send_message_with_identity` uses a per-channel webhook to post as a custom user/avatar.
+```
+Cargo.toml                  # workspace root with [workspace.dependencies]
+crates/
+  starbunk-shared/          # lib crate — all shared code + run_bot + default_intents
+  bluebot/                  # lib + bin crate
+  bunkbot/                  # lib + bin crate
+  covabot/                  # lib + bin crate
+  djcova/                   # lib + bin crate
+  ratbot/                   # lib + bin crate
+```
 
-- **`src/shared/llm`** — `LlmService` trait + `TieredRegistry` for High/Medium/Low tier routing across Anthropic, Google, Ollama, and OpenAI providers.
+### Shared libraries (`crates/starbunk-shared/`)
 
-- **`src/shared/memory`** — Semantic memory with pgvector. Async fact extraction and recall for context injection.
+- **`discord`** — Messaging abstraction. `MessageService` trait wraps Serenity for sending, replying, editing, and deleting messages. `send_message_with_identity` uses a per-channel webhook to post as a custom user/avatar.
 
-- **`src/shared/middleware`** — Composable `MessageFilter` trait with primitives and combinators.
+- **`llm`** — `LlmService` trait + `TieredRegistry` for High/Medium/Low tier routing across Anthropic, Google, Ollama, and OpenAI providers.
 
-- **`src/shared/replybot`** — Strategy-pattern dispatcher for reply-style bots.
+- **`memory`** — Semantic memory with pgvector. Async fact extraction and recall for context injection.
+
+- **`middleware`** — Composable `MessageFilter` trait with primitives and combinators.
+
+- **`replybot`** — Strategy-pattern dispatcher for reply-style bots.
 
 ### Bot pattern
 
@@ -386,7 +399,7 @@ This is a **Rust monorepo** housing 5 independent Discord bots (`bluebot`, `bunk
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    starbunk::bots::bunkbot::run().await
+    bunkbot::run().await
 }
 ```
 
@@ -394,13 +407,16 @@ async fn main() -> anyhow::Result<()> {
 
 `run_bot` uses `GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT`. DJCova additionally needs `GatewayIntents::GUILD_VOICE_STATES`.
 
-### Module structure per bot
+### Module structure per bot crate
 
 ```
-src/bots/<bot>/
-  mod.rs          # Handler struct, EventHandler impl, pub fn run() — wiring only
-  strategy.rs     # Strategy implementations (for reply-style bots)
-  <concern>.rs    # One file per additional domain concern (conversation, tagger, etc.)
+crates/<bot>/
+  Cargo.toml
+  src/
+    lib.rs        # Handler struct, EventHandler impl, pub fn run() — wiring only
+    strategy.rs   # Strategy implementations (for reply-style bots)
+    <concern>.rs  # One file per additional domain concern (conversation, tagger, etc.)
+    main.rs       # Entry point: calls <bot>::run()
 ```
 
 ### Testing
@@ -449,9 +465,11 @@ See `wiki/bots/RatBot.md`.
 > After completing every step, run `bash scripts/devops-validate.sh`.
 > All checks must pass before the work is done.
 
-1. **Create** `src/bin/<newbot>.rs` calling `starbunk::bots::<newbot>::run()`.
-2. **Create** `src/bots/<newbot>/mod.rs` with the bot implementation.
-3. **Create** `wiki/bots/<NewBot>.md` documenting the bot.
+1. **Create** `crates/<newbot>/Cargo.toml` (lib + bin crate, depends on `starbunk-shared`).
+2. **Create** `crates/<newbot>/src/lib.rs` with Handler + EventHandler + `pub async fn run()`.
+3. **Create** `crates/<newbot>/src/main.rs` calling `<newbot>::run().await`.
+4. **Add** `"crates/<newbot>"` to the `members` list in the root `Cargo.toml`.
+5. **Create** `wiki/bots/<NewBot>.md` documenting the bot.
 
 4. **`docker-compose.yml`** — add a service block:
    ```yaml
@@ -491,7 +509,7 @@ See `wiki/bots/RatBot.md`.
          max-file: "3"
    ```
 
-6. **`.github/workflows/ci.yml`** — add path filter for `src/bin/<newbot>.rs`.
+8. **`.github/workflows/ci.yml`** — add path filter `crates/<newbot>/**`.
 
 7. **`.github/workflows/main.yml`** — add `<newbot>` to the docker build matrix.
 
