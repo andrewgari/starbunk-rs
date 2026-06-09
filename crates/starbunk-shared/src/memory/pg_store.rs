@@ -74,15 +74,13 @@ impl Store for PgStore {
         embedding: Vec<f32>,
     ) -> anyhow::Result<()> {
         let vec = Vector::from(embedding);
-        sqlx::query(
-            "INSERT INTO memories (user_id, content, embedding) VALUES ($1, $2, $3)",
-        )
-        .bind(user_id)
-        .bind(content)
-        .bind(vec)
-        .execute(&self.pool)
-        .await
-        .context("failed to save memory")?;
+        sqlx::query("INSERT INTO memories (user_id, content, embedding) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(content)
+            .bind(vec)
+            .execute(&self.pool)
+            .await
+            .context("failed to save memory")?;
 
         tracing::debug!("saved memory to pgvector");
         Ok(())

@@ -552,14 +552,17 @@ mod tests {
 
     #[tokio::test]
     async fn all_of_condition_filters_bot_in_guild() {
-        use crate::middleware::{all_of, IS_BOT, GUILD_ONLY};
+        use crate::middleware::{all_of, GUILD_ONLY, IS_BOT};
         use crate::replybot::strategy::WithCondition;
 
         let (spy, count) = SpyStrategy::new("bot-guild", true, "ok");
         let cond = all_of(vec![IS_BOT.clone(), GUILD_ONLY.clone()]);
 
         let sender = MockSender::new();
-        let bot = ReplyBot::new(sender.clone(), vec![Box::new(WithCondition::new(cond, spy))]);
+        let bot = ReplyBot::new(
+            sender.clone(),
+            vec![Box::new(WithCondition::new(cond, spy))],
+        );
         let ctx = fake_ctx();
 
         // Bot in DM → AllOf fails (not GUILD_ONLY) → should_trigger not called
@@ -586,7 +589,10 @@ mod tests {
 
         let (spy, count) = SpyStrategy::new("s", true, "oops");
         let sender = MockSender::new();
-        let bot = ReplyBot::new(sender.clone(), vec![Box::new(WithCondition::new(cond, spy))]);
+        let bot = ReplyBot::new(
+            sender.clone(),
+            vec![Box::new(WithCondition::new(cond, spy))],
+        );
         let ctx = fake_ctx();
 
         // Self message → condition fails → should_trigger not called
@@ -608,7 +614,10 @@ mod tests {
 
         let (spy, count) = SpyStrategy::new("s", true, "response");
         let sender = MockSender::new();
-        let bot = ReplyBot::new(sender.clone(), vec![Box::new(WithCondition::new(cond, spy))]);
+        let bot = ReplyBot::new(
+            sender.clone(),
+            vec![Box::new(WithCondition::new(cond, spy))],
+        );
         let ctx = fake_ctx();
 
         let other_msg = build_bot_msg(); // author.id = "2", different from bot_user_id 99

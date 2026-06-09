@@ -44,9 +44,7 @@ impl IdentityProvider for DiscordIdentityProvider {
     ) -> anyhow::Result<Identity> {
         if let Some(gid) = guild_id {
             if let Ok(member) = gid.member(&self.http, user_id).await {
-                let avatar_url = member
-                    .avatar_url()
-                    .unwrap_or_else(|| member.user.face());
+                let avatar_url = member.avatar_url().unwrap_or_else(|| member.user.face());
                 return Ok(Identity {
                     nickname: member.nick.unwrap_or_default(),
                     username: member.user.name.clone(),

@@ -3,6 +3,14 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-09 — DJCova implementation and integration
+
+### Added
+- Completed implementation of the `djcova` music bot in Rust.
+- Decoupled `VoiceService` and `GifService` traits with test mocks, implementing 9 comprehensive unit tests covering playback, queueing, repeat modes, skip logic, and disconnect/idle timers.
+- Integrated slash commands (`/play`, `/skip`, `/stop`, `/queue`, `/nowplaying`, `/history`, `/shuffle`, `/help`, `/volume`, `/clear`, `/repeat`) and interactive button controls (Stop, Skip, Restart, Re-queue).
+- Configured Docker build steps to download `yt-dlp` and `ffmpeg` when compiling the `djcova` bot.
+
 ## 2026-06-09 — Clean git history and conventional commit enforcement
 
 ### Added

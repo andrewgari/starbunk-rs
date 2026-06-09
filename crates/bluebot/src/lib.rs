@@ -1,10 +1,10 @@
 mod strategy;
 
+use async_trait::async_trait;
+use serenity::all::{Context, EventHandler, Message, Ready};
 use starbunk_shared::discord::{DiscordMessageService, WebhookService};
 use starbunk_shared::middleware::{all_of, GUILD_ONLY, HAS_CONTENT, NOT_BOT, NOT_SELF};
 use starbunk_shared::replybot::ReplyBot;
-use async_trait::async_trait;
-use serenity::all::{Context, EventHandler, Message, Ready};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -59,5 +59,10 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    starbunk_shared::run_bot("BlueBot", starbunk_shared::default_intents(), Handler::new()).await
+    starbunk_shared::run_bot(
+        "BlueBot",
+        starbunk_shared::default_intents(),
+        Handler::new(),
+    )
+    .await
 }

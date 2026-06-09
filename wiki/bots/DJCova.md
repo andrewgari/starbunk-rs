@@ -10,9 +10,33 @@ from starbunk-js DJCova.
 
 ## Major Features
 
-- `/play <youtube-url>` command — joins voice and streams audio.
-- Per-guild queue management (add, skip, clear).
-- Voice channel state management (join, leave, reconnect).
+- **Slash Commands:** Integrated modern Discord slash commands for all music actions.
+- **Interactive Controls:** Posts an interactive button panel when a song is playing, allowing users to stop, skip, restart, or re-queue the current track easily.
+- **Tenor GIF Integration:** Searches and displays random dancing GIFs (via Tenor API) at regular intervals during active playback.
+- **Auto-Disconnect Timers:**
+  - 2-minute idle timer: Leaves the channel automatically if the queue remains empty.
+  - 1-minute empty voice channel timer: Leaves the channel if all non-bot members leave.
+
+## Slash Commands
+
+- `/play [input] [file]` — Play a song via query/URL, or upload an audio file (MP3/FLAC/OGG/WAV).
+- `/skip` — Skip the current track.
+- `/stop` — Stop playback and disconnect from the voice channel.
+- `/queue` — View the current queue.
+- `/nowplaying` — View details of the currently playing track along with the control buttons.
+- `/history` — View a list of recently played tracks.
+- `/volume [level]` — Adjust playback volume (0-100%).
+- `/repeat [mode]` — Set repeat mode (`off`, `song`, or `queue`).
+- `/shuffle` — Shuffle the queue.
+- `/clear` — Clear all tracks from the queue.
+- `/help` — Display commands help menu.
+
+## Configuration
+
+Requires the following environment variables:
+- `DISCORD_TOKEN` — Discord bot token.
+- `TENOR_API_KEY` — Tenor API key for fetching dancing GIFs.
+- `DEV_GUILD_ID` (optional) — If set, registers slash commands to a specific guild instantly for faster development feedback.
 
 ## Dependencies & Architecture
 

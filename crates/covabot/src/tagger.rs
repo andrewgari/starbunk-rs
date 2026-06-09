@@ -1,7 +1,7 @@
-use starbunk_shared::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use starbunk_shared::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,11 +44,7 @@ pub struct TaggingContext {
 
 #[async_trait]
 pub trait TaggerService: Send + Sync {
-    async fn tag_message(
-        &self,
-        content: &str,
-        ctx: TaggingContext,
-    ) -> anyhow::Result<TagResult>;
+    async fn tag_message(&self, content: &str, ctx: TaggingContext) -> anyhow::Result<TagResult>;
 }
 
 pub struct LlmTagger {
@@ -63,11 +59,7 @@ impl LlmTagger {
 
 #[async_trait]
 impl TaggerService for LlmTagger {
-    async fn tag_message(
-        &self,
-        content: &str,
-        ctx: TaggingContext,
-    ) -> anyhow::Result<TagResult> {
+    async fn tag_message(&self, content: &str, ctx: TaggingContext) -> anyhow::Result<TagResult> {
         let mut system_prompt = String::from(
             "You are an analytical conversation tagger. Extract topical tags and structural \
              tags from the message.\n\n\
@@ -120,7 +112,11 @@ impl TaggerService for LlmTagger {
             ..Default::default()
         };
 
-        let resp = self.llm.generate(req).await.context("tagger: generate failed")?;
+        let resp = self
+            .llm
+            .generate(req)
+            .await
+            .context("tagger: generate failed")?;
 
         serde_json::from_str(&resp.text).context("tagger: failed to parse JSON response")
     }
@@ -204,7 +200,9 @@ mod tests {
             }
         }
 
-        let llm = Arc::new(CaptureLlm { captured: Mutex::new(None) });
+        let llm = Arc::new(CaptureLlm {
+            captured: Mutex::new(None),
+        });
         let tagger = LlmTagger::new(llm.clone());
         tagger
             .tag_message("test message", TaggingContext::default())
@@ -247,7 +245,9 @@ mod tests {
             }
         }
 
-        let llm = Arc::new(CaptureLlm { captured: Mutex::new(None) });
+        let llm = Arc::new(CaptureLlm {
+            captured: Mutex::new(None),
+        });
         let tagger = LlmTagger::new(llm.clone());
         let ctx = TaggingContext {
             thread_context: "some thread".to_string(),
