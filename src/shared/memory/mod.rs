@@ -2,7 +2,7 @@ pub mod pg_store;
 
 pub use pg_store::{MemoryRecord, PgStore, Store};
 
-use crate::llm::{EmbedRequest, GenerateRequest, LlmMessage, Registry};
+use crate::shared::llm::{EmbedRequest, GenerateRequest, LlmMessage, Registry};
 use async_trait::async_trait;
 use std::sync::Arc;
 

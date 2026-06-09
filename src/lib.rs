@@ -1,28 +1,32 @@
-pub mod covabot;
-pub mod discord;
-pub mod llm;
-pub mod memory;
-pub mod middleware;
-pub mod replybot;
+pub mod bots;
+pub mod shared;
+
+// Convenience re-exports used by every bot binary.
+pub use shared::discord;
+pub use shared::llm;
+pub use shared::memory;
+pub use shared::middleware;
+pub use shared::replybot;
 
 use serenity::all::{EventHandler, GatewayIntents};
 use serenity::Client;
 
-/// Generic bot runner. Each binary creates an EventHandler and passes it here.
+/// Start a Discord bot with the given EventHandler and block until the process
+/// receives SIGINT / SIGTERM.
 pub async fn run_bot(
     bot_name: &str,
     intents: GatewayIntents,
     handler: impl EventHandler + 'static,
 ) -> anyhow::Result<()> {
     let token = std::env::var("DISCORD_TOKEN")
-        .map_err(|_| anyhow::anyhow!("{}: DISCORD_TOKEN environment variable not set", bot_name))?;
+        .map_err(|_| anyhow::anyhow!("{}: DISCORD_TOKEN not set", bot_name))?;
 
     let mut client = Client::builder(&token, intents)
         .event_handler(handler)
         .await
         .map_err(|e| anyhow::anyhow!("error creating client: {}", e))?;
 
-    tracing::info!(bot = bot_name, "bot starting");
+    tracing::info!(bot = bot_name, "starting");
     client
         .start()
         .await
@@ -30,7 +34,7 @@ pub async fn run_bot(
     Ok(())
 }
 
-/// Standard intents used by most reply bots (guild messages + message content).
+/// Standard intents used by most reply bots.
 pub fn default_intents() -> GatewayIntents {
     GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT
 }

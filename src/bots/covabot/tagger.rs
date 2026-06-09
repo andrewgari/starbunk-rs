@@ -1,4 +1,4 @@
-use crate::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
+use crate::shared::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

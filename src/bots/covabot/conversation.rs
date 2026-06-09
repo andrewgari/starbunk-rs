@@ -1,4 +1,4 @@
-use crate::llm::{EmbedRequest, LlmService};
+use crate::shared::llm::{EmbedRequest, LlmService};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use std::collections::HashMap;

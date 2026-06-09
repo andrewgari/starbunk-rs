@@ -1,5 +1,5 @@
-use crate::discord::Identity;
-use crate::middleware::MessageFilter;
+use crate::shared::discord::Identity;
+use crate::shared::middleware::MessageFilter;
 use async_trait::async_trait;
 use serenity::all::{Context, Message};
 use std::sync::Arc;

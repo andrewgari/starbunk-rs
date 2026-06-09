@@ -1,5 +1,5 @@
 use super::strategy::Strategy;
-use crate::discord::MessageService;
+use crate::shared::discord::MessageService;
 use serenity::all::{Context, Message};
 use std::sync::Arc;
 
