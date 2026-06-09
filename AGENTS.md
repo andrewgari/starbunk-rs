@@ -214,6 +214,93 @@ A task is **not complete** until:
 
 ---
 
+## Rust Code Standards
+
+These rules apply to every file written or changed in this project, without exception.
+
+### File discipline
+
+- **Target ≤ 150 lines per file.** When a file grows beyond that, split by responsibility.
+- **One concept per file.** A file owns one thing: a trait, a set of related filter primitives,
+  one strategy, one client implementation, etc.
+- **`mod.rs` files are wiring only.** They declare submodules, import the `Handler` struct, and
+  expose `pub async fn run()`. No business logic belongs there.
+- **Business logic lives in named submodules.** Name them for what they do:
+  `strategy.rs`, `conversation.rs`, `engagement.rs`, `tagger.rs`.
+- **No copy-paste between bots.** If two bots need the same logic, it belongs in `src/shared/`.
+
+### Bot isolation
+
+- Each bot in `src/bots/<bot>/` is fully self-contained. It may import from `src/shared/`
+  but **never** from another bot's submodule (`src/bots/<other>/`).
+- The dependency graph is strictly one-directional: `bin/` → `bots/` → `shared/`.
+- Bots must not share mutable state. Any state that looks shared (e.g. webhook caches)
+  belongs in `src/shared/` with proper `Arc<Mutex<_>>` or `DashMap` protection.
+
+### Types and traits
+
+- **Expose dependencies as `Arc<dyn Trait>`**, not concrete types. This is mandatory for
+  testability. A handler that holds `Arc<dyn MessageService>` can be tested with a mock;
+  one that holds `DiscordMessageService` cannot.
+- **`#[derive(Debug)]`** on every public `struct` and `enum`. Missing `Debug` prevents
+  use in `?` chains and `tracing` macro format strings.
+- **`LazyLock<Regex>`** (from `std::sync`) for all compiled regular expressions. Never
+  call `Regex::new(...)` inside a hot path. Pattern: `static PAT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"...").expect("pattern name"));`
+- Prefer `impl Trait` in return position for free functions returning a single concrete type.
+  Use `Box<dyn Trait>` or `Arc<dyn Trait>` when the type is stored in a struct or collection.
+- **No unnecessary clones.** Pass references where ownership is not required. Clone only
+  when you genuinely need a new owner (e.g. crossing a `tokio::spawn` boundary).
+
+### Error handling
+
+- Application code (`src/bin/`, `src/bots/`) uses `anyhow::Result`. `run()` returns
+  `anyhow::Result<()>`.
+- **Never `.unwrap()` in production code.** Use `?` or `.map_err(|e| anyhow::anyhow!("{}", e))`.
+  The only exceptions are: `expect()` on values that are programmer errors (e.g. a static
+  `Regex::new(...)` that cannot fail), and test code.
+- In Serenity event handlers where an error must not crash the bot, use the pattern:
+  ```rust
+  if let Err(e) = sender.send(channel_id, &resp).await {
+      tracing::error!(strategy = name, "failed to send: {}", e);
+  }
+  ```
+
+### Async
+
+- All slow work (LLM calls, HTTP requests, DB queries, audio processing) must be spawned
+  with `tokio::spawn`. Event handlers that block will stall the entire Serenity executor.
+- Use `tokio::sync::OnceCell` for handler-level values that are initialized once at
+  connection time (e.g. `ReplyBot`, `WebhookService` inside a handler struct).
+- Declare `async fn` only where the function actually awaits something. Synchronous
+  helpers should be plain `fn`.
+
+### Testing
+
+- **Test names describe behavior, not implementation.** Prefer `triggers_on_blue_variants`
+  over `test_blue_regex`. Prefer `first_match_wins_second_strategy_not_called` over
+  `test_reply_bot`.
+- **`build_msg` / `fake_ctx` helpers** live at the top of `mod tests`. Never add
+  test-only constructors to production structs; build `serenity::Message` values with
+  `serde_json::json!` and `.expect("description")`.
+- **Mock types** (`MockSender`, `MockStrategy`, etc.) belong in the `mod tests` block of
+  the file that uses them. Move to `tests/` only when the mock must be shared across
+  multiple test files.
+- **Dangling pointer pattern** is acceptable in tests whose strategies/filters declare
+  `_ctx` and never dereference it:
+  ```rust
+  // SAFETY: this filter never dereferences ctx.
+  let ctx_ptr = std::ptr::NonNull::<Context>::dangling();
+  filter.check(unsafe { ctx_ptr.as_ref() }, &msg);
+  ```
+  Always include the safety comment.
+- Every `Strategy` implementation must have tests for: (1) `should_trigger` returns true
+  on canonical inputs, (2) `should_trigger` returns false on non-matching inputs, and
+  (3) `response` returns the expected string.
+- Every new `MessageFilter` primitive must have tests for the pass case, the fail case,
+  and its composition inside `all_of` / `any_of`.
+
+---
+
 ## Commands
 
 ```bash
@@ -307,9 +394,21 @@ async fn main() -> anyhow::Result<()> {
 
 `run_bot` uses `GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT`. DJCova additionally needs `GatewayIntents::GUILD_VOICE_STATES`.
 
+### Module structure per bot
+
+```
+src/bots/<bot>/
+  mod.rs          # Handler struct, EventHandler impl, pub fn run() — wiring only
+  strategy.rs     # Strategy implementations (for reply-style bots)
+  <concern>.rs    # One file per additional domain concern (conversation, tagger, etc.)
+```
+
 ### Testing
 
-Tests use Rust's built-in `#[test]` / `#[tokio::test]`. Unit tests live in `#[cfg(test)]` blocks. Integration tests live in `tests/`.
+Tests use Rust's built-in `#[test]` / `#[tokio::test]`. Unit tests live in `#[cfg(test)]`
+blocks inside the file under test. Integration tests live in `tests/`. Test helpers and
+mock types are co-located with the tests that use them — see the Rust Code Standards
+section for naming and placement rules.
 
 ---
 
