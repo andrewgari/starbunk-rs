@@ -3,6 +3,16 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-09 — Clean git history and conventional commit enforcement
+
+### Added
+- `scripts/git/hooks/commit-msg` python script to validate commit messages.
+- `.gitmessage` template file in the repository root.
+
+### Changed
+- Rewrote the git history of the repository to be linear, flat, and strictly conform to Conventional Commits format.
+- Updated `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.claude/commands/git-workflow.md`, and `.claude/agents/task-runner.md` to document and enforce conventional commits and hook validation.
+
 ---
 
 ## 2026-06-09 — Test parity with starbunk-go
