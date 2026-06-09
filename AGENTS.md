@@ -123,41 +123,72 @@ Every task lives in its own isolated git worktree under `.claude/worktrees/`. Th
 (`/mnt/data/tank/workspace/starbunk-rs`) stays on `main` and is kept functionally empty —
 it is not a workspace, it is a launchpad.
 
-### !! MANDATORY: Verify your worktree before doing any work !!
+### !! MANDATORY: Context check before every task !!
 
-**Before writing a single line of code**, confirm you are inside a worktree for the current branch:
+At the start of **every request** — before reading files, before writing code — run this check:
 
 ```bash
-git worktree list
+git worktree list           # see all active worktrees and their branches
+git -C . rev-parse --abbrev-ref HEAD   # confirm which branch the main worktree is on
 ```
 
-If a worktree for your branch does **not** exist, create one immediately:
+Ask: *Does the task belong to the current worktree's branch?*
+
+- **Yes** → proceed (but still verify the worktree exists per the rule below).
+- **No / new task / different feature** → perform a context switch (see below) before touching anything.
+
+### Context switching
+
+When asked to work on something unrelated to the current worktree:
 
 ```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD)   # or your target branch name
-mkdir -p .claude/worktrees
-git worktree add .claude/worktrees/${BRANCH//\//-} $BRANCH
-# Then do ALL work from inside that path:
-cd .claude/worktrees/${BRANCH//\//-}
+# 1. Sync main to origin — always start from a fresh base
+git -C /mnt/data/tank/workspace/starbunk-rs fetch origin main
+git -C /mnt/data/tank/workspace/starbunk-rs reset --hard origin/main
+
+# 2a. If a worktree for the target branch already exists — go there
+BRANCH=feat/existing-branch
+cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
+
+# 2b. If no worktree exists yet — create one from the freshly synced main
+BRANCH=feat/new-feature
+git -C /mnt/data/tank/workspace/starbunk-rs checkout -b $BRANCH
+mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
+git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
+    /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
+cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
 ```
 
-Never make code changes from inside the main worktree. If you find yourself editing files
-in the repo root rather than in `.claude/worktrees/<branch>/`, stop and move to a worktree first.
+**Never carry work from one branch's worktree into another.** Each worktree is a sealed context.
 
-### Starting a new task
+### Keeping main fresh
+
+`main` must always mirror `origin/main` exactly. Use `reset --hard` rather than `pull` to
+eliminate any possibility of local drift:
 
 ```bash
-# 1. Sync main (always from the main worktree)
-git checkout main && git pull origin main
+git -C /mnt/data/tank/workspace/starbunk-rs fetch origin main
+git -C /mnt/data/tank/workspace/starbunk-rs reset --hard origin/main
+```
 
-# 2. Create branch + worktree in one sequence
+Run this every time you start a new task or switch contexts. Never commit to `main` directly.
+
+### Starting a new task (full sequence)
+
+```bash
+# 1. Sync main
+git -C /mnt/data/tank/workspace/starbunk-rs fetch origin main
+git -C /mnt/data/tank/workspace/starbunk-rs reset --hard origin/main
+
+# 2. Create branch + worktree
 BRANCH=feat/my-feature
-git checkout -b $BRANCH
-mkdir -p .claude/worktrees
-git worktree add .claude/worktrees/${BRANCH//\//-} $BRANCH
+git -C /mnt/data/tank/workspace/starbunk-rs checkout -b $BRANCH
+mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
+git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
+    /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
 
-# 3. ALL subsequent work happens inside the worktree
-cd .claude/worktrees/${BRANCH//\//-}
+# 3. ALL work happens inside the worktree — never in the repo root
+cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
 ```
 
 ### Cleanup
@@ -175,10 +206,11 @@ bash scripts/cleanup-worktrees.sh --apply  # actually remove clean worktrees
 
 ### Rules
 
-- **The main worktree is a launchpad, not a workspace.** It stays on `main` and clean.
+- **The main worktree is a launchpad, not a workspace.** It stays on `main`, clean, and always synced to `origin/main`.
+- **Context-check every request.** If the task doesn't belong to the current worktree, switch first.
+- **Sync main before every branch or worktree creation** — use `reset --hard origin/main`, not `pull`.
 - **Worktrees live under `.claude/worktrees/`** — this path is gitignored.
 - **One worktree = one branch = one PR.** Do not reuse a worktree for a second PR.
-- **Verify the worktree exists before every task** — create it if missing.
 
 ---
 
