@@ -119,47 +119,66 @@ A task is **not complete** until:
 
 ## Worktree Lifecycle
 
-Every PR gets its own isolated git worktree. This prevents branch state from leaking between tasks and
-makes cleanup deterministic.
+Every task lives in its own isolated git worktree under `.claude/worktrees/`. The main worktree
+(`/mnt/data/tank/workspace/starbunk-rs`) stays on `main` and is kept functionally empty —
+it is not a workspace, it is a launchpad.
 
-### Starting a task
+### !! MANDATORY: Verify your worktree before doing any work !!
+
+**Before writing a single line of code**, confirm you are inside a worktree for the current branch:
 
 ```bash
-# 1. Sync main
+git worktree list
+```
+
+If a worktree for your branch does **not** exist, create one immediately:
+
+```bash
+BRANCH=$(git rev-parse --abbrev-ref HEAD)   # or your target branch name
+mkdir -p .claude/worktrees
+git worktree add .claude/worktrees/${BRANCH//\//-} $BRANCH
+# Then do ALL work from inside that path:
+cd .claude/worktrees/${BRANCH//\//-}
+```
+
+Never make code changes from inside the main worktree. If you find yourself editing files
+in the repo root rather than in `.claude/worktrees/<branch>/`, stop and move to a worktree first.
+
+### Starting a new task
+
+```bash
+# 1. Sync main (always from the main worktree)
 git checkout main && git pull origin main
 
-# 2. Create a branch and worktree together
+# 2. Create branch + worktree in one sequence
 BRANCH=feat/my-feature
 git checkout -b $BRANCH
 mkdir -p .claude/worktrees
 git worktree add .claude/worktrees/${BRANCH//\//-} $BRANCH
 
-# 3. All code changes happen inside the worktree
+# 3. ALL subsequent work happens inside the worktree
 cd .claude/worktrees/${BRANCH//\//-}
 ```
 
-Or just use `/task` — it calls the `task-runner` agent which handles worktree creation automatically.
+### Cleanup
 
-### Ending a task (PR merged or closed)
+A cron job runs `scripts/cleanup-worktrees.sh --apply` every hour. It removes any worktree
+whose working tree is **completely clean** (no staged, unstaged, or untracked files). Clean
+worktrees are safe to remove — the branch and its commits still exist.
 
-Worktrees are cleaned up automatically:
-- The `post-merge` git hook fires `scripts/cleanup-worktrees.sh --apply` in the background after every local merge.
-- For PRs merged via the GitHub UI, run cleanup manually:
+To run cleanup manually:
 
 ```bash
 bash scripts/cleanup-worktrees.sh          # dry-run — shows what would be removed
-bash scripts/cleanup-worktrees.sh --apply  # actually remove merged/closed worktrees
+bash scripts/cleanup-worktrees.sh --apply  # actually remove clean worktrees
 ```
-
-The script calls `gh pr view <branch>` for each worktree. If the PR state is `MERGED` or `CLOSED`,
-the worktree is removed and the local branch is deleted.
 
 ### Rules
 
-- **Never work directly on `main`** inside a worktree — always on a feature branch.
+- **The main worktree is a launchpad, not a workspace.** It stays on `main` and clean.
 - **Worktrees live under `.claude/worktrees/`** — this path is gitignored.
-- **One worktree = one PR.** Do not reuse a worktree for a second PR.
-- **Run cleanup before starting a new task** if you suspect stale worktrees are accumulating.
+- **One worktree = one branch = one PR.** Do not reuse a worktree for a second PR.
+- **Verify the worktree exists before every task** — create it if missing.
 
 ---
 

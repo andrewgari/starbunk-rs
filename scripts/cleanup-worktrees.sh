@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # cleanup-worktrees.sh
-# Removes git worktrees whose branches have been merged or closed on GitHub.
+# Removes git worktrees that have no outstanding changes (clean working tree,
+# no staged files, no untracked files). Does NOT require gh or network access.
 #
 # Usage:
 #   bash scripts/cleanup-worktrees.sh          # dry-run (shows what would be removed)
@@ -16,67 +17,47 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-echo "==> Checking worktrees against GitHub PR state..."
+echo "==> Scanning worktrees for outstanding changes..."
 echo
 
 REMOVED=0
 KEPT=0
-ERRORS=0
 
 while IFS= read -r line; do
-    # Parse "worktree <path>" lines from --porcelain output
     [[ "$line" =~ ^worktree\ (.+)$ ]] || continue
     wt_path="${BASH_REMATCH[1]}"
 
-    # Skip the main worktree
+    # Never touch the main worktree
     if [[ "$wt_path" == "$ROOT" ]]; then
         continue
     fi
 
-    # Get the branch for this worktree
     branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
     if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
-        echo "  SKIP  $wt_path (detached HEAD or unreadable)"
+        echo "  SKIP  $wt_path (detached HEAD)"
         continue
     fi
 
-    # Ask GitHub about the PR state
-    pr_state=$(gh pr view "$branch" --json state --jq '.state' 2>/dev/null || echo "NONE")
-
-    case "$pr_state" in
-        MERGED|CLOSED)
-            if $DRY_RUN; then
-                echo "  WOULD REMOVE  $wt_path  (branch: $branch, PR: $pr_state)"
-            else
-                echo "  REMOVING  $wt_path  (branch: $branch, PR: $pr_state)"
-                git worktree remove "$wt_path" --force 2>/dev/null || {
-                    echo "    WARNING: worktree remove failed, trying manual cleanup"
-                    rm -rf "$wt_path"
-                    git worktree prune
-                }
-                # Delete the tracking branch if it's fully merged
-                git branch -d "$branch" 2>/dev/null || \
-                    echo "    NOTE: branch $branch not deleted (unmerged commits or already gone)"
-            fi
-            (( REMOVED++ )) || true
-            ;;
-        OPEN)
-            echo "  KEEP  $wt_path  (branch: $branch, PR: open)"
-            (( KEPT++ )) || true
-            ;;
-        NONE)
-            echo "  KEEP  $wt_path  (branch: $branch, no PR found)"
-            (( KEPT++ )) || true
-            ;;
-        *)
-            echo "  ERROR  $wt_path  (branch: $branch, unexpected state: $pr_state)"
-            (( ERRORS++ )) || true
-            ;;
-    esac
+    # Check for any outstanding changes: staged, unstaged, or untracked
+    if git -C "$wt_path" status --porcelain | grep -q .; then
+        echo "  KEEP  $wt_path  (branch: $branch, has outstanding changes)"
+        (( KEPT++ )) || true
+    else
+        if $DRY_RUN; then
+            echo "  WOULD REMOVE  $wt_path  (branch: $branch, clean)"
+        else
+            echo "  REMOVING  $wt_path  (branch: $branch, clean)"
+            git worktree remove "$wt_path" --force 2>/dev/null || {
+                rm -rf "$wt_path"
+                git worktree prune
+            }
+        fi
+        (( REMOVED++ )) || true
+    fi
 done < <(git worktree list --porcelain)
 
 echo
-echo "==> Done. Kept: $KEPT  |  Removed: $REMOVED  |  Errors: $ERRORS"
+echo "==> Done. Kept: $KEPT  |  Removed: $REMOVED"
 
 if $DRY_RUN && (( REMOVED > 0 )); then
     echo

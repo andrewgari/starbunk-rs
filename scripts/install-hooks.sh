@@ -21,4 +21,3 @@ chmod +x "$HOOKS_DIR/pre-commit"
 echo "✅ Installed pre-commit hook"
 
 install_hook "commit-msg"
-install_hook "post-merge"
