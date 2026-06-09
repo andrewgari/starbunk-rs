@@ -227,6 +227,14 @@ mod tests {
     }
 
     #[test]
+    fn author_named_is_case_sensitive() {
+        // build_msg() creates author with username "testuser"
+        let msg = build_msg();
+        let filter = author_named("Testuser"); // capital T
+        assert!(!check_filter(&*filter, &msg));
+    }
+
+    #[test]
     fn not_self_with_bot_id_drops_message_from_bot_id() {
         let msg = build_msg(); // author id = 1
         let bot_id = UserId::new(1);

@@ -300,4 +300,139 @@ mod tests {
         let human = build_msg("hi", false);
         assert!(!check_filter(&*policy, &human));
     }
+
+    #[test]
+    fn bunkbot_policy_passes_non_self_and_has_content_including_bots() {
+        // BunkBot: AllOf(NOT_SELF_via_bot_id, HAS_CONTENT) — does not filter out other bots
+        use author::not_self_with_bot_id;
+        use serenity::all::UserId;
+
+        let bot_id = UserId::new(99); // "our" bot id
+        let policy = all_of(vec![not_self_with_bot_id(bot_id), HAS_CONTENT.clone()]);
+
+        // Other bot with content → passes (bunkbot responds to bots)
+        let other_bot = author_id_msg("2", "hello", true);
+        assert!(check_filter(&*policy, &other_bot));
+
+        // Self message → fails
+        let self_msg = author_id_msg("99", "hello", false);
+        assert!(!check_filter(&*policy, &self_msg));
+
+        // Human with empty content → fails
+        let empty = author_id_msg("2", "", false);
+        assert!(!check_filter(&*policy, &empty));
+    }
+
+    #[test]
+    fn drops_bot_named_jeff_on_friday_or_tuesday() {
+        use chrono::Weekday;
+        use context::on_weekdays;
+
+        // Not(AllOf(IS_BOT, AuthorNamed("Jeff"), OnWeekdays(Friday, Tuesday)))
+        let reject_jeff = not(all_of(vec![
+            IS_BOT.clone(),
+            author::author_named("Jeff"),
+            on_weekdays([Weekday::Fri, Weekday::Tue]),
+        ]));
+
+        // 2024-01-02 is a Tuesday, 2024-01-05 is Friday
+        fn msg_with_opts(
+            author_id: &str,
+            username: &str,
+            is_bot: bool,
+            timestamp: &str,
+            guild_id: Option<&str>,
+        ) -> Message {
+            let mut val = serde_json::json!({
+                "id": "1",
+                "channel_id": "1",
+                "author": {
+                    "id": author_id,
+                    "username": username,
+                    "bot": is_bot,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "hi",
+                "timestamp": timestamp,
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            });
+            if let Some(gid) = guild_id {
+                val["guild_id"] = serde_json::json!(gid);
+            }
+            serde_json::from_value(val).expect("msg")
+        }
+
+        let jeff_bot_on_friday =
+            msg_with_opts("1", "Jeff", true, "2024-01-05T12:00:00+00:00", None);
+        let jeff_bot_on_tuesday =
+            msg_with_opts("1", "Jeff", true, "2024-01-02T12:00:00+00:00", None);
+        let jeff_bot_on_monday =
+            msg_with_opts("1", "Jeff", true, "2024-01-01T12:00:00+00:00", None);
+        let human_jeff_on_friday =
+            msg_with_opts("2", "Jeff", false, "2024-01-05T12:00:00+00:00", None);
+
+        assert!(!check_filter(&*reject_jeff, &jeff_bot_on_friday)); // blocked
+        assert!(!check_filter(&*reject_jeff, &jeff_bot_on_tuesday)); // blocked
+        assert!(check_filter(&*reject_jeff, &jeff_bot_on_monday)); // Jeff bot on safe day
+        assert!(check_filter(&*reject_jeff, &human_jeff_on_friday)); // human Jeff passes
+    }
+
+    #[test]
+    fn scenario_2_human_passes_bingo_always_passes_bot_22222_on_lucky_roll() {
+        // AnyOf(NOT_BOT, AllOf(author_id("22222"), chance), ContentContains("bingo"))
+        let winning_roll = random::chance(1.0);
+        let losing_roll = random::chance(0.0);
+
+        let make_policy = |roll: Arc<dyn MessageFilter>| {
+            any_of(vec![
+                NOT_BOT.clone(),
+                all_of(vec![author::author_id("22222"), roll]),
+                content::content_contains("bingo"),
+            ])
+        };
+
+        // Human passes regardless
+        let human = author_id_msg("100", "hi", false);
+        assert!(check_filter(&*make_policy(winning_roll.clone()), &human));
+
+        // Bot with "bingo" — passes via content branch
+        let bot_bingo = author_id_msg("999", "bingo", true);
+        assert!(check_filter(&*make_policy(losing_roll.clone()), &bot_bingo));
+
+        // Bot 22222 on winning roll
+        let bot_22222 = author_id_msg("22222", "hi", true);
+        assert!(check_filter(
+            &*make_policy(winning_roll.clone()),
+            &bot_22222
+        ));
+
+        // Bot 22222 on losing roll without bingo — blocked
+        assert!(!check_filter(
+            &*make_policy(losing_roll.clone()),
+            &bot_22222
+        ));
+
+        // Bot 22222 on losing roll with bingo — passes via content
+        let bot_22222_bingo = author_id_msg("22222", "bingo", true);
+        assert!(check_filter(
+            &*make_policy(losing_roll.clone()),
+            &bot_22222_bingo
+        ));
+
+        // Unrelated bot, losing roll — blocked
+        let other_bot = author_id_msg("999", "hi", true);
+        assert!(!check_filter(
+            &*make_policy(losing_roll.clone()),
+            &other_bot
+        ));
+    }
 }

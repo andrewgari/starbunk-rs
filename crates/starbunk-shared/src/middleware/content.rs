@@ -108,6 +108,41 @@ mod tests {
     }
 
     #[test]
+    fn has_attachment_passes_with_attachment() {
+        let mut val = serde_json::json!({
+            "id": "1",
+            "channel_id": "1",
+            "author": {
+                "id": "1",
+                "username": "testuser",
+                "bot": false,
+                "discriminator": "0",
+                "public_flags": 0
+            },
+            "content": "see attachment",
+            "timestamp": "2024-01-01T12:00:00+00:00",
+            "edited_timestamp": null,
+            "tts": false,
+            "mention_everyone": false,
+            "mentions": [],
+            "mention_roles": [],
+            "attachments": [],
+            "embeds": [],
+            "pinned": false,
+            "type": 0
+        });
+        val["attachments"] = serde_json::json!([{
+            "id": "100000000000000001",
+            "filename": "file.png",
+            "size": 1024,
+            "url": "https://example.com/file.png",
+            "proxy_url": "https://example.com/file.png"
+        }]);
+        let msg: Message = serde_json::from_value(val).expect("test message with attachment");
+        assert!(check_filter(&**HAS_ATTACHMENT, &msg));
+    }
+
+    #[test]
     fn has_attachment_drops_message_without_attachments() {
         let msg = build_msg("no attach");
         assert!(!check_filter(&**HAS_ATTACHMENT, &msg));
