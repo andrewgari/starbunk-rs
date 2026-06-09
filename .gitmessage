@@ -1,0 +1,16 @@
+<type>(<scope>): <subject>
+
+# Commit Message Template
+#
+# Line 1 (Header): <type>(<scope>): <subject>
+#   - <type>: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+#   - <scope>: optional, e.g. bluebot, bunkbot, covabot, djcova, ratbot, shared, wiki, agents, git
+#   - <subject>: lowercase, present tense, no period at end
+#   - Max header length: 72 characters
+#
+# Line 2: Blank line
+#
+# Line 3 (Body): Detailed description of changes, if any (optional)
+#
+# Example:
+# feat(ratbot): add gift exchange matching logic

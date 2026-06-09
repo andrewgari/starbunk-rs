@@ -73,13 +73,15 @@ bash scripts/devops-validate.sh
 
 ## Step 5 — Commit
 
-Stage only the files changed for this task. Write a conventional commit message:
+Stage only the files changed for this task. Write a conventional commit message conforming to the Git Commit Standards (validated by the hook at `.git/hooks/commit-msg`).
 
-```
-<type>(<scope>): <short description>
-
-<optional body if non-obvious>
-```
+**Format rules**:
+- Format: `<type>(<scope>): <subject>`
+  - `<type>`: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+  - `<scope>`: optional (e.g. `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`, `shared`, `wiki`, `agents`, `git`)
+  - `<subject>`: present tense, lowercase, NO trailing period
+- Header length must not exceed 72 characters.
+- Use the `.gitmessage` template file in the repository root.
 
 Examples:
 - `feat(covabot): add personality memory persistence`

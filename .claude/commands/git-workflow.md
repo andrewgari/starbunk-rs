@@ -34,6 +34,16 @@ Before you are allowed to execute a `git commit`, you MUST verify that your chan
 
 Only after these three checks pass successfully are you allowed to stage and commit your code.
 
-## 3. Pushing Rules
+## 3. Commit Message Rules
+All commits must conform to the **Conventional Commits** specification. A git `commit-msg` hook is installed at `.git/hooks/commit-msg` to validate and enforce this rule.
+
+- **Format**: `<type>(<scope>): <subject>`
+  - `<type>`: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+  - `<scope>`: optional (e.g. `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`, `shared`, `wiki`, `agents`, `git`)
+  - `<subject>`: present tense, lowercase, no trailing period
+- **Header Length**: Maximum of 72 characters.
+- **Template**: Use the `.gitmessage` template file in the repository root.
+
+## 4. Pushing Rules
 **NEVER `git push` without express permission.**
 Even if your tests pass and you have successfully committed your changes to your isolated branch, you must STOP and ask the user for explicit permission before attempting to push your code or open a PR.

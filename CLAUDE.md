@@ -30,5 +30,6 @@ Rust quality checklist — apply to every file touched:
 - No `.unwrap()` in production code (`.expect("reason")` on programmer-error panics only)
 - Slow async work spawned with `tokio::spawn`
 - See **Rust Code Standards** in `AGENTS.md` for the full ruleset
+- See **Git Commit Standards** in `AGENTS.md` for conventional commit enforcement
 
 @AGENTS.md

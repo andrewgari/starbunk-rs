@@ -197,6 +197,25 @@ A task is **not complete** until:
 
 ---
 
+## Git Commit Standards
+
+All commits to the repository must conform to the **Conventional Commits** specification. This is enforced by a custom git `commit-msg` hook installed at `.git/hooks/commit-msg`.
+
+### Format
+Every commit message header (first line) must follow this pattern:
+```
+<type>(<scope>): <subject>
+```
+
+- **`<type>`**: Must be one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **`<scope>`**: Optional but highly recommended (e.g., `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`, `shared`, `wiki`, `agents`, `git`).
+- **`<subject>`**: Present-tense, starting with a lowercase letter, and ending without a period (e.g. `add opt-out command`, not `Add opt-out command.`).
+- **Header Length**: Maximum of 72 characters.
+
+Use the `.gitmessage` template file in the repository root to format commit messages.
+
+---
+
 ## Development Constraints
 
 - **Never commit secrets or local config** — `.env` files, tokens, and anything
