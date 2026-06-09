@@ -166,3 +166,117 @@ mod hex {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use crate::shared::llm::{EmbedResponse, GenerateRequest, GenerateResponse};
+
+    struct MockLlm {
+        embeddings: Vec<Vec<f32>>,
+    }
+
+    #[async_trait]
+    impl LlmService for MockLlm {
+        async fn generate(&self, _req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+            Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+        }
+        async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+            Ok(EmbedResponse { embeddings: self.embeddings.clone() })
+        }
+    }
+
+    fn tracker(embeddings: Vec<Vec<f32>>) -> LlmTracker {
+        LlmTracker::new(Arc::new(MockLlm { embeddings }))
+    }
+
+    #[tokio::test]
+    async fn seeds_new_conversation_when_none_exist() {
+        let t = tracker(vec![vec![1.0, 0.0]]);
+        let ids = t.assign("ch1", &["kh".to_string()]).await.unwrap();
+        assert_eq!(ids.len(), 1);
+        assert!(ids[0].starts_with("conv-"));
+    }
+
+    #[tokio::test]
+    async fn joins_existing_conversation_on_high_similarity() {
+        // Two identical embeddings → same conversation.
+        let t = LlmTracker::new(Arc::new(MockLlm { embeddings: vec![vec![1.0, 0.0]] }));
+        let conv1 = t.assign("ch1", &["kh".to_string()]).await.unwrap();
+
+        // Replace the mock embeddings by reconstructing — reuse same tracker.
+        // Because the tracker owns the Arc<dyn LlmService>, we use a second
+        // tracker pointing to the same channel state isn't possible here;
+        // instead we verify via a stateful mock.
+        let _ = conv1; // structural check only below
+
+        // Use a fresh tracker seeded with the same embedding twice to verify
+        // the second assign returns the same conversation ID.
+        struct TwoEmbedMock {
+            call: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait]
+        impl LlmService for TwoEmbedMock {
+            async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+            }
+            async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+                let _ = self.call.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(EmbedResponse { embeddings: vec![vec![1.0f32, 0.0f32]] })
+            }
+        }
+        let t2 = LlmTracker::new(Arc::new(TwoEmbedMock { call: Default::default() }));
+        let id1 = t2.assign("ch1", &["kh".to_string()]).await.unwrap();
+        let id2 = t2.assign("ch1", &["kh 2".to_string()]).await.unwrap();
+        assert_eq!(id1, id2, "identical embeddings should resolve to the same conversation");
+    }
+
+    #[tokio::test]
+    async fn seeds_new_conversation_when_similarity_is_below_t_low() {
+        // Orthogonal vectors have cosine similarity = 0, well below T_LOW (0.45).
+        struct OrthogonalMock {
+            call: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait]
+        impl LlmService for OrthogonalMock {
+            async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+            }
+            async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+                let n = self.call.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let emb = if n == 0 { vec![1.0f32, 0.0f32] } else { vec![0.0f32, 1.0f32] };
+                Ok(EmbedResponse { embeddings: vec![emb] })
+            }
+        }
+        let t = LlmTracker::new(Arc::new(OrthogonalMock { call: Default::default() }));
+        let id1 = t.assign("ch1", &["kh".to_string()]).await.unwrap();
+        let id2 = t.assign("ch1", &["dbz".to_string()]).await.unwrap();
+        assert_ne!(id1, id2, "orthogonal embeddings should seed separate conversations");
+    }
+
+    #[tokio::test]
+    async fn returns_empty_when_no_tags() {
+        let t = tracker(vec![]);
+        let ids = t.assign("ch1", &[]).await.unwrap();
+        assert!(ids.is_empty());
+    }
+
+    #[tokio::test]
+    async fn no_crossover_between_channels() {
+        struct SameEmbedMock;
+        #[async_trait]
+        impl LlmService for SameEmbedMock {
+            async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+            }
+            async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+                Ok(EmbedResponse { embeddings: vec![vec![1.0f32, 0.0f32]] })
+            }
+        }
+        let t = LlmTracker::new(Arc::new(SameEmbedMock));
+        let id_ch1 = t.assign("ch1", &["tag".to_string()]).await.unwrap();
+        let id_ch2 = t.assign("ch2", &["tag".to_string()]).await.unwrap();
+        assert_ne!(id_ch1, id_ch2, "different channels should get different conversation IDs");
+    }
+}

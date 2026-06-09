@@ -34,20 +34,11 @@ pub struct EngagementResult {
     pub energy: Option<GateEnergy>,
 }
 
+#[derive(Default)]
 struct ChannelState {
     muted: bool,
     dampened: bool,
     last_spoke_at: Option<Instant>,
-}
-
-impl Default for ChannelState {
-    fn default() -> Self {
-        Self {
-            muted: false,
-            dampened: false,
-            last_spoke_at: None,
-        }
-    }
 }
 
 /// Tracks engagement state per channel and decides if CovaBot should respond.
@@ -84,7 +75,11 @@ impl Manager {
 
         // 2. Mute stops everything except direct mention.
         if muted {
-            return EngagementResult { respond: false, reason: None, energy: None };
+            return EngagementResult {
+                respond: false,
+                reason: None,
+                energy: None,
+            };
         }
 
         // 3. Direct Reply or Addressee==Self — high pull, clears dampener.
@@ -98,7 +93,11 @@ impl Manager {
 
         // 4. Dampener stops ambient/continuity responses.
         if dampened {
-            return EngagementResult { respond: false, reason: None, energy: None };
+            return EngagementResult {
+                respond: false,
+                reason: None,
+                energy: None,
+            };
         }
 
         // 5. Engagement continuity — active for RECENT_SPEAK_WINDOW after Cova last spoke.
@@ -110,7 +109,11 @@ impl Manager {
             };
         }
 
-        EngagementResult { respond: false, reason: None, energy: None }
+        EngagementResult {
+            respond: false,
+            reason: None,
+            energy: None,
+        }
     }
 
     /// Record that CovaBot just spoke in `channel_id`.
@@ -144,5 +147,129 @@ impl Manager {
 impl Default for Manager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input(channel_id: &str) -> MessageInput {
+        MessageInput {
+            channel_id: channel_id.to_string(),
+            author_id: "user1".to_string(),
+            is_mentioned: false,
+            is_reply_to_me: false,
+            is_addressee_self: false,
+        }
+    }
+
+    #[test]
+    fn direct_mention_always_responds() {
+        let mgr = Manager::new();
+        let mut i = input("ch1");
+        i.is_mentioned = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::DirectMention));
+        assert_eq!(result.energy, Some(GateEnergy::Invested));
+    }
+
+    #[test]
+    fn direct_mention_overrides_mute() {
+        let mgr = Manager::new();
+        mgr.set_mute("ch1", true);
+        let mut i = input("ch1");
+        i.is_mentioned = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::DirectMention));
+    }
+
+    #[test]
+    fn direct_mention_overrides_dampener() {
+        let mgr = Manager::new();
+        mgr.set_dampen("ch1", true);
+        let mut i = input("ch1");
+        i.is_mentioned = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::DirectMention));
+    }
+
+    #[test]
+    fn reply_to_cova_responds() {
+        let mgr = Manager::new();
+        let mut i = input("ch1");
+        i.is_reply_to_me = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::ReplyToCova));
+        assert_eq!(result.energy, Some(GateEnergy::Normal));
+    }
+
+    #[test]
+    fn reply_overrides_dampener() {
+        let mgr = Manager::new();
+        mgr.set_dampen("ch1", true);
+        let mut i = input("ch1");
+        i.is_reply_to_me = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::ReplyToCova));
+    }
+
+    #[test]
+    fn reply_blocked_by_mute() {
+        let mgr = Manager::new();
+        mgr.set_mute("ch1", true);
+        let mut i = input("ch1");
+        i.is_reply_to_me = true;
+        let result = mgr.should_respond(&i);
+        assert!(!result.respond);
+    }
+
+    #[test]
+    fn engagement_continuity_after_cova_speaks() {
+        let mgr = Manager::new();
+        mgr.record_cova_speak("ch1");
+        let result = mgr.should_respond(&input("ch1"));
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::EngagementContinuity));
+    }
+
+    #[test]
+    fn no_response_without_continuity() {
+        let mgr = Manager::new();
+        let result = mgr.should_respond(&input("ch1"));
+        assert!(!result.respond);
+    }
+
+    #[test]
+    fn dampener_suppresses_continuity() {
+        let mgr = Manager::new();
+        mgr.record_cova_speak("ch1");
+        mgr.set_dampen("ch1", true);
+        let result = mgr.should_respond(&input("ch1"));
+        assert!(!result.respond);
+    }
+
+    #[test]
+    fn addressee_self_triggers_reply() {
+        let mgr = Manager::new();
+        let mut i = input("ch1");
+        i.is_addressee_self = true;
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::ReplyToCova));
+    }
+
+    #[test]
+    fn no_crossover_between_channels() {
+        let mgr = Manager::new();
+        mgr.record_cova_speak("ch1");
+        // ch2 has no activity — should not respond
+        let result = mgr.should_respond(&input("ch2"));
+        assert!(!result.respond);
     }
 }

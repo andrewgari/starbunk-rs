@@ -125,3 +125,149 @@ impl TaggerService for LlmTagger {
         serde_json::from_str(&resp.text).context("tagger: failed to parse JSON response")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::llm::{EmbedRequest, EmbedResponse, GenerateRequest, GenerateResponse};
+    use std::sync::Arc;
+
+    struct MockLlm {
+        response_json: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::shared::llm::LlmService for MockLlm {
+        async fn generate(&self, _req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+            Ok(GenerateResponse {
+                text: self.response_json.to_string(),
+                prompt_tokens: 0,
+                completion_tokens: 0,
+            })
+        }
+
+        async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+            Ok(EmbedResponse { embeddings: vec![] })
+        }
+    }
+
+    #[tokio::test]
+    async fn parses_valid_response() {
+        let llm = Arc::new(MockLlm {
+            response_json: r#"{"topical_tags":["programming","rust"],"structural":{"addressee":"room","intent":"statement"}}"#,
+        });
+        let tagger = LlmTagger::new(llm);
+        let result = tagger
+            .tag_message("I love Rust", TaggingContext::default())
+            .await
+            .expect("should parse");
+        assert_eq!(result.topical_tags, vec!["programming", "rust"]);
+        assert_eq!(result.structural.addressee, Some(Addressee::Room));
+        assert_eq!(result.structural.intent, Some(Intent::Statement));
+    }
+
+    #[tokio::test]
+    async fn handles_empty_topical_tags() {
+        let llm = Arc::new(MockLlm {
+            response_json: r#"{"topical_tags":[],"structural":{"addressee":"self","intent":"low-effort"}}"#,
+        });
+        let tagger = LlmTagger::new(llm);
+        let result = tagger
+            .tag_message("lol", TaggingContext::default())
+            .await
+            .expect("should parse");
+        assert!(result.topical_tags.is_empty());
+        assert_eq!(result.structural.addressee, Some(Addressee::SelfAddr));
+        assert_eq!(result.structural.intent, Some(Intent::LowEffort));
+    }
+
+    #[tokio::test]
+    async fn prompt_includes_tag_guidance() {
+        use std::sync::Mutex;
+
+        struct CaptureLlm {
+            captured: Mutex<Option<GenerateRequest>>,
+        }
+
+        #[async_trait::async_trait]
+        impl crate::shared::llm::LlmService for CaptureLlm {
+            async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+                *self.captured.lock().unwrap() = Some(req);
+                Ok(GenerateResponse {
+                    text: r#"{"topical_tags":[],"structural":{"addressee":"room","intent":"statement"}}"#.to_string(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                })
+            }
+            async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+                Ok(EmbedResponse { embeddings: vec![] })
+            }
+        }
+
+        let llm = Arc::new(CaptureLlm { captured: Mutex::new(None) });
+        let tagger = LlmTagger::new(llm.clone());
+        tagger
+            .tag_message("test message", TaggingContext::default())
+            .await
+            .unwrap();
+
+        let captured = llm.captured.lock().unwrap();
+        let req = captured.as_ref().expect("request was captured");
+        let system_content = req
+            .messages
+            .iter()
+            .find(|m| matches!(m.role, crate::shared::llm::Role::System))
+            .map(|m| m.content.as_str())
+            .unwrap_or("");
+        assert!(system_content.contains("topical tags"));
+        assert!(system_content.contains("Addressee must be one of"));
+        assert!(system_content.contains("Intent must be one of"));
+    }
+
+    #[tokio::test]
+    async fn prompt_includes_context_data() {
+        use std::sync::Mutex;
+
+        struct CaptureLlm {
+            captured: Mutex<Option<GenerateRequest>>,
+        }
+
+        #[async_trait::async_trait]
+        impl crate::shared::llm::LlmService for CaptureLlm {
+            async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
+                *self.captured.lock().unwrap() = Some(req);
+                Ok(GenerateResponse {
+                    text: r#"{"topical_tags":[],"structural":{"addressee":"room","intent":"statement"}}"#.to_string(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                })
+            }
+            async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+                Ok(EmbedResponse { embeddings: vec![] })
+            }
+        }
+
+        let llm = Arc::new(CaptureLlm { captured: Mutex::new(None) });
+        let tagger = LlmTagger::new(llm.clone());
+        let ctx = TaggingContext {
+            thread_context: "some thread".to_string(),
+            active_conversations: vec!["active convo".to_string()],
+            recent_conversations: vec!["recent convo".to_string()],
+            currently_used_tags: vec!["existing-tag".to_string()],
+        };
+        tagger.tag_message("hello", ctx).await.unwrap();
+
+        let captured = llm.captured.lock().unwrap();
+        let req = captured.as_ref().expect("request was captured");
+        let system_content = req
+            .messages
+            .iter()
+            .find(|m| matches!(m.role, crate::shared::llm::Role::System))
+            .map(|m| m.content.as_str())
+            .unwrap_or("");
+        assert!(system_content.contains("some thread"));
+        assert!(system_content.contains("active convo"));
+        assert!(system_content.contains("recent convo"));
+        assert!(system_content.contains("existing-tag"));
+    }
+}

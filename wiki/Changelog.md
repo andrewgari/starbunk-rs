@@ -5,6 +5,28 @@ Add an entry under today's date for every PR or significant change.
 
 ---
 
+## 2026-06-09 — Code parity, TDD, and idiomatic Rust refinements
+
+### Added
+- 75 unit tests across all modules (middleware, replybot, bluebot, covabot engagement, tagger, conversation tracker).
+- `src/bots/covabot/conversation.rs` — 5 tests covering: new-conversation seeding, high-similarity join, low-similarity fork, empty tags, no channel crossover.
+- `src/shared/middleware/` — 40+ tests covering all filters and combinators including complex composition scenarios (BlueBot policy, BunkBot policy, scenario-1/2 from Go parity).
+- `src/shared/replybot/bot.rs` — 5 async tests via `MockSender` + `MockStrategy` with condition, identity, and first-match-wins coverage.
+- `src/bots/bluebot/strategy.rs` — `name()` and `response()` tests; extended pattern matching test table with 16 positive and 7 negative cases.
+- `src/shared/discord/identity.rs` — `Identity::resolve()` async method for resolving identity from Discord API.
+
+### Changed
+- `IdentityProvider` converted from concrete struct to `trait` for testability; `DiscordIdentityProvider` is the implementing type.
+- `not_self_with_bot_id(bot_id: UserId)` filter added for test contexts where serenity `Context` is unavailable.
+- Middleware `mod.rs` re-exports updated to include `not_author_id` and `not_self_with_bot_id`.
+- All filter test helpers use `NonNull::<Context>::dangling()` (never dereferenced) instead of zeroed memory.
+
+### Fixed
+- `not_author_id` was defined but not re-exported from `middleware/mod.rs`.
+- `FnFilter` type alias added to satisfy `clippy::type_complexity` lint.
+
+---
+
 ## 2026-06-09 — Initial Rust port and project infrastructure
 
 ### Added
