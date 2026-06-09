@@ -1,7 +1,4 @@
-pub mod client_anthropic;
-pub mod client_google;
-pub mod client_ollama;
-pub mod client_openai;
+pub mod client;
 pub mod config;
 pub mod models;
 pub mod service;

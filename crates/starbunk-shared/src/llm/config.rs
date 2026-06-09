@@ -1,7 +1,4 @@
-use super::client_anthropic::AnthropicClient;
-use super::client_google::GoogleClient;
-use super::client_ollama::OllamaClient;
-use super::client_openai::OpenAiClient;
+use super::client::{AnthropicClient, GoogleClient, OllamaClient, OpenAiClient};
 use super::service::{LlmService, Registry, TieredRegistry};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -58,7 +55,11 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
         let api_key = std::env::var(format!("{prefix}API_KEY")).ok();
         let base_url = std::env::var(format!("{prefix}BASE_URL")).ok();
         if api_key.is_some() || base_url.is_some() || matches!(p, Provider::Ollama) {
-            Some(ProviderConfig { provider: p, base_url, api_key })
+            Some(ProviderConfig {
+                provider: p,
+                base_url,
+                api_key,
+            })
         } else {
             None
         }
@@ -86,41 +87,42 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
         Provider::from_str(&provider_str).map(|p| TierSpec { provider: p, model })
     };
 
-    let build = |tier_name: &str, spec: Option<TierSpec>| -> anyhow::Result<Option<Arc<dyn LlmService>>> {
-        let Some(spec) = spec else { return Ok(None) };
+    let build =
+        |tier_name: &str, spec: Option<TierSpec>| -> anyhow::Result<Option<Arc<dyn LlmService>>> {
+            let Some(spec) = spec else { return Ok(None) };
 
-        let pcfg = match providers.get(&spec.provider) {
-            Some(c) => c,
-            None => {
-                tracing::warn!(tier = tier_name, "credentials not found for provider, skipping tier");
-                return Ok(None);
-            }
+            let pcfg = match providers.get(&spec.provider) {
+                Some(c) => c,
+                None => {
+                    tracing::warn!(
+                        tier = tier_name,
+                        "credentials not found for provider, skipping tier"
+                    );
+                    return Ok(None);
+                }
+            };
+
+            let service: Arc<dyn LlmService> = match spec.provider {
+                Provider::OpenAi => Arc::new(OpenAiClient::new(
+                    pcfg.base_url.clone(),
+                    pcfg.api_key.clone().unwrap_or_default(),
+                    spec.model,
+                )),
+                Provider::Anthropic => Arc::new(AnthropicClient::new(
+                    pcfg.base_url.clone(),
+                    pcfg.api_key.clone().unwrap_or_default(),
+                    spec.model,
+                )),
+                Provider::Ollama => Arc::new(OllamaClient::new(pcfg.base_url.clone(), spec.model)),
+                Provider::Google => Arc::new(GoogleClient::new(
+                    pcfg.base_url.clone(),
+                    pcfg.api_key.clone().unwrap_or_default(),
+                    spec.model,
+                )),
+            };
+
+            Ok(Some(service))
         };
-
-        let service: Arc<dyn LlmService> = match spec.provider {
-            Provider::OpenAi => Arc::new(OpenAiClient::new(
-                pcfg.base_url.clone(),
-                pcfg.api_key.clone().unwrap_or_default(),
-                spec.model,
-            )),
-            Provider::Anthropic => Arc::new(AnthropicClient::new(
-                pcfg.base_url.clone(),
-                pcfg.api_key.clone().unwrap_or_default(),
-                spec.model,
-            )),
-            Provider::Ollama => Arc::new(OllamaClient::new(
-                pcfg.base_url.clone(),
-                spec.model,
-            )),
-            Provider::Google => Arc::new(GoogleClient::new(
-                pcfg.base_url.clone(),
-                pcfg.api_key.clone().unwrap_or_default(),
-                spec.model,
-            )),
-        };
-
-        Ok(Some(service))
-    };
 
     let high_spec = parse_tier("LLM_TIER_HIGH_PROVIDER", "LLM_TIER_HIGH_MODEL");
     let medium_spec = parse_tier("LLM_TIER_MEDIUM_PROVIDER", "LLM_TIER_MEDIUM_MODEL");

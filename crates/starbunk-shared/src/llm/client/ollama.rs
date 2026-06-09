@@ -1,24 +1,23 @@
-use super::models::*;
-use super::service::LlmService;
+use super::super::models;
+use super::super::models::*;
+use super::super::service::LlmService;
 use anyhow::Context as _;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-pub struct OpenAiClient {
+pub struct OllamaClient {
     base_url: String,
-    api_key: String,
     default_model: String,
     client: Client,
 }
 
-impl OpenAiClient {
-    pub fn new(base_url: Option<String>, api_key: String, model: String) -> Self {
+impl OllamaClient {
+    pub fn new(base_url: Option<String>, model: String) -> Self {
         Self {
             base_url: base_url
-                .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
-            api_key,
+                .unwrap_or_else(|| "http://localhost:11434".to_string()),
             default_model: model,
             client: Client::builder()
                 .timeout(Duration::from_secs(60))
@@ -29,9 +28,16 @@ impl OpenAiClient {
 }
 
 #[derive(Serialize)]
-struct ApiRequest<'a> {
+struct ChatRequest<'a> {
     model: &'a str,
     messages: Vec<ApiMessage>,
+    stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<Options>,
+}
+
+#[derive(Serialize)]
+struct Options {
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
 }
@@ -43,20 +49,10 @@ struct ApiMessage {
 }
 
 #[derive(Deserialize)]
-struct ApiResponse {
-    choices: Vec<Choice>,
-    usage: Usage,
-}
-
-#[derive(Deserialize)]
-struct Choice {
+struct ChatResponse {
     message: ApiMessage,
-}
-
-#[derive(Deserialize)]
-struct Usage {
-    prompt_tokens: u32,
-    completion_tokens: u32,
+    prompt_eval_count: Option<u32>,
+    eval_count: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -67,16 +63,11 @@ struct EmbedApiRequest<'a> {
 
 #[derive(Deserialize)]
 struct EmbedApiResponse {
-    data: Vec<EmbedData>,
-}
-
-#[derive(Deserialize)]
-struct EmbedData {
-    embedding: Vec<f32>,
+    embeddings: Vec<Vec<f32>>,
 }
 
 #[async_trait]
-impl LlmService for OpenAiClient {
+impl LlmService for OllamaClient {
     async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
         let model = req
             .model
@@ -92,72 +83,64 @@ impl LlmService for OpenAiClient {
             })
             .collect();
 
-        let body = ApiRequest {
+        let options = req.temperature.map(|t| Options { temperature: Some(t) });
+
+        let body = ChatRequest {
             model,
             messages,
-            temperature: req.temperature,
+            stream: false,
+            options,
         };
 
-        let url = format!("{}/chat/completions", self.base_url);
+        let url = format!("{}/api/chat", self.base_url);
         let resp = self
             .client
             .post(&url)
-            .bearer_auth(&self.api_key)
             .json(&body)
             .send()
             .await
-            .context("openai: request failed")?;
+            .context("ollama: request failed")?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!("openai: unexpected status {}: {}", status, text));
+            return Err(anyhow::anyhow!("ollama: unexpected status {}: {}", status, text));
         }
 
-        let api_resp: ApiResponse = resp
+        let api_resp: ChatResponse = resp
             .json()
             .await
-            .context("openai: failed to decode response")?;
-
-        let choice = api_resp
-            .choices
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("openai: no choices returned"))?;
+            .context("ollama: failed to decode response")?;
 
         Ok(GenerateResponse {
-            text: choice.message.content,
-            prompt_tokens: api_resp.usage.prompt_tokens,
-            completion_tokens: api_resp.usage.completion_tokens,
+            text: api_resp.message.content,
+            prompt_tokens: api_resp.prompt_eval_count.unwrap_or(0),
+            completion_tokens: api_resp.eval_count.unwrap_or(0),
         })
     }
 
-    async fn embed(&self, req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or("text-embedding-3-small");
+    async fn embed(&self, req: models::EmbedRequest) -> anyhow::Result<models::EmbedResponse> {
+        let model = req.model.as_deref().unwrap_or(&self.default_model);
 
         let body = EmbedApiRequest {
             model,
             input: &req.input,
         };
 
-        let url = format!("{}/embeddings", self.base_url);
+        let url = format!("{}/api/embed", self.base_url);
         let resp = self
             .client
             .post(&url)
-            .bearer_auth(&self.api_key)
             .json(&body)
             .send()
             .await
-            .context("openai: embed request failed")?;
+            .context("ollama: embed request failed")?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             return Err(anyhow::anyhow!(
-                "openai: unexpected embed status {}: {}",
+                "ollama: unexpected embed status {}: {}",
                 status,
                 text
             ));
@@ -166,10 +149,10 @@ impl LlmService for OpenAiClient {
         let api_resp: EmbedApiResponse = resp
             .json()
             .await
-            .context("openai: failed to decode embed response")?;
+            .context("ollama: failed to decode embed response")?;
 
-        Ok(EmbedResponse {
-            embeddings: api_resp.data.into_iter().map(|d| d.embedding).collect(),
+        Ok(models::EmbedResponse {
+            embeddings: api_resp.embeddings,
         })
     }
 }
