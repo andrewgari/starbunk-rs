@@ -88,6 +88,38 @@ belong to the current worktree, switch first. See `/worktree` for the full proto
 
 ---
 
+## Module File Layout
+
+Use the **Rust 2018 sibling-file pattern** for every module that has submodules:
+
+```
+src/
+  foo.rs          ← module root: declares submodules, re-exports, top-level logic
+  foo/
+    bar.rs        ← submodule
+    baz.rs        ← submodule
+```
+
+**Rules:**
+- **Never use `mod.rs`** — always prefer `foo.rs` as the module root alongside a `foo/` directory.
+- The root file (`foo.rs`) owns: `mod` declarations, `pub use` re-exports, and any logic that belongs to the module as a whole.
+- Each submodule file contains exactly one concept (one struct, one trait, one command, etc.).
+- When a file grows beyond ~150 lines, split it — one concept per file.
+
+**Correct** (`djcova` commands, `starbunk-shared` top-level modules):
+```
+commands.rs       ← mod play; mod skip; pub use ...; pub fn all_commands()
+commands/play.rs  ← pub fn play_command()
+commands/skip.rs  ← pub fn skip_command()
+```
+
+**Wrong** — never do this:
+```
+commands/mod.rs   ← ✗ use foo.rs instead
+```
+
+---
+
 ## Rust Code Standards
 
 Key rules — **see `/rust-standards` for the full ruleset:**

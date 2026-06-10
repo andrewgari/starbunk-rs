@@ -1,80 +1,28 @@
-use serenity::all::{CommandOptionType, CreateCommand, CreateCommandOption};
+mod clear;
+mod help;
+mod history;
+mod nowplaying;
+mod play;
+mod queue;
+mod repeat;
+mod shuffle;
+mod skip;
+mod stop;
+mod volume;
 
-pub fn play_command() -> CreateCommand {
-    CreateCommand::new("play")
-        .description("Play a YouTube URL or query, or upload an audio file")
-        .add_option(
-            CreateCommandOption::new(
-                CommandOptionType::String,
-                "input",
-                "YouTube URL or search query",
-            )
-            .required(false),
-        )
-        .add_option(
-            CreateCommandOption::new(
-                CommandOptionType::Attachment,
-                "file",
-                "Audio file attachment (MP3, FLAC, OGG, WAV)",
-            )
-            .required(false),
-        )
-}
+pub use clear::clear_command;
+pub use help::help_command;
+pub use history::history_command;
+pub use nowplaying::nowplaying_command;
+pub use play::play_command;
+pub use queue::queue_command;
+pub use repeat::repeat_command;
+pub use shuffle::shuffle_command;
+pub use skip::skip_command;
+pub use stop::stop_command;
+pub use volume::volume_command;
 
-pub fn skip_command() -> CreateCommand {
-    CreateCommand::new("skip").description("Skip the current song")
-}
-
-pub fn stop_command() -> CreateCommand {
-    CreateCommand::new("stop").description("Stop playback and disconnect the bot")
-}
-
-pub fn queue_command() -> CreateCommand {
-    CreateCommand::new("queue").description("Show the current playback queue")
-}
-
-pub fn nowplaying_command() -> CreateCommand {
-    CreateCommand::new("nowplaying").description("Show the currently playing song")
-}
-
-pub fn history_command() -> CreateCommand {
-    CreateCommand::new("history").description("Show session playback history")
-}
-
-pub fn shuffle_command() -> CreateCommand {
-    CreateCommand::new("shuffle").description("Shuffle the current queue")
-}
-
-pub fn help_command() -> CreateCommand {
-    CreateCommand::new("help").description("Show all available commands")
-}
-
-pub fn volume_command() -> CreateCommand {
-    CreateCommand::new("volume")
-        .description("Set playback volume (0-100)")
-        .add_option(
-            CreateCommandOption::new(CommandOptionType::Integer, "level", "Volume level (0-100)")
-                .required(true)
-                .min_int_value(0)
-                .max_int_value(100),
-        )
-}
-
-pub fn clear_command() -> CreateCommand {
-    CreateCommand::new("clear").description("Clear the current queue")
-}
-
-pub fn repeat_command() -> CreateCommand {
-    CreateCommand::new("repeat")
-        .description("Set repeat mode")
-        .add_option(
-            CreateCommandOption::new(CommandOptionType::String, "mode", "off, song, or queue")
-                .required(true)
-                .add_string_choice("off", "off")
-                .add_string_choice("song", "song")
-                .add_string_choice("queue", "queue"),
-        )
-}
+use serenity::all::CreateCommand;
 
 pub fn all_commands() -> Vec<CreateCommand> {
     vec![

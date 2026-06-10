@@ -19,9 +19,9 @@ pub struct QueueItem {
     pub requester: String,
     pub duration: Option<Duration>,
     pub thumbnail_url: Option<String>,
-    pub is_attachment: bool,
 }
 
+#[derive(Debug)]
 pub struct GuildAudioManager {
     guild_id: GuildId,
     text_channel_id: Option<ChannelId>,
@@ -68,22 +68,18 @@ impl GuildAudioManager {
         self.text_channel_id = Some(text_channel);
         self.voice_channel_id = Some(voice_channel);
 
-        // Resolve metadata
-        let resolved = self.voice.resolve_metadata(&input).await?;
-        let item = QueueItem {
-            title: resolved.title,
-            url: input,
-            requester,
-            duration: resolved.duration,
-            thumbnail_url: resolved.thumbnail_url,
-            is_attachment: false,
-        };
-
         if self.current_track.is_none() {
-            // First time joining voice if not connected
+            // Join voice then resolve metadata + start playback in a single yt-dlp invocation.
             self.voice.join(self.guild_id, voice_channel).await?;
+            let info = self.voice.play(self.guild_id, &input).await?;
+            let item = QueueItem {
+                title: info.title,
+                url: input,
+                requester,
+                duration: info.duration,
+                thumbnail_url: info.thumbnail_url,
+            };
             self.current_track = Some(item.clone());
-            self.voice.play(self.guild_id, &item.url).await?;
             let _ = self
                 .voice
                 .set_volume(self.guild_id, self.volume as f32 / 100.0)
@@ -97,6 +93,15 @@ impl GuildAudioManager {
                 item.title, item.requester
             ))
         } else {
+            // Resolve metadata only — playback starts when this item reaches the front of the queue.
+            let resolved = self.voice.resolve_metadata(&input).await?;
+            let item = QueueItem {
+                title: resolved.title,
+                url: input,
+                requester,
+                duration: resolved.duration,
+                thumbnail_url: resolved.thumbnail_url,
+            };
             self.queue.push_back(item.clone());
             Ok(format!(
                 "Queued: {} requested by {}",
@@ -124,7 +129,7 @@ impl GuildAudioManager {
         self.current_track = next_track;
 
         if let Some(track) = self.current_track.clone() {
-            self.voice.play(self.guild_id, &track.url).await?;
+            self.voice.play(self.guild_id, &track.url).await?; // metadata return ignored; track info already known
             let _ = self
                 .voice
                 .set_volume(self.guild_id, self.volume as f32 / 100.0)
@@ -332,6 +337,7 @@ mod tests {
     use crate::voice::TrackInfo;
     use async_trait::async_trait;
 
+    #[derive(Debug)]
     struct MockVoiceService;
 
     #[async_trait]
@@ -349,8 +355,12 @@ mod tests {
                 thumbnail_url: None,
             })
         }
-        async fn play(&self, _guild_id: GuildId, _track_url: &str) -> anyhow::Result<()> {
-            Ok(())
+        async fn play(&self, _guild_id: GuildId, _track_url: &str) -> anyhow::Result<TrackInfo> {
+            Ok(TrackInfo {
+                title: "Stub Track".to_string(),
+                duration: Some(Duration::from_secs(180)),
+                thumbnail_url: None,
+            })
         }
         async fn stop(&self, _guild_id: GuildId) -> anyhow::Result<()> {
             Ok(())
@@ -363,6 +373,7 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
     struct MockGifService;
 
     #[async_trait]

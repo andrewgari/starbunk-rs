@@ -24,10 +24,11 @@ struct GifMedia {
 }
 
 #[async_trait]
-pub trait GifService: Send + Sync {
+pub trait GifService: Send + Sync + std::fmt::Debug {
     async fn fetch_dancing_gif(&self) -> anyhow::Result<String>;
 }
 
+#[derive(Debug)]
 pub struct TenorGifClient {
     client: Client,
     api_key: Option<String>,

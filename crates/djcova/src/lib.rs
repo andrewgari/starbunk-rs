@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use tokio::sync::Mutex;
 
+#[derive(Debug)]
 struct Handler {
     managers: Arc<Mutex<HashMap<GuildId, Arc<Mutex<manager::GuildAudioManager>>>>>,
     voice_service: OnceLock<Arc<dyn voice::VoiceService>>,
@@ -182,7 +183,6 @@ impl EventHandler for Handler {
 
                         let mut input = None;
                         let mut file_url = None;
-                        let mut _filename = None;
 
                         for opt in &cmd.data.options {
                             if opt.name == "input" {
@@ -199,7 +199,6 @@ impl EventHandler for Handler {
                                             || name.ends_with(".wav")
                                         {
                                             file_url = Some(att.url.clone());
-                                            _filename = Some(att.filename.clone());
                                         } else {
                                             let _ = cmd.edit_response(&ctx.http, EditInteractionResponse::new().content("Unsupported file type. Please upload an MP3, FLAC, OGG, or WAV file.")).await;
                                             return;
@@ -544,7 +543,11 @@ impl EventHandler for Handler {
                             let m = mgr.lock().await;
                             let track = m.get_current_track();
                             let volume = m.get_volume();
-                            let voice = self.voice_service.get().cloned().unwrap();
+                            let voice = self
+                                .voice_service
+                                .get()
+                                .cloned()
+                                .expect("VoiceService not initialized");
                             (track, volume, voice)
                         };
                         if let Some(track) = track {
@@ -569,28 +572,40 @@ impl EventHandler for Handler {
                         };
                         if let Some(track) = track {
                             let text_channel = comp.channel_id;
-                            if let Some(vc) = voice_channel {
-                                let mut m = mgr.lock().await;
-                                let _ = m
-                                    .play(
-                                        Some(ctx.http.clone()),
-                                        text_channel,
-                                        vc,
-                                        track.url,
-                                        track.requester,
-                                    )
-                                    .await;
-                                drop(m);
-                                let _ = comp
-                                    .edit_response(
-                                        &ctx.http,
-                                        EditInteractionResponse::new().content(format!(
-                                            "Re-queued: {} (Queue size: {})",
-                                            track.title,
-                                            queue_len + 1
-                                        )),
-                                    )
-                                    .await;
+                            match voice_channel {
+                                Some(vc) => {
+                                    let mut m = mgr.lock().await;
+                                    let _ = m
+                                        .play(
+                                            Some(ctx.http.clone()),
+                                            text_channel,
+                                            vc,
+                                            track.url,
+                                            track.requester,
+                                        )
+                                        .await;
+                                    drop(m);
+                                    let _ = comp
+                                        .edit_response(
+                                            &ctx.http,
+                                            EditInteractionResponse::new().content(format!(
+                                                "Re-queued: {} (Queue size: {})",
+                                                track.title,
+                                                queue_len + 1
+                                            )),
+                                        )
+                                        .await;
+                                }
+                                None => {
+                                    let _ = comp
+                                        .edit_response(
+                                            &ctx.http,
+                                            EditInteractionResponse::new().content(
+                                                "Cannot re-queue: bot is not in a voice channel.",
+                                            ),
+                                        )
+                                        .await;
+                                }
                             }
                         }
                     }
