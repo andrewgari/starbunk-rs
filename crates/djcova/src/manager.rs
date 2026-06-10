@@ -4,6 +4,7 @@ use serenity::all::{ChannelId, GuildId, MessageId};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatMode {
@@ -317,11 +318,35 @@ impl GuildAudioManager {
         self.gif_task = Some(handle);
     }
 
+    pub async fn restart(&self) -> anyhow::Result<String> {
+        match &self.current_track {
+            Some(track) => {
+                self.voice.play(self.guild_id, &track.url).await?;
+                let _ = self
+                    .voice
+                    .set_volume(self.guild_id, self.volume as f32 / 100.0)
+                    .await;
+                Ok(format!("Restarted: {}", track.title))
+            }
+            None => anyhow::bail!("Nothing is currently playing."),
+        }
+    }
+
     fn stop_gif_loop(&mut self) {
         if let Some(handle) = self.gif_task.take() {
             handle.abort();
         }
     }
+}
+
+pub fn spawn_idle_timer(mgr: Arc<Mutex<GuildAudioManager>>) {
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(120)).await;
+        let mut m = mgr.lock().await;
+        if m.idle_timer_active {
+            let _ = m.stop().await;
+        }
+    });
 }
 
 #[cfg(test)]
