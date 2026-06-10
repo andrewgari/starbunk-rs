@@ -49,7 +49,18 @@ impl Default for TenorGifClient {
     }
 }
 
-const SEARCH_TERMS: &[&str] = &["dancing", "dance party", "grooving", "dance", "boogie"];
+const SEARCH_TERMS: &[&str] = &[
+    "people dancing to music",
+    "dance vibes meme",
+    "music vibes dancing",
+    "party dancing meme",
+    "grooving to music",
+    "dance party vibe",
+    "bobbing head to music",
+    "jamming to music meme",
+    "dancing in car meme",
+    "happy dancing meme",
+];
 
 #[async_trait]
 impl GifService for TenorGifClient {
@@ -60,7 +71,9 @@ impl GifService for TenorGifClient {
 
         let query = {
             let mut rng = rand::thread_rng();
-            *SEARCH_TERMS.choose(&mut rng).unwrap_or(&"dancing")
+            *SEARCH_TERMS
+                .choose(&mut rng)
+                .unwrap_or(&"people dancing to music")
         };
 
         let url = reqwest::Url::parse_with_params(
