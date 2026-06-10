@@ -21,20 +21,21 @@ Ask: *does this task belong to the current worktree's branch?*
 ## Context switching
 
 ```bash
+ROOT="$(git rev-parse --show-toplevel)"
+
 # 1. Sync main to origin — always start from a clean base
-git -C /mnt/data/tank/workspace/starbunk-rs fetch origin main
-git -C /mnt/data/tank/workspace/starbunk-rs reset --hard origin/main
+git -C "$ROOT" fetch origin main
+git -C "$ROOT" reset --hard origin/main
 
 # 2a. Worktree for the target branch already exists — go there
-cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/<branch-slug>
+cd "$ROOT/.claude/worktrees/<branch-slug>"
 
 # 2b. No worktree yet — create one from the freshly synced main
 BRANCH=feat/my-feature
-mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
-git -C /mnt/data/tank/workspace/starbunk-rs branch $BRANCH main
-git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
-    /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
-cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
+mkdir -p "$ROOT/.claude/worktrees"
+git -C "$ROOT" branch $BRANCH main
+git -C "$ROOT" worktree add "$ROOT/.claude/worktrees/${BRANCH//\//-}" $BRANCH
+cd "$ROOT/.claude/worktrees/${BRANCH//\//-}"
 ```
 
 Never carry work from one branch's worktree into another.
@@ -44,8 +45,9 @@ Never carry work from one branch's worktree into another.
 Use `reset --hard` rather than `pull` to eliminate local drift:
 
 ```bash
-git -C /mnt/data/tank/workspace/starbunk-rs fetch origin main
-git -C /mnt/data/tank/workspace/starbunk-rs reset --hard origin/main
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" fetch origin main
+git -C "$ROOT" reset --hard origin/main
 ```
 
 Run this every time you start a new task or switch contexts.

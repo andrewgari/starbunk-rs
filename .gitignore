@@ -7,3 +7,8 @@ wiki/raw
 /covabot
 /djcova
 /ratbot
+
+# Claude Code & Antigravity IDE Files
+.claude/worktrees/
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock

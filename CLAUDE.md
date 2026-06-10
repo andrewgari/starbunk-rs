@@ -3,6 +3,30 @@
 Agent guide for Claude Code. All rules, architecture notes, and the DevOps
 maintenance checklist live in [AGENTS.md](AGENTS.md) and are imported below.
 
+## Permissions & Autonomy
+
+You have broad autonomy to work without asking for confirmation. Default to doing, not asking.
+
+### Always allowed without asking
+- Read any file in this repo, including dotfiles and config directories (.claude, .gemini, .git, .env*, etc.)
+- Edit, create, or delete files within the project directory
+- Run read-only shell commands (ls, cat, grep, find, git status, git log, git diff, etc.)
+- Install dependencies (npm install, go mod tidy, pip install, etc.)
+- Run builds, tests, and linters
+- Create branches, stage changes, and commit (but not push)
+
+### Ask before doing
+- `git push` or opening PRs
+- Deleting files that aren't obviously temporary or generated
+- Making changes outside the project directory
+- Installing global packages
+- Any destructive operation that can't be undone
+
+### Never do
+- Force push
+- Modify CI/CD secrets or credentials
+- Push directly to main/master
+
 ## Claude Code: Proactive Skill Use
 
 Use available skills **without being told**. When the situation matches, invoke

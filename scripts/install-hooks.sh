@@ -3,9 +3,23 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$REPO_ROOT/.git/hooks"
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+SRC="$REPO_ROOT/scripts/git/hooks"
 
-cp "$REPO_ROOT/scripts/pre-commit.sh" "$HOOKS_DIR/pre-commit"
-chmod +x "$HOOKS_DIR/pre-commit"
+install_hook() {
+    local name="$1"
+    if [[ -f "$SRC/$name" ]]; then
+        cp "$SRC/$name" "$HOOKS_DIR/$name"
+        chmod +x "$HOOKS_DIR/$name"
+        echo "✅ Installed $name hook"
+    fi
+}
 
-echo "✅ Installed pre-commit hook"
+# Legacy location
+if [[ -f "$REPO_ROOT/scripts/pre-commit.sh" ]]; then
+    cp "$REPO_ROOT/scripts/pre-commit.sh" "$HOOKS_DIR/pre-commit"
+    chmod +x "$HOOKS_DIR/pre-commit"
+    echo "✅ Installed pre-commit hook"
+fi
+
+install_hook "commit-msg"
