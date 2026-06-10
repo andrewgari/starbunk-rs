@@ -16,8 +16,7 @@ pub struct OllamaClient {
 impl OllamaClient {
     pub fn new(base_url: Option<String>, model: String) -> Self {
         Self {
-            base_url: base_url
-                .unwrap_or_else(|| "http://localhost:11434".to_string()),
+            base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
             default_model: model,
             client: Client::builder()
                 .timeout(Duration::from_secs(60))
@@ -69,10 +68,7 @@ struct EmbedApiResponse {
 #[async_trait]
 impl LlmService for OllamaClient {
     async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or(&self.default_model);
+        let model = req.model.as_deref().unwrap_or(&self.default_model);
 
         let messages: Vec<ApiMessage> = req
             .messages
@@ -83,7 +79,9 @@ impl LlmService for OllamaClient {
             })
             .collect();
 
-        let options = req.temperature.map(|t| Options { temperature: Some(t) });
+        let options = req.temperature.map(|t| Options {
+            temperature: Some(t),
+        });
 
         let body = ChatRequest {
             model,
@@ -104,7 +102,11 @@ impl LlmService for OllamaClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!("ollama: unexpected status {}: {}", status, text));
+            return Err(anyhow::anyhow!(
+                "ollama: unexpected status {}: {}",
+                status,
+                text
+            ));
         }
 
         let api_resp: ChatResponse = resp

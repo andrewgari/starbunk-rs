@@ -4,14 +4,14 @@ pub mod tagger;
 
 pub use conversation::{LlmTracker, Tracker};
 pub use engagement::{GateEnergy, GateReason, Manager as EngagementManager, MessageInput};
-pub use tagger::{Addressee, Intent, LlmTagger, TagResult, TaggingContext, TaggerService};
+pub use tagger::{Addressee, Intent, LlmTagger, TagResult, TaggerService, TaggingContext};
 
+use async_trait::async_trait;
+use serenity::all::{Context, EventHandler, Message, Ready};
 use starbunk_shared::discord::{DiscordMessageService, MessageService, WebhookService};
 use starbunk_shared::llm::{GenerateRequest, LlmMessage, Registry};
 use starbunk_shared::memory::{MemoryService, MemoryServiceImpl, PgStore, Store};
 use starbunk_shared::middleware::{all_of, GUILD_ONLY, HAS_CONTENT, NOT_BOT, NOT_SELF};
-use async_trait::async_trait;
-use serenity::all::{Context, EventHandler, Message, Ready};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -167,8 +167,16 @@ impl EventHandler for Handler {
             return;
         };
 
-        let reason_str = eng.reason.as_ref().map(|r| format!("{:?}", r)).unwrap_or_default();
-        let energy_str = eng.energy.as_ref().map(|e| format!("{:?}", e)).unwrap_or_default();
+        let reason_str = eng
+            .reason
+            .as_ref()
+            .map(|r| format!("{:?}", r))
+            .unwrap_or_default();
+        let energy_str = eng
+            .energy
+            .as_ref()
+            .map(|e| format!("{:?}", e))
+            .unwrap_or_default();
 
         let mut system_prompt = format!(
             "You are CovaBot, a helpful AI personality. Respond to the user conversationally.\n\n\
@@ -200,11 +208,17 @@ impl EventHandler for Handler {
         if let Err(e) = sender.send(msg.channel_id, &resp.text).await {
             tracing::error!("covabot: send failed: {}", e);
         } else {
-            svc.engagement.record_cova_speak(&msg.channel_id.to_string());
+            svc.engagement
+                .record_cova_speak(&msg.channel_id.to_string());
         }
     }
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    starbunk_shared::run_bot("CovaBot", starbunk_shared::default_intents(), Handler::new()).await
+    starbunk_shared::run_bot(
+        "CovaBot",
+        starbunk_shared::default_intents(),
+        Handler::new(),
+    )
+    .await
 }

@@ -16,8 +16,7 @@ pub struct AnthropicClient {
 impl AnthropicClient {
     pub fn new(base_url: Option<String>, api_key: String, model: String) -> Self {
         Self {
-            base_url: base_url
-                .unwrap_or_else(|| "https://api.anthropic.com/v1".to_string()),
+            base_url: base_url.unwrap_or_else(|| "https://api.anthropic.com/v1".to_string()),
             api_key,
             default_model: model,
             client: Client::builder()
@@ -65,10 +64,7 @@ struct Usage {
 #[async_trait]
 impl LlmService for AnthropicClient {
     async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or(&self.default_model);
+        let model = req.model.as_deref().unwrap_or(&self.default_model);
 
         let mut system: Option<String> = None;
         let mut messages = Vec::new();

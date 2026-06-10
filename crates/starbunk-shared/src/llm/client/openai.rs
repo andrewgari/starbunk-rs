@@ -16,8 +16,7 @@ pub struct OpenAiClient {
 impl OpenAiClient {
     pub fn new(base_url: Option<String>, api_key: String, model: String) -> Self {
         Self {
-            base_url: base_url
-                .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
+            base_url: base_url.unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
             api_key,
             default_model: model,
             client: Client::builder()
@@ -78,10 +77,7 @@ struct EmbedData {
 #[async_trait]
 impl LlmService for OpenAiClient {
     async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or(&self.default_model);
+        let model = req.model.as_deref().unwrap_or(&self.default_model);
 
         let messages: Vec<ApiMessage> = req
             .messages
@@ -111,7 +107,11 @@ impl LlmService for OpenAiClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!("openai: unexpected status {}: {}", status, text));
+            return Err(anyhow::anyhow!(
+                "openai: unexpected status {}: {}",
+                status,
+                text
+            ));
         }
 
         let api_resp: ApiResponse = resp
@@ -133,10 +133,7 @@ impl LlmService for OpenAiClient {
     }
 
     async fn embed(&self, req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or("text-embedding-3-small");
+        let model = req.model.as_deref().unwrap_or("text-embedding-3-small");
 
         let body = EmbedApiRequest {
             model,
