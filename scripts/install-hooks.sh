@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$REPO_ROOT/.git/hooks"
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
 SRC="$REPO_ROOT/scripts/git/hooks"
 
 install_hook() {
