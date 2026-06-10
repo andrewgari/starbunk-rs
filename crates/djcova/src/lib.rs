@@ -273,15 +273,7 @@ impl EventHandler for Handler {
                                             .components(vec![self.create_buttons()]);
                                     }
                                 } else if msg.contains("stopped") {
-                                    // Start 2-minute idle timer
-                                    let mgr_clone = mgr.clone();
-                                    tokio::spawn(async move {
-                                        tokio::time::sleep(Duration::from_secs(120)).await;
-                                        let mut m = mgr_clone.lock().await;
-                                        if m.idle_timer_active {
-                                            let _ = m.stop().await;
-                                        }
-                                    });
+                                    spawn_idle_timer(mgr.clone());
                                 }
                                 let _ = cmd.edit_response(&ctx.http, edit).await;
                             }
@@ -321,7 +313,7 @@ impl EventHandler for Handler {
                             .await;
                     }
                     "shuffle" => {
-                        let _ = mgr.lock().await.shuffle();
+                        mgr.lock().await.shuffle();
                         let _ = cmd
                             .create_response(
                                 &ctx.http,
@@ -339,7 +331,7 @@ impl EventHandler for Handler {
                                 level = val;
                             }
                         }
-                        let _ = mgr.lock().await.set_volume(level as u8);
+                        mgr.lock().await.set_volume(level.clamp(0, 100) as u8);
                         let _ = cmd
                             .create_response(
                                 &ctx.http,
@@ -525,15 +517,7 @@ impl EventHandler for Handler {
                                 }
                             } else if msg.contains("stopped") {
                                 edit = edit.components(vec![]);
-                                // Start 2-minute idle timer
-                                let mgr_clone = mgr.clone();
-                                tokio::spawn(async move {
-                                    tokio::time::sleep(Duration::from_secs(120)).await;
-                                    let mut m = mgr_clone.lock().await;
-                                    if m.idle_timer_active {
-                                        let _ = m.stop().await;
-                                    }
-                                });
+                                spawn_idle_timer(mgr.clone());
                             }
                             let _ = comp.edit_response(&ctx.http, edit).await;
                         }
@@ -625,34 +609,52 @@ impl EventHandler for Handler {
         let bot_user_id = ctx.cache.current_user().id;
         let mgr = self.get_or_create_manager(guild_id).await;
 
-        // Check if members left the voice channel
-        let mut m = mgr.lock().await;
-        if let Some(voice_channel) = m.voice_channel_id {
-            if let Some(guild) = guild_id.to_guild_cached(&ctx.cache) {
-                // Count non-bot members in the channel
-                let non_bot_count = guild
-                    .voice_states
-                    .values()
-                    .filter(|vs| vs.channel_id == Some(voice_channel))
-                    .filter(|vs| vs.user_id != bot_user_id)
-                    .count();
-
-                if non_bot_count == 0 {
-                    m.user_left_voice_channel();
-                    let mgr_clone = mgr.clone();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(Duration::from_secs(60)).await;
-                        let mut locked = mgr_clone.lock().await;
-                        if locked.leave_timer_active {
-                            let _ = locked.stop().await;
-                        }
-                    });
+        let start_leave_timer = {
+            let mut m = mgr.lock().await;
+            if let Some(voice_channel) = m.voice_channel_id {
+                if let Some(guild) = guild_id.to_guild_cached(&ctx.cache) {
+                    let non_bot_count = guild
+                        .voice_states
+                        .values()
+                        .filter(|vs| vs.channel_id == Some(voice_channel))
+                        .filter(|vs| vs.user_id != bot_user_id)
+                        .count();
+                    if non_bot_count == 0 {
+                        m.user_left_voice_channel();
+                        true
+                    } else {
+                        m.user_returned_to_voice_channel();
+                        false
+                    }
                 } else {
-                    m.user_returned_to_voice_channel();
+                    false
                 }
+            } else {
+                false
             }
+        };
+
+        if start_leave_timer {
+            let mgr_clone = mgr.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                let mut locked = mgr_clone.lock().await;
+                if locked.leave_timer_active {
+                    let _ = locked.stop().await;
+                }
+            });
         }
     }
+}
+
+fn spawn_idle_timer(mgr: Arc<Mutex<manager::GuildAudioManager>>) {
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(120)).await;
+        let mut m = mgr.lock().await;
+        if m.idle_timer_active {
+            let _ = m.stop().await;
+        }
+    });
 }
 
 pub async fn run() -> anyhow::Result<()> {

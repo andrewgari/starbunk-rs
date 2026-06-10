@@ -1,6 +1,6 @@
 use crate::gif_client::GifService;
 use crate::voice::VoiceService;
-use serenity::all::{ChannelId, GuildId};
+use serenity::all::{ChannelId, GuildId, MessageId};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -166,16 +166,15 @@ impl GuildAudioManager {
         self.history.clone()
     }
 
-    pub fn shuffle(&mut self) -> anyhow::Result<()> {
+    pub fn shuffle(&mut self) {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         let mut vec: Vec<QueueItem> = self.queue.drain(..).collect();
         vec.shuffle(&mut rng);
         self.queue = vec.into();
-        Ok(())
     }
 
-    pub fn set_volume(&mut self, volume: u8) -> anyhow::Result<()> {
+    pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume;
         let vol_float = volume as f32 / 100.0;
         let voice = self.voice.clone();
@@ -183,7 +182,6 @@ impl GuildAudioManager {
         tokio::spawn(async move {
             let _ = voice.set_volume(guild_id, vol_float).await;
         });
-        Ok(())
     }
 
     pub fn get_volume(&self) -> u8 {
@@ -254,7 +252,7 @@ impl GuildAudioManager {
         }
 
         let gif = self.gif.clone();
-        let last_msg_id = Arc::new(tokio::sync::Mutex::new(None));
+        let mut last_msg_id: Option<MessageId> = None;
 
         let handle = tokio::spawn(async move {
             use rand::Rng;
@@ -284,19 +282,14 @@ impl GuildAudioManager {
                     }
                 };
 
-                let mut last_id_guard = last_msg_id.lock().await;
-                let should_edit = if let Some(last_posted) = *last_id_guard {
-                    if let Some(most_recent_msg) = messages.first() {
-                        most_recent_msg.id == last_posted
-                    } else {
-                        false
-                    }
+                let should_edit = if let Some(last_posted) = last_msg_id {
+                    messages.first().is_some_and(|m| m.id == last_posted)
                 } else {
                     false
                 };
 
                 if should_edit {
-                    let last_posted = last_id_guard.unwrap();
+                    let last_posted = last_msg_id.expect("should_edit guarantees Some");
                     let edit_res = text_channel
                         .edit_message(
                             &http,
@@ -310,13 +303,11 @@ impl GuildAudioManager {
                             e
                         );
                         if let Ok(new_msg) = text_channel.say(&http, &gif_url).await {
-                            *last_id_guard = Some(new_msg.id);
+                            last_msg_id = Some(new_msg.id);
                         }
                     }
-                } else {
-                    if let Ok(new_msg) = text_channel.say(&http, &gif_url).await {
-                        *last_id_guard = Some(new_msg.id);
-                    }
+                } else if let Ok(new_msg) = text_channel.say(&http, &gif_url).await {
+                    last_msg_id = Some(new_msg.id);
                 }
             }
         });
@@ -562,7 +553,7 @@ mod tests {
         }
 
         let original_queue = manager.get_queue();
-        manager.shuffle().unwrap();
+        manager.shuffle();
         let shuffled_queue = manager.get_queue();
 
         assert_eq!(original_queue.len(), shuffled_queue.len());
