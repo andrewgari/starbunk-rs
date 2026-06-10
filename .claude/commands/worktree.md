@@ -32,6 +32,8 @@ cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/<branch-slug>
 BRANCH=feat/my-feature
 mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
 git -C /mnt/data/tank/workspace/starbunk-rs branch $BRANCH main
+git -C /mnt/data/tank/workspace/starbunk-rs checkout -b $BRANCH
+mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
 git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
     /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
 cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
