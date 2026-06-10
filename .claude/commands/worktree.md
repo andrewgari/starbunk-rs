@@ -32,8 +32,6 @@ cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/<branch-slug>
 BRANCH=feat/my-feature
 mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
 git -C /mnt/data/tank/workspace/starbunk-rs branch $BRANCH main
-git -C /mnt/data/tank/workspace/starbunk-rs checkout -b $BRANCH
-mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
 git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
     /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
 cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
@@ -54,10 +52,8 @@ Run this every time you start a new task or switch contexts.
 
 ## Cleanup
 
-A cron job runs `scripts/cleanup-worktrees.sh --apply` hourly. It removes any worktree whose
-working tree is completely clean (no staged, unstaged, or untracked files).
-
-Manual cleanup:
+Run `scripts/cleanup-worktrees.sh` to remove worktrees whose working tree is completely clean
+(no staged, unstaged, or untracked files). Always dry-run first:
 
 ```bash
 bash scripts/cleanup-worktrees.sh          # dry-run

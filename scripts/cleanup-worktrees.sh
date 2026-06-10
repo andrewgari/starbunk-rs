@@ -47,10 +47,11 @@ while IFS= read -r line; do
             echo "  WOULD REMOVE  $wt_path  (branch: $branch, clean)"
         else
             echo "  REMOVING  $wt_path  (branch: $branch, clean)"
-            git worktree remove "$wt_path" --force 2>/dev/null || {
-                rm -rf "$wt_path"
-                git worktree prune
-            }
+            if ! git worktree remove "$wt_path" --force; then
+                echo "  ERROR  git worktree remove failed for $wt_path — skipping (investigate manually)"
+                (( KEPT++ )) || true
+                continue
+            fi
         fi
         (( REMOVED++ )) || true
     fi

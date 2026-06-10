@@ -26,7 +26,6 @@ You have broad autonomy to work without asking for confirmation. Default to doin
 - Force push
 - Modify CI/CD secrets or credentials
 - Push directly to main/master
-- editing
 
 ## Claude Code: Proactive Skill Use
 

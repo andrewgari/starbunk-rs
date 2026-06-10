@@ -57,7 +57,7 @@ Derive the worktree directory name by replacing slashes in the branch name with 
      cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH_SLUG}
      ```
 
-## Step 4 — Do the work
+## Step 3 — Do the work
 
 All file operations use the worktree path. Follow conventions from CLAUDE.md/AGENTS.md:
 - Entry points: `src/bin/<bot>.rs`
@@ -71,14 +71,14 @@ cargo test --all
 bash scripts/devops-validate.sh
 ```
 
-## Step 5 — Commit
+## Step 4 — Commit
 
 Stage only changed files. Write a conventional commit:
 ```
 <type>(<scope>): <short description>
 ```
 
-## Step 6 — Push and open PR
+## Step 5 — Push and open PR
 
 **Stop and ask for permission before pushing.** After permission:
 ```bash
@@ -86,7 +86,7 @@ git push -u origin <branch-name>
 gh pr create --title "..." --body "..."
 ```
 
-## Step 7 — Clean up worktree
+## Step 6 — Clean up worktree
 
 Navigate back to the main repository root:
 ```bash
