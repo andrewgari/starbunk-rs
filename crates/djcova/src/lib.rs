@@ -3,20 +3,17 @@ pub mod gif_client;
 pub mod manager;
 pub mod voice;
 
+use async_trait::async_trait;
 use serenity::all::{
-    ButtonStyle, ChannelId, Context, CreateActionRow, CreateButton, CreateEmbed,
-    CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse,
-    EventHandler, GatewayIntents, GuildId, Interaction, Message, Ready, VoiceState,
+    ButtonStyle, Context, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse,
+    CreateInteractionResponseMessage, EditInteractionResponse, EventHandler, GatewayIntents,
+    GuildId, Interaction, Ready, VoiceState,
 };
 use songbird::SerenityInit;
-use async_trait::async_trait;
 
-use starbunk_shared::discord::{DiscordMessageService, MessageService, WebhookService};
-use starbunk_shared::middleware::{all_of, HAS_CONTENT, NOT_SELF};
-
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use std::collections::HashMap;
 
 use tokio::sync::Mutex;
 
@@ -543,13 +540,16 @@ impl EventHandler for Handler {
                         }
                     }
                     "djcova_restart" => {
-                        let m = mgr.lock().await;
-                        if let Some(track) = m.get_current_track() {
+                        let (track, volume, voice) = {
+                            let m = mgr.lock().await;
+                            let track = m.get_current_track();
+                            let volume = m.get_volume();
                             let voice = self.voice_service.get().cloned().unwrap();
+                            (track, volume, voice)
+                        };
+                        if let Some(track) = track {
                             let _ = voice.play(guild_id, &track.url).await;
-                            let _ = voice
-                                .set_volume(guild_id, m.get_volume() as f32 / 100.0)
-                                .await;
+                            let _ = voice.set_volume(guild_id, volume as f32 / 100.0).await;
                             let _ = comp
                                 .edit_response(
                                     &ctx.http,
@@ -560,29 +560,34 @@ impl EventHandler for Handler {
                         }
                     }
                     "djcova_requeue" => {
-                        let mut m = mgr.lock().await;
-                        if let Some(track) = m.get_current_track() {
-                            let tc = m.get_queue().len(); // mock channel / queue size
-                            if let Some(text_channel) =
-                                m.get_queue().first().map(|_| ChannelId::new(1))
-                            {
-                                // fallback
+                        let (track, queue_len, voice_channel) = {
+                            let m = mgr.lock().await;
+                            let track = m.get_current_track();
+                            let queue_len = m.get_queue().len();
+                            let voice_channel = m.voice_channel_id;
+                            (track, queue_len, voice_channel)
+                        };
+                        if let Some(track) = track {
+                            let text_channel = comp.channel_id;
+                            if let Some(vc) = voice_channel {
+                                let mut m = mgr.lock().await;
                                 let _ = m
                                     .play(
                                         Some(ctx.http.clone()),
                                         text_channel,
-                                        ChannelId::new(2),
+                                        vc,
                                         track.url,
                                         track.requester,
                                     )
                                     .await;
+                                drop(m);
                                 let _ = comp
                                     .edit_response(
                                         &ctx.http,
                                         EditInteractionResponse::new().content(format!(
                                             "Re-queued: {} (Queue size: {})",
                                             track.title,
-                                            tc + 1
+                                            queue_len + 1
                                         )),
                                     )
                                     .await;

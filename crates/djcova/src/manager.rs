@@ -428,7 +428,7 @@ mod tests {
             .unwrap();
 
         assert!(resp.contains("Queued") || resp.contains("Added"));
-        assert_eq!(manager.get_current_track().unwrap().title, "Stub Track"); // resolved from DiscordVoiceService
+        assert_eq!(manager.get_current_track().unwrap().title, "Stub Track"); // resolved from MockVoiceService stub
         assert_eq!(manager.get_queue().len(), 1);
         assert_eq!(manager.get_queue()[0].requester, "UserB");
     }

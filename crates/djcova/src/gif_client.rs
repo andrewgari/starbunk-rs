@@ -63,12 +63,17 @@ impl GifService for TenorGifClient {
             *SEARCH_TERMS.choose(&mut rng).unwrap_or(&"dancing")
         };
 
-        let url = format!(
-            "https://tenor.googleapis.com/v2/search?q={}&key={}&limit=20&random=true",
-            query, key
-        );
+        let url = reqwest::Url::parse_with_params(
+            "https://tenor.googleapis.com/v2/search",
+            &[
+                ("q", query),
+                ("key", key.as_str()),
+                ("limit", "20"),
+                ("random", "true"),
+            ],
+        )?;
 
-        let response: TenorResponse = self.client.get(&url).send().await?.json().await?;
+        let response: TenorResponse = self.client.get(url).send().await?.json().await?;
 
         let result = {
             let mut rng = rand::thread_rng();

@@ -39,7 +39,10 @@ impl DiscordVoiceService {
 #[async_trait]
 impl VoiceService for DiscordVoiceService {
     async fn join(&self, guild_id: GuildId, channel_id: ChannelId) -> anyhow::Result<()> {
-        let _ = self.songbird.join(guild_id, channel_id).await;
+        self.songbird
+            .join(guild_id, channel_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to join voice channel: {e}"))?;
         Ok(())
     }
 
