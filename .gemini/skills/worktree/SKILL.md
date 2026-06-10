@@ -30,8 +30,8 @@ cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/<branch-slug>
 
 # 2b. No worktree yet — create one from the freshly synced main
 BRANCH=feat/my-feature
-git -C /mnt/data/tank/workspace/starbunk-rs checkout -b $BRANCH
 mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
+git -C /mnt/data/tank/workspace/starbunk-rs branch $BRANCH main
 git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
     /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
 cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}

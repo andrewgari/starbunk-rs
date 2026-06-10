@@ -14,17 +14,14 @@ git checkout main
 git pull origin main
 ```
 
-**Always branch out**: Never work directly on `main`. Create a descriptive branch (e.g., `feat/...`, `fix/...`, `chore/...`).
-```bash
-git checkout -b <branch-name>
-```
-
-**Always use worktrees**: You must isolate your work by adding a git worktree. This prevents state conflicts and keeps your workspace clean.
+**Always branch out & use worktrees**: Never work directly on `main`. Create a descriptive branch (e.g., `feat/...`, `fix/...`, `chore/...`) and isolate your work by adding a git worktree. This prevents state conflicts and keeps your workspace clean. Create the branch without checking it out in the main repository first:
 ```bash
 BRANCH=<branch-name>
 mkdir -p /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees
+git -C /mnt/data/tank/workspace/starbunk-rs branch $BRANCH main
 git -C /mnt/data/tank/workspace/starbunk-rs worktree add \
     /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-} $BRANCH
+cd /mnt/data/tank/workspace/starbunk-rs/.claude/worktrees/${BRANCH//\//-}
 ```
 *(Note: All subsequent code modifications must be performed inside this worktree directory.)*
 
