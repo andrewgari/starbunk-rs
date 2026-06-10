@@ -152,6 +152,8 @@ impl GuildAudioManager {
         self.voice.leave(self.guild_id).await?;
         self.queue.clear();
         self.current_track = None;
+        self.voice_channel_id = None;
+        self.text_channel_id = None;
         self.idle_timer_active = false;
         self.leave_timer_active = false;
         self.stop_gif_loop();

@@ -3,7 +3,7 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
-## 2026-06-09 — DJCova implementation and integration
+## 2026-06-10 — DJCova implementation and integration
 
 ### Added
 - Completed implementation of the `djcova` music bot in Rust.

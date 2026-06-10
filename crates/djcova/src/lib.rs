@@ -36,26 +36,26 @@ impl Handler {
     async fn get_or_create_manager(
         &self,
         guild_id: GuildId,
-    ) -> Arc<Mutex<manager::GuildAudioManager>> {
+    ) -> anyhow::Result<Arc<Mutex<manager::GuildAudioManager>>> {
         let mut managers = self.managers.lock().await;
         if let Some(mgr) = managers.get(&guild_id) {
-            mgr.clone()
+            Ok(mgr.clone())
         } else {
             let voice = self
                 .voice_service
                 .get()
                 .cloned()
-                .expect("VoiceService not initialized");
+                .ok_or_else(|| anyhow::anyhow!("VoiceService not initialized"))?;
             let gif = self
                 .gif_service
                 .get()
                 .cloned()
-                .expect("GifService not initialized");
+                .ok_or_else(|| anyhow::anyhow!("GifService not initialized"))?;
             let mgr = Arc::new(Mutex::new(manager::GuildAudioManager::new(
                 guild_id, voice, gif,
             )));
             managers.insert(guild_id, mgr.clone());
-            mgr
+            Ok(mgr)
         }
     }
 
@@ -155,7 +155,24 @@ impl EventHandler for Handler {
                     }
                 };
 
-                let mgr = self.get_or_create_manager(guild_id).await;
+                let mgr = match self.get_or_create_manager(guild_id).await {
+                    Ok(m) => m,
+                    Err(_) => {
+                        let _ = cmd
+                            .create_response(
+                                &ctx.http,
+                                CreateInteractionResponse::Message(
+                                    CreateInteractionResponseMessage::new()
+                                        .content(
+                                            "Bot is still starting up, please try again in a moment.",
+                                        )
+                                        .ephemeral(true),
+                                ),
+                            )
+                            .await;
+                        return;
+                    }
+                };
 
                 match cmd.data.name.as_str() {
                     "play" => {
@@ -491,7 +508,10 @@ impl EventHandler for Handler {
                     Some(id) => id,
                     None => return,
                 };
-                let mgr = self.get_or_create_manager(guild_id).await;
+                let mgr = match self.get_or_create_manager(guild_id).await {
+                    Ok(m) => m,
+                    Err(_) => return,
+                };
 
                 match comp.data.custom_id.as_str() {
                     "djcova_stop" => {
@@ -527,11 +547,16 @@ impl EventHandler for Handler {
                             let m = mgr.lock().await;
                             let track = m.get_current_track();
                             let volume = m.get_volume();
-                            let voice = self
-                                .voice_service
-                                .get()
-                                .cloned()
-                                .expect("VoiceService not initialized");
+                            let Some(voice) = self.voice_service.get().cloned() else {
+                                let _ = comp
+                                    .edit_response(
+                                        &ctx.http,
+                                        EditInteractionResponse::new()
+                                            .content("Bot is still starting up, please try again."),
+                                    )
+                                    .await;
+                                return;
+                            };
                             (track, volume, voice)
                         };
                         if let Some(track) = track {
@@ -607,7 +632,9 @@ impl EventHandler for Handler {
         };
 
         let bot_user_id = ctx.cache.current_user().id;
-        let mgr = self.get_or_create_manager(guild_id).await;
+        let Ok(mgr) = self.get_or_create_manager(guild_id).await else {
+            return;
+        };
 
         let start_leave_timer = {
             let mut m = mgr.lock().await;
