@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-commit hook: cargo clippy + cargo build
+# Pre-commit hook: rustfmt auto-format + cargo clippy + cargo build
 # Matches the CI linter exactly.
 #
 # Install:
@@ -12,16 +12,12 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# --- rustfmt (format check) ---
+# --- rustfmt (auto-format staged files) ---
 STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
 if [ -n "$STAGED_RS" ]; then
-    UNFORMATTED=$(echo "$STAGED_RS" | xargs rustfmt --check 2>&1 | grep "^Diff" | awk '{print $3}' || true)
-    if [ -n "$UNFORMATTED" ]; then
-        echo "❌ rustfmt: files need formatting:"
-        echo "$UNFORMATTED" | sed 's/^/  /'
-        echo "   Run: rustfmt <file>"
-        exit 1
-    fi
+    echo "→ rustfmt: auto-formatting staged files..."
+    echo "$STAGED_RS" | xargs rustfmt
+    echo "$STAGED_RS" | xargs git add
 fi
 
 # --- cargo clippy ---

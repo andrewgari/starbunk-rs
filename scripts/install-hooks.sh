@@ -15,11 +15,5 @@ install_hook() {
     fi
 }
 
-# Legacy location
-if [[ -f "$REPO_ROOT/scripts/pre-commit.sh" ]]; then
-    cp "$REPO_ROOT/scripts/pre-commit.sh" "$HOOKS_DIR/pre-commit"
-    chmod +x "$HOOKS_DIR/pre-commit"
-    echo "✅ Installed pre-commit hook"
-fi
-
+install_hook "pre-commit"
 install_hook "commit-msg"
