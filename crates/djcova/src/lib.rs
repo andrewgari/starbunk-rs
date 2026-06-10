@@ -3,16 +3,21 @@ pub mod gif_client;
 pub mod manager;
 pub mod voice;
 
-use async_trait::async_trait;
 use serenity::all::{
     ButtonStyle, ChannelId, Context, CreateActionRow, CreateButton, CreateEmbed,
     CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse,
-    EventHandler, GatewayIntents, GuildId, Interaction, Ready, VoiceState,
+    EventHandler, GatewayIntents, GuildId, Interaction, Message, Ready, VoiceState,
 };
 use songbird::SerenityInit;
-use std::collections::HashMap;
+use async_trait::async_trait;
+
+use starbunk_shared::discord::{DiscordMessageService, MessageService, WebhookService};
+use starbunk_shared::middleware::{all_of, HAS_CONTENT, NOT_SELF};
+
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use std::collections::HashMap;
+
 use tokio::sync::Mutex;
 
 struct Handler {

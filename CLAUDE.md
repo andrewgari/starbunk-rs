@@ -3,6 +3,30 @@
 Agent guide for Claude Code. All rules, architecture notes, and the DevOps
 maintenance checklist live in [AGENTS.md](AGENTS.md) and are imported below.
 
+## Permissions & Autonomy
+
+You have broad autonomy to work without asking for confirmation. Default to doing, not asking.
+
+### Always allowed without asking
+- Read any file in this repo, including dotfiles and config directories (.claude, .gemini, .git, .env*, etc.)
+- Edit, create, or delete files within the project directory
+- Run read-only shell commands (ls, cat, grep, find, git status, git log, git diff, etc.)
+- Install dependencies (npm install, go mod tidy, pip install, etc.)
+- Run builds, tests, and linters
+- Create branches, stage changes, and commit (but not push)
+
+### Ask before doing
+- `git push` or opening PRs
+- Deleting files that aren't obviously temporary or generated
+- Making changes outside the project directory
+- Installing global packages
+- Any destructive operation that can't be undone
+
+### Never do
+- Force push
+- Modify CI/CD secrets or credentials
+- Push directly to main/master
+
 ## Claude Code: Proactive Skill Use
 
 Use available skills **without being told**. When the situation matches, invoke
@@ -20,6 +44,11 @@ the skill immediately — don't describe what you'd do, just do it.
 | User asks about Claude Code / Anthropic API | `claude-code-guide` agent |
 | Setting up hooks or automated behaviors | `/update-config` |
 
+## Task Integration & Discretionary Loading
+If the user asks to implement a feature, fix a bug, or perform any refactoring/coding task directly in chat without explicitly typing `/task`:
+1. **Recognize the context**: Identify that the request constitutes a "task" (branch -> worktree -> build/test -> PR -> CI watch).
+2. **Take action**: Proactively ask or recommend that the user invoke the `/task` command, OR load and execute the `/task` workflow at your own discretion to handle the workflow properly in an isolated worktree. Never work directly on `main` or bypass the worktree setup.
+
 Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. If tests fail,
 fixing them is part of the task.
 
@@ -30,6 +59,6 @@ Rust quality checklist — apply to every file touched:
 - No `.unwrap()` in production code (`.expect("reason")` on programmer-error panics only)
 - Slow async work spawned with `tokio::spawn`
 - See **Rust Code Standards** in `AGENTS.md` for the full ruleset
-- See **Git Commit Standards** in `AGENTS.md` for conventional commit enforcement
+- See `/git-workflow` skill for conventional commit format and push rules
 
 @AGENTS.md

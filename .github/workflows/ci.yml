@@ -49,12 +49,7 @@ jobs:
             shared_replybot:
               - 'crates/starbunk-shared/src/replybot/**'
             shared_other:
-              - 'crates/starbunk-shared/**'
-              - '!crates/starbunk-shared/src/discord/**'
-              - '!crates/starbunk-shared/src/llm/**'
-              - '!crates/starbunk-shared/src/memory/**'
-              - '!crates/starbunk-shared/src/middleware/**'
-              - '!crates/starbunk-shared/src/replybot/**'
+              - 'crates/starbunk-shared/!(src/discord|src/llm|src/memory|src/middleware|src/replybot)/**'
             global:
               - 'Cargo.toml'
               - 'Cargo.lock'
