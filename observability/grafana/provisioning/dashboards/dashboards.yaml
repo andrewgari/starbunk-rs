@@ -1,0 +1,17 @@
+# Grafana dashboard provisioning — points to the dashboards folder.
+# Drop any .json dashboard file into observability/grafana/dashboards/
+# and Grafana will auto-import it on startup.
+
+apiVersion: 1
+
+providers:
+  - name: starbunk-rs
+    orgId: 1
+    folder: Starbunk
+    folderUid: starbunk
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards

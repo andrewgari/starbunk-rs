@@ -1,0 +1,35 @@
+# Prometheus configuration for starbunk-rs metrics.
+# Receives metrics via remote_write from the OTEL collector.
+# Also scrapes the collector's own metrics endpoint.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: starbunk-rs
+    environment: production
+
+# Remote write receiver is enabled via the --web.enable-remote-write-receiver
+# flag in the docker-compose command override.
+
+scrape_configs:
+  # Prometheus self-monitoring.
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  # OTEL collector internal metrics (pipeline throughput, drop rates, etc.).
+  - job_name: otel-collector
+    static_configs:
+      - targets: [otel-collector:8888]
+
+  # Optional: scrape per-bot /metrics if bots ever expose a Prometheus endpoint.
+  # Uncomment and extend when adding native Prometheus instrumentation.
+  # - job_name: starbunk-bots
+  #   static_configs:
+  #     - targets:
+  #         - bluebot:9091
+  #         - bunkbot:9091
+  #         - covabot:9091
+  #         - djcova:9091
+  #         - ratbot:9091

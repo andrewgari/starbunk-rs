@@ -1,0 +1,52 @@
+# Tempo configuration for starbunk-rs distributed tracing.
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+# Accept OTLP traces from the collector.
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Store traces locally on disk.
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/blocks
+    wal:
+      path: /tmp/tempo/wal
+
+# Retention — keep 48 hours of traces.
+compactor:
+  compaction:
+    block_retention: 48h
+
+# Generate service graphs and span metrics → feeds back to Prometheus.
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: starbunk-rs
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+      generate_native_histograms: both
+
+# Query frontend — used by Grafana.
+query_frontend:
+  search:
+    max_duration: 0

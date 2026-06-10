@@ -5,13 +5,106 @@ name: starbunk-rs
 # Usage: IMAGE_TAG=v1.2.3 docker compose up -d
 
 services:
+  # ── Observability stack ──────────────────────────────────────────────────────
+  # Receives OTLP from all bots and fans out to Loki, Tempo, Prometheus.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: starbunk-rs-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel/otel-collector.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"   # OTLP gRPC (bots connect here)
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+      - "127.0.0.1:13133:13133" # Health check
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  loki:
+    image: grafana/loki:latest
+    container_name: starbunk-rs-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: starbunk-rs-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "127.0.0.1:3200:3200"   # Tempo HTTP (Grafana queries here)
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: starbunk-rs-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-remote-write-receiver"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: starbunk-rs-grafana
+    restart: unless-stopped
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_DISABLE_LOGIN_FORM=${GF_AUTH_DISABLE_LOGIN_FORM:-false}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ── Bots ─────────────────────────────────────────────────────────────────────
   bluebot:
     image: ghcr.io/andrewgari/starbunk-rs-bluebot:${IMAGE_TAG:-latest}
     container_name: starbunk-rs-bluebot
     restart: unless-stopped
+    depends_on:
+      - otel-collector
     environment:
       - DISCORD_TOKEN=${BLUEBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     logging:
       driver: "json-file"
       options:
@@ -24,9 +117,13 @@ services:
     image: ghcr.io/andrewgari/starbunk-rs-bunkbot:${IMAGE_TAG:-latest}
     container_name: starbunk-rs-bunkbot
     restart: unless-stopped
+    depends_on:
+      - otel-collector
     environment:
       - DISCORD_TOKEN=${BUNKBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     logging:
       driver: "json-file"
       options:
@@ -42,9 +139,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     environment:
       - DISCORD_TOKEN=${COVABOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -68,9 +169,13 @@ services:
     image: ghcr.io/andrewgari/starbunk-rs-djcova:${IMAGE_TAG:-latest}
     container_name: starbunk-rs-djcova
     restart: unless-stopped
+    depends_on:
+      - otel-collector
     environment:
       - DISCORD_TOKEN=${DJCOVA_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     logging:
       driver: "json-file"
       options:
@@ -83,9 +188,13 @@ services:
     image: ghcr.io/andrewgari/starbunk-rs-ratbot:${IMAGE_TAG:-latest}
     container_name: starbunk-rs-ratbot
     restart: unless-stopped
+    depends_on:
+      - otel-collector
     environment:
       - DISCORD_TOKEN=${RATBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     logging:
       driver: "json-file"
       options:
@@ -112,3 +221,7 @@ services:
 
 volumes:
   pgdata:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+  grafana-data:
