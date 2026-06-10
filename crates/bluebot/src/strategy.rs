@@ -1,7 +1,7 @@
-use starbunk_shared::replybot::Strategy;
 use async_trait::async_trait;
 use regex::Regex;
 use serenity::all::{Context, Message};
+use starbunk_shared::replybot::Strategy;
 use std::sync::LazyLock;
 
 /// Pattern matches any plausible reference to "blue" — the colour, the job,
@@ -86,7 +86,9 @@ mod tests {
             "pinned": false, "type": 0
         })).unwrap();
         let ctx_ptr = std::ptr::NonNull::<serenity::all::Context>::dangling();
-        let resp = BlueStrategy.response(unsafe { ctx_ptr.as_ref() }, &msg).await;
+        let resp = BlueStrategy
+            .response(unsafe { ctx_ptr.as_ref() }, &msg)
+            .await;
         assert_eq!(resp, "Did somebody say Blu?");
     }
 }

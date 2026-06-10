@@ -65,7 +65,9 @@ impl WebhookService {
         identity: &Identity,
     ) -> anyhow::Result<Message> {
         if !identity.is_valid() {
-            return Err(anyhow!("webhook: Identity.username and avatar_url are required"));
+            return Err(anyhow!(
+                "webhook: Identity.username and avatar_url are required"
+            ));
         }
 
         let webhook = self.get_or_create(channel_id).await?;

@@ -1,6 +1,6 @@
-use starbunk_shared::llm::{EmbedRequest, LlmService};
 use anyhow::Context as _;
 use async_trait::async_trait;
+use starbunk_shared::llm::{EmbedRequest, LlmService};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -20,11 +20,7 @@ pub struct ActiveConversation {
 pub trait Tracker: Send + Sync {
     /// Assign `tags` in `channel_id` to one or more active conversations.
     /// Returns the conversation IDs the message was assigned to.
-    async fn assign(
-        &self,
-        channel_id: &str,
-        tags: &[String],
-    ) -> anyhow::Result<Vec<String>>;
+    async fn assign(&self, channel_id: &str, tags: &[String]) -> anyhow::Result<Vec<String>>;
 }
 
 pub struct LlmTracker {
@@ -180,10 +176,16 @@ mod tests {
     #[async_trait]
     impl LlmService for MockLlm {
         async fn generate(&self, _req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-            Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+            Ok(GenerateResponse {
+                text: String::new(),
+                prompt_tokens: 0,
+                completion_tokens: 0,
+            })
         }
         async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-            Ok(EmbedResponse { embeddings: self.embeddings.clone() })
+            Ok(EmbedResponse {
+                embeddings: self.embeddings.clone(),
+            })
         }
     }
 
@@ -202,7 +204,9 @@ mod tests {
     #[tokio::test]
     async fn joins_existing_conversation_on_high_similarity() {
         // Two identical embeddings → same conversation.
-        let t = LlmTracker::new(Arc::new(MockLlm { embeddings: vec![vec![1.0, 0.0]] }));
+        let t = LlmTracker::new(Arc::new(MockLlm {
+            embeddings: vec![vec![1.0, 0.0]],
+        }));
         let conv1 = t.assign("ch1", &["kh".to_string()]).await.unwrap();
 
         let _ = conv1; // structural check only below
@@ -213,17 +217,28 @@ mod tests {
         #[async_trait]
         impl LlmService for TwoEmbedMock {
             async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+                Ok(GenerateResponse {
+                    text: String::new(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                })
             }
             async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
                 let _ = self.call.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                Ok(EmbedResponse { embeddings: vec![vec![1.0f32, 0.0f32]] })
+                Ok(EmbedResponse {
+                    embeddings: vec![vec![1.0f32, 0.0f32]],
+                })
             }
         }
-        let t2 = LlmTracker::new(Arc::new(TwoEmbedMock { call: Default::default() }));
+        let t2 = LlmTracker::new(Arc::new(TwoEmbedMock {
+            call: Default::default(),
+        }));
         let id1 = t2.assign("ch1", &["kh".to_string()]).await.unwrap();
         let id2 = t2.assign("ch1", &["kh 2".to_string()]).await.unwrap();
-        assert_eq!(id1, id2, "identical embeddings should resolve to the same conversation");
+        assert_eq!(
+            id1, id2,
+            "identical embeddings should resolve to the same conversation"
+        );
     }
 
     #[tokio::test]
@@ -234,18 +249,33 @@ mod tests {
         #[async_trait]
         impl LlmService for OrthogonalMock {
             async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+                Ok(GenerateResponse {
+                    text: String::new(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                })
             }
             async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
                 let n = self.call.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let emb = if n == 0 { vec![1.0f32, 0.0f32] } else { vec![0.0f32, 1.0f32] };
-                Ok(EmbedResponse { embeddings: vec![emb] })
+                let emb = if n == 0 {
+                    vec![1.0f32, 0.0f32]
+                } else {
+                    vec![0.0f32, 1.0f32]
+                };
+                Ok(EmbedResponse {
+                    embeddings: vec![emb],
+                })
             }
         }
-        let t = LlmTracker::new(Arc::new(OrthogonalMock { call: Default::default() }));
+        let t = LlmTracker::new(Arc::new(OrthogonalMock {
+            call: Default::default(),
+        }));
         let id1 = t.assign("ch1", &["kh".to_string()]).await.unwrap();
         let id2 = t.assign("ch1", &["dbz".to_string()]).await.unwrap();
-        assert_ne!(id1, id2, "orthogonal embeddings should seed separate conversations");
+        assert_ne!(
+            id1, id2,
+            "orthogonal embeddings should seed separate conversations"
+        );
     }
 
     #[tokio::test]
@@ -261,15 +291,24 @@ mod tests {
         #[async_trait]
         impl LlmService for SameEmbedMock {
             async fn generate(&self, _: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-                Ok(GenerateResponse { text: String::new(), prompt_tokens: 0, completion_tokens: 0 })
+                Ok(GenerateResponse {
+                    text: String::new(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                })
             }
             async fn embed(&self, _: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-                Ok(EmbedResponse { embeddings: vec![vec![1.0f32, 0.0f32]] })
+                Ok(EmbedResponse {
+                    embeddings: vec![vec![1.0f32, 0.0f32]],
+                })
             }
         }
         let t = LlmTracker::new(Arc::new(SameEmbedMock));
         let id_ch1 = t.assign("ch1", &["tag".to_string()]).await.unwrap();
         let id_ch2 = t.assign("ch2", &["tag".to_string()]).await.unwrap();
-        assert_ne!(id_ch1, id_ch2, "different channels should get different conversation IDs");
+        assert_ne!(
+            id_ch1, id_ch2,
+            "different channels should get different conversation IDs"
+        );
     }
 }

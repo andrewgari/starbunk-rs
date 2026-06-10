@@ -78,10 +78,7 @@ struct UsageMetadata {
 #[async_trait]
 impl LlmService for GoogleClient {
     async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or(&self.default_model);
+        let model = req.model.as_deref().unwrap_or(&self.default_model);
 
         let mut system_instruction: Option<Content> = None;
         let mut contents = Vec::new();
@@ -105,9 +102,9 @@ impl LlmService for GoogleClient {
             }
         }
 
-        let generation_config = req
-            .temperature
-            .map(|t| GenerationConfig { temperature: Some(t) });
+        let generation_config = req.temperature.map(|t| GenerationConfig {
+            temperature: Some(t),
+        });
 
         let body = ApiRequest {
             system_instruction,
@@ -115,10 +112,7 @@ impl LlmService for GoogleClient {
             generation_config,
         };
 
-        let url = format!(
-            "{}/models/{}:generateContent",
-            self.base_url, model
-        );
+        let url = format!("{}/models/{}:generateContent", self.base_url, model);
         let resp = self
             .client
             .post(&url)
@@ -131,7 +125,11 @@ impl LlmService for GoogleClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!("google: unexpected status {}: {}", status, text));
+            return Err(anyhow::anyhow!(
+                "google: unexpected status {}: {}",
+                status,
+                text
+            ));
         }
 
         let api_resp: ApiResponse = resp
