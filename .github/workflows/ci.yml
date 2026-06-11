@@ -21,6 +21,7 @@ jobs:
       has_changes:      ${{ steps.matrix.outputs.has_changes }}
       run_lint:         ${{ steps.matrix.outputs.run_lint }}
       run_devops:       ${{ steps.matrix.outputs.run_devops }}
+      has_secrets:      ${{ steps.secrets_check.outputs.has_secrets }}
     steps:
       - uses: actions/checkout@v4
 
@@ -156,6 +157,15 @@ jobs:
           fi
           echo "run_devops=${RUN_DEVOPS}" >> $GITHUB_OUTPUT
 
+      - name: Check if E2E secrets and variables are present
+        id: secrets_check
+        run: |
+          if [ "${{ secrets.DISCORD_TOKEN }}" != "" ] && [ "${{ vars.E2E_CHANNEL_ID }}" != "" ] && [ "${{ vars.E2E_GUILD_ID }}" != "" ]; then
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+          fi
+
   # ─── DevOps consistency gate ─────────────────────────────────────────────────
   validate_devops:
     name: Validate DevOps Consistency
@@ -244,9 +254,7 @@ jobs:
     needs: detect_changes
     if: |
       needs.detect_changes.outputs.run_lint == 'true' &&
-      secrets.DISCORD_TOKEN != '' &&
-      vars.E2E_CHANNEL_ID != '' &&
-      vars.E2E_GUILD_ID != ''
+      needs.detect_changes.outputs.has_secrets == 'true'
     steps:
       - uses: actions/checkout@v4
 
