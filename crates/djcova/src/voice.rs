@@ -33,7 +33,10 @@ impl DiscordVoiceService {
     pub fn new(songbird: Arc<songbird::Songbird>) -> Self {
         Self {
             songbird,
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("Failed to build HTTP client"),
         }
     }
 }
@@ -76,22 +79,24 @@ impl VoiceService for DiscordVoiceService {
     }
 
     async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<TrackInfo> {
+        let url_or_query = if track_url.starts_with("http://") || track_url.starts_with("https://")
+        {
+            track_url.to_string()
+        } else {
+            format!("ytsearch:{}", track_url)
+        };
+
+        // Resolve metadata before acquiring the handler lock — yt-dlp can take seconds
+        // and holding the per-guild lock across that await would block all other voice ops.
+        let mut source = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
+        let metadata = source.aux_metadata().await?;
+        let title = metadata
+            .title
+            .or(metadata.track)
+            .unwrap_or_else(|| "Unknown Title".to_string());
+
         if let Some(handler_lock) = self.songbird.get(guild_id) {
             let mut handler = handler_lock.lock().await;
-
-            let url_or_query =
-                if track_url.starts_with("http://") || track_url.starts_with("https://") {
-                    track_url.to_string()
-                } else {
-                    format!("ytsearch:{}", track_url)
-                };
-
-            let mut source = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
-            let metadata = source.aux_metadata().await?;
-            let title = metadata
-                .title
-                .or(metadata.track)
-                .unwrap_or_else(|| "Unknown Title".to_string());
             handler.stop();
             handler.play_input(source.into());
             Ok(TrackInfo {

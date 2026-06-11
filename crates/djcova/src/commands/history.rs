@@ -28,7 +28,7 @@ pub async fn handle(
             )
             .await;
     } else {
-        let list = history
+        let mut list = history
             .iter()
             .enumerate()
             .map(|(i, item)| {
@@ -40,6 +40,12 @@ pub async fn handle(
                 )
             })
             .collect::<String>();
+
+        // Discord embed description limit is 4096 characters.
+        if list.len() > 4000 {
+            list.truncate(4000);
+            list.push_str("\n… (history truncated)");
+        }
 
         let embed = CreateEmbed::new().title("History").description(list);
         let _ = cmd

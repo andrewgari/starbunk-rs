@@ -212,6 +212,8 @@ impl GuildAudioManager {
             self.current_track = None;
             self.queue.clear();
             self.idle_timer_active = false;
+            self.voice_channel_id = None;
+            self.text_channel_id = None;
             self.stop_gif_loop();
             let voice = self.voice.clone();
             let guild_id = self.guild_id;
@@ -229,6 +231,8 @@ impl GuildAudioManager {
             self.current_track = None;
             self.queue.clear();
             self.leave_timer_active = false;
+            self.voice_channel_id = None;
+            self.text_channel_id = None;
             self.stop_gif_loop();
             let voice = self.voice.clone();
             let guild_id = self.guild_id;
@@ -250,7 +254,7 @@ impl GuildAudioManager {
     }
 
     fn start_gif_loop(&mut self, http: Arc<serenity::all::Http>, text_channel: ChannelId) {
-        if self.gif_task.is_some() {
+        if self.gif_task.as_ref().is_some_and(|h| !h.is_finished()) {
             return;
         }
 

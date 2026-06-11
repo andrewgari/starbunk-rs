@@ -38,7 +38,10 @@ impl TenorGifClient {
     pub fn new() -> Self {
         let api_key = std::env::var("TENOR_API_KEY").ok();
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .expect("Failed to build HTTP client"),
             api_key,
         }
     }
