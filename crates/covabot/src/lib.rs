@@ -59,10 +59,12 @@ impl EventHandler for Handler {
                     }
                 };
 
-                let db_conn = std::env::var("POSTGRES_CONN_STR").unwrap_or_else(|_| {
-                    "postgres://starbunk:starbunk@starbunk-rs-postgres:5432/starbunk_memory?sslmode=disable"
-                        .to_string()
-                });
+                let db_conn = std::env::var("DATABASE_URL")
+                    .or_else(|_| std::env::var("POSTGRES_CONN_STR"))
+                    .unwrap_or_else(|_| {
+                        "postgres://starbunk:starbunk@postgres:5432/starbunk_memory?sslmode=disable"
+                            .to_string()
+                    });
 
                 let store: Arc<dyn Store> = match PgStore::new(&db_conn).await {
                     Ok(s) => Arc::new(s),
