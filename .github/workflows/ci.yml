@@ -21,7 +21,6 @@ jobs:
       has_changes:      ${{ steps.matrix.outputs.has_changes }}
       run_lint:         ${{ steps.matrix.outputs.run_lint }}
       run_devops:       ${{ steps.matrix.outputs.run_devops }}
-      has_secrets:      ${{ steps.secrets_check.outputs.has_secrets }}
     steps:
       - uses: actions/checkout@v4
 
@@ -157,15 +156,6 @@ jobs:
           fi
           echo "run_devops=${RUN_DEVOPS}" >> $GITHUB_OUTPUT
 
-      - name: Check if E2E secrets and variables are present
-        id: secrets_check
-        run: |
-          if [ "${{ secrets.DISCORD_TOKEN }}" != "" ] && [ "${{ vars.E2E_CHANNEL_ID }}" != "" ] && [ "${{ vars.E2E_GUILD_ID }}" != "" ]; then
-            echo "has_secrets=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_secrets=false" >> $GITHUB_OUTPUT
-          fi
-
   # ─── DevOps consistency gate ─────────────────────────────────────────────────
   validate_devops:
     name: Validate DevOps Consistency
@@ -252,16 +242,18 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: detect_changes
-    if: |
-      needs.detect_changes.outputs.run_lint == 'true' &&
-      needs.detect_changes.outputs.has_secrets == 'true'
+    environment: production
+    if: needs.detect_changes.outputs.run_lint == 'true'
     steps:
       - uses: actions/checkout@v4
+        if: ${{ secrets.DISCORD_TOKEN != '' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        if: ${{ secrets.DISCORD_TOKEN != '' }}
 
       - name: Build E2E Docker Image
+        if: ${{ secrets.DISCORD_TOKEN != '' }}
         run: |
           docker build \
             -f docker/Dockerfile \
@@ -270,6 +262,7 @@ jobs:
             .
 
       - name: Run E2E Tests inside Container
+        if: ${{ secrets.DISCORD_TOKEN != '' }}
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
