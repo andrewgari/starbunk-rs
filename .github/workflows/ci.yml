@@ -237,87 +237,11 @@ jobs:
       - name: Run tests for ${{ matrix.package }}
         run: cargo test -p ${{ matrix.package }}
 
-  # ─── E2E Integration Tests (Live Discord) ───────────────────────────────────
-  e2e_test:
-    name: E2E Tests
+  # ─── Build Bot Containers (selective) ─────────────────────────────────────────
+  build_containers:
+    name: Build Container / ${{ matrix.bot }}
     runs-on: ubuntu-latest
     needs: detect_changes
-    environment: production
-    if: needs.detect_changes.outputs.run_lint == 'true'
-    env:
-      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        if: env.DISCORD_TOKEN != ''
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        if: env.DISCORD_TOKEN != ''
-
-      - name: Build E2E Docker Image
-        if: env.DISCORD_TOKEN != ''
-        run: |
-          docker build \
-            -f docker/Dockerfile \
-            --build-arg BOT_NAME=starbunk-e2e \
-            -t "starbunk-e2e:ci-test" \
-            .
-
-      - name: Run E2E Tests inside Container
-        if: env.DISCORD_TOKEN != ''
-        env:
-          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
-          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
-        run: |
-          docker run --rm \
-            -e DISCORD_TOKEN="$DISCORD_TOKEN" \
-            -e E2E_CHANNEL_ID="$E2E_CHANNEL_ID" \
-            -e E2E_GUILD_ID="$E2E_GUILD_ID" \
-            -e E2E_SUITE_PATH="crates/e2e/suites/bunkbot_bluebot.json" \
-            "starbunk-e2e:ci-test"
-
-  # ─── Build binaries (selective) ──────────────────────────────────────────────
-  build:
-    name: Build / ${{ matrix.bot }}
-    runs-on: ubuntu-latest
-    needs: [detect_changes, validate_devops, lint, test]
-    if: needs.detect_changes.outputs.has_bot_changes == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        bot: ${{ fromJson(needs.detect_changes.outputs.bots) }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Install system dependencies
-        run: sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Build ${{ matrix.bot }}
-        run: cargo build --bin ${{ matrix.bot }}
-
-  # ─── Docker build + container smoke test (PR only — no push) ────────────────
-  #
-  # Builds each changed bot's image locally and verifies it starts without a
-  # Rust panic, runtime error, or exec-format failure. Images are NOT pushed to
-  # GHCR here; publishing happens only after merge to main (main.yml).
-  docker_test:
-    name: Docker Test / ${{ matrix.bot }}
-    runs-on: ubuntu-latest
-    needs: [detect_changes, build]
     if: needs.detect_changes.outputs.has_bot_changes == 'true'
     strategy:
       fail-fast: false
@@ -337,10 +261,74 @@ jobs:
             -t "starbunk-${{ matrix.bot }}:ci-test" \
             .
 
+      - name: Save Docker image
+        run: |
+          mkdir -p /tmp/images
+          docker save "starbunk-${{ matrix.bot }}:ci-test" -o "/tmp/images/${{ matrix.bot }}.tar"
+
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-${{ matrix.bot }}
+          path: /tmp/images/${{ matrix.bot }}.tar
+          retention-days: 1
+
+  # ─── Build E2E Test Runner Container ─────────────────────────────────────────
+  build_e2e_container:
+    name: Build E2E Container
+    runs-on: ubuntu-latest
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_lint == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build E2E Docker Image
+        run: |
+          docker build \
+            -f docker/Dockerfile \
+            --build-arg BOT_NAME=starbunk-e2e \
+            -t "starbunk-e2e:ci-test" \
+            .
+
+      - name: Save E2E Docker image
+        run: |
+          mkdir -p /tmp/images
+          docker save "starbunk-e2e:ci-test" -o /tmp/images/starbunk-e2e.tar
+
+      - name: Upload E2E Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-starbunk-e2e
+          path: /tmp/images/starbunk-e2e.tar
+          retention-days: 1
+
+  # ─── Container Smoke Test (health check) ─────────────────────────────────────
+  docker_test:
+    name: Docker Test / ${{ matrix.bot }}
+    runs-on: ubuntu-latest
+    needs: [detect_changes, build_containers]
+    if: needs.detect_changes.outputs.has_bot_changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        bot: ${{ fromJson(needs.detect_changes.outputs.bots) }}
+    steps:
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: container-${{ matrix.bot }}
+          path: /tmp/images
+
+      - name: Load Docker image
+        run: docker load -i /tmp/images/${{ matrix.bot }}.tar
+
       - name: Smoke test — container starts without crashing
         run: |
           BOT="${{ matrix.bot }}"
-          IMAGE="starbunk-rs-${BOT}:ci-test"
+          IMAGE="starbunk-${BOT}:ci-test"
           echo "Running smoke test for ${BOT}..."
 
           OUTPUT=$(timeout 10 docker run --rm \
@@ -364,3 +352,69 @@ jobs:
           fi
 
           echo "OK: Smoke test passed for ${BOT}"
+
+  # ─── E2E Integration Tests (Live Discord) ───────────────────────────────────
+  e2e_test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [detect_changes, build_e2e_container]
+    if: needs.detect_changes.outputs.run_lint == 'true'
+    env:
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+    steps:
+      - name: Download E2E Docker image
+        if: env.DISCORD_TOKEN != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: container-starbunk-e2e
+          path: /tmp/images
+
+      - name: Load E2E Docker image
+        if: env.DISCORD_TOKEN != ''
+        run: docker load -i /tmp/images/starbunk-e2e.tar
+
+      - name: Run E2E Tests inside Container
+        if: env.DISCORD_TOKEN != ''
+        env:
+          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+        run: |
+          docker run --rm \
+            -e DISCORD_TOKEN="$DISCORD_TOKEN" \
+            -e E2E_CHANNEL_ID="$E2E_CHANNEL_ID" \
+            -e E2E_GUILD_ID="$E2E_GUILD_ID" \
+            -e E2E_SUITE_PATH="crates/e2e/suites/bunkbot_bluebot.json" \
+            "starbunk-e2e:ci-test"
+
+  # ─── Validation Gate ─────────────────────────────────────────────────────────
+  validation_complete:
+    name: Validation Complete
+    runs-on: ubuntu-latest
+    needs: [validate_devops, lint, test, build_containers, build_e2e_container, docker_test, e2e_test]
+    if: always()
+    steps:
+      - name: Check overall status
+        env:
+          DEVOPS_RESULT: ${{ needs.validate_devops.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_CONTAINERS_RESULT: ${{ needs.build_containers.result }}
+          BUILD_E2E_RESULT: ${{ needs.build_e2e_container.result }}
+          DOCKER_TEST_RESULT: ${{ needs.docker_test.result }}
+          E2E_TEST_RESULT: ${{ needs.e2e_test.result }}
+        run: |
+          echo "Devops result: $DEVOPS_RESULT"
+          echo "Lint result: $LINT_RESULT"
+          echo "Test result: $TEST_RESULT"
+          echo "Build containers result: $BUILD_CONTAINERS_RESULT"
+          echo "Build E2E result: $BUILD_E2E_RESULT"
+          echo "Docker test result: $DOCKER_TEST_RESULT"
+          echo "E2E test result: $E2E_TEST_RESULT"
+
+          for res in "$DEVOPS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_CONTAINERS_RESULT" "$BUILD_E2E_RESULT" "$DOCKER_TEST_RESULT" "$E2E_TEST_RESULT"; do
+            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
+              echo "One or more required checks failed or were cancelled."
+              exit 1
+            fi
+          done
+          echo "All checks passed successfully (or were skipped appropriately)."
