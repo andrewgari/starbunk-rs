@@ -13,7 +13,7 @@
 Images are published to GHCR:
 
 ```
-ghcr.io/andrewgari/starbunk-rs-<bot>:<tag>
+ghcr.io/andrewgari/starbunk-<bot>:<tag>
 ```
 
 Tags: `latest` (always points to last successful main merge), plus a versioned

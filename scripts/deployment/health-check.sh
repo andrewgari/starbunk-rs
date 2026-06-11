@@ -62,7 +62,7 @@ check_restart_counts() {
   EXCESSIVE=false
 
   for service in "${EXPECTED_SERVICES[@]}"; do
-    CONTAINER_ID=$(docker ps -q -f "name=starbunk-rs-${service}" 2>/dev/null || echo "")
+    CONTAINER_ID=$(docker ps -q -f "name=starbunk-${service}" 2>/dev/null || echo "")
     [ -z "$CONTAINER_ID" ] && continue
 
     RESTART_COUNT=$(docker inspect "$CONTAINER_ID" --format='{{.RestartCount}}' 2>/dev/null || echo "0")

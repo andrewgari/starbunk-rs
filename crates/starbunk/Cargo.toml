@@ -1,10 +1,10 @@
 [package]
-name    = "starbunk-shared"
+name    = "starbunk"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "starbunk_shared"
+name = "starbunk"
 
 [dependencies]
 serenity.workspace     = true

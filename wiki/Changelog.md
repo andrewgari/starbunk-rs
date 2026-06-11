@@ -3,6 +3,16 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-11 — Crate and container rename
+
+### Changed
+- Renamed the `starbunk-shared` workspace package and lib target to `starbunk`.
+- Refactored `run_bot` and `default_intents` helpers into a new `starbunk::utils` module.
+- Renamed all Docker containers and image references to use the simpler `starbunk-<bot>` prefix instead of `starbunk-rs-<bot>`.
+- Updated all import paths, compose files, workflows, validation scripts, and wiki pages.
+
+---
+
 ## 2026-06-09 — Clean git history and conventional commit enforcement
 
 ### Added

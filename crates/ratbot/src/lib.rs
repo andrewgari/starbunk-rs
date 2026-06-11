@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use serenity::all::{Context, EventHandler, Message, Ready};
-use starbunk_shared::discord::{DiscordMessageService, MessageService, WebhookService};
-use starbunk_shared::middleware::{all_of, HAS_CONTENT, NOT_SELF};
+use starbunk::discord::{DiscordMessageService, MessageService, WebhookService};
+use starbunk::middleware::{all_of, HAS_CONTENT, NOT_SELF};
 use std::sync::{Arc, OnceLock};
 
 struct Handler {
-    filter: Arc<dyn starbunk_shared::middleware::MessageFilter>,
+    filter: Arc<dyn starbunk::middleware::MessageFilter>,
     webhooks: OnceLock<Arc<WebhookService>>,
 }
 
@@ -46,5 +46,5 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    starbunk_shared::run_bot("RatBot", starbunk_shared::default_intents(), Handler::new()).await
+    starbunk::utils::run_bot("RatBot", starbunk::utils::default_intents(), Handler::new()).await
 }

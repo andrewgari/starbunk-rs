@@ -1,5 +1,5 @@
 version: "3.8"
-name: starbunk-rs
+name: starbunk
 # Local development — builds all bots from source.
 # Usage: docker compose -f docker/docker-compose.yml up -d --build
 
@@ -7,7 +7,7 @@ services:
   # ── Observability stack ──────────────────────────────────────────────────────
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.115.0
-    container_name: starbunk-rs-otel-collector
+    container_name: starbunk-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otel/otel-collector.yaml"]
     volumes:
@@ -32,7 +32,7 @@ services:
 
   loki:
     image: grafana/loki:3.2.0
-    container_name: starbunk-rs-loki
+    container_name: starbunk-loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki.yaml"]
     volumes:
@@ -49,7 +49,7 @@ services:
 
   tempo:
     image: grafana/tempo:2.6.0
-    container_name: starbunk-rs-tempo
+    container_name: starbunk-tempo
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
@@ -66,7 +66,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: starbunk-rs-prometheus
+    container_name: starbunk-prometheus
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -89,7 +89,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.3.0
-    container_name: starbunk-rs-grafana
+    container_name: starbunk-grafana
     restart: unless-stopped
     environment:
       # Dev: anonymous access with Editor role (enough to view/edit dashboards).
@@ -124,7 +124,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: bluebot
-    container_name: starbunk-rs-bluebot
+    container_name: starbunk-bluebot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -146,7 +146,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: bunkbot
-    container_name: starbunk-rs-bunkbot
+    container_name: starbunk-bunkbot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -168,7 +168,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: covabot
-    container_name: starbunk-rs-covabot
+    container_name: starbunk-covabot
     restart: unless-stopped
     depends_on:
       postgres:
@@ -203,7 +203,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: djcova
-    container_name: starbunk-rs-djcova
+    container_name: starbunk-djcova
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -225,7 +225,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: ratbot
-    container_name: starbunk-rs-ratbot
+    container_name: starbunk-ratbot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -243,7 +243,7 @@ services:
 
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: starbunk-rs-postgres
+    container_name: starbunk-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-starbunk}

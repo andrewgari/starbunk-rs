@@ -21,7 +21,7 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 
 # Copy all per-crate manifests for dependency-layer caching.
-COPY crates/starbunk-shared/Cargo.toml crates/starbunk-shared/
+COPY crates/starbunk/Cargo.toml crates/starbunk/
 COPY crates/bluebot/Cargo.toml         crates/bluebot/
 COPY crates/bunkbot/Cargo.toml         crates/bunkbot/
 COPY crates/covabot/Cargo.toml         crates/covabot/
@@ -31,8 +31,8 @@ COPY crates/ratbot/Cargo.toml          crates/ratbot/
 # Create minimal stub sources so `cargo build` can compile all external deps
 # without the real implementation.  Stubs for every workspace member are
 # required because Cargo resolves the full dependency graph up-front.
-RUN mkdir -p crates/starbunk-shared/src \
-    && echo "pub fn _stub() {}" > crates/starbunk-shared/src/lib.rs \
+RUN mkdir -p crates/starbunk/src \
+    && echo "pub fn _stub() {}" > crates/starbunk/src/lib.rs \
     && for bot in bluebot bunkbot covabot djcova ratbot; do \
          mkdir -p crates/$bot/src; \
          echo "pub fn _stub() {}" > crates/$bot/src/lib.rs; \

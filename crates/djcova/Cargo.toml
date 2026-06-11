@@ -12,7 +12,7 @@ name = "djcova"
 path = "src/main.rs"
 
 [dependencies]
-starbunk-shared.workspace    = true
+starbunk.workspace           = true
 serenity.workspace           = true
 tokio.workspace              = true
 async-trait.workspace        = true
