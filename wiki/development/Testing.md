@@ -135,7 +135,7 @@ Since the workspace Dockerfile is parameterized by `BOT_NAME`, you can build and
      .
    ```
 
-2. **Run the container**:
+2. **Run the container directly**:
    ```bash
    docker run --rm \
      -e DISCORD_TOKEN="your-bot-token" \
@@ -144,6 +144,15 @@ Since the workspace Dockerfile is parameterized by `BOT_NAME`, you can build and
      -e E2E_START_BOTS="true" \
      -e E2E_TEST_BOTS="bunkbot,bluebot" \
      starbunk-e2e
+   ```
+
+3. **Run via Docker Compose (includes memory database)**:
+   To run E2E tests with services that depend on the postgres database (such as CovaBot), run the compose stack:
+   ```bash
+   DISCORD_TOKEN="your-bot-token" \
+   E2E_CHANNEL_ID="1234567890" \
+   E2E_GUILD_ID="9876543210" \
+   docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
    ```
 
 ### JSON Test Suite Format

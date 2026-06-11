@@ -17,6 +17,11 @@ services:
 
   e2e:
     image: starbunk-e2e:ci-test
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: starbunk-e2e
     container_name: starbunk-e2e-runner
     depends_on:
       postgres:
