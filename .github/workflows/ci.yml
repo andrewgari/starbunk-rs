@@ -250,30 +250,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Build E2E Docker Image
+        run: |
+          docker build \
+            -f docker/Dockerfile \
+            --build-arg BOT_NAME=starbunk-e2e \
+            -t "starbunk-e2e:ci-test" \
+            .
 
-      - name: Install system dependencies
-        run: sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Run E2E Test Suite
+      - name: Run E2E Tests inside Container
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           E2E_CHANNEL_ID: ${{ secrets.E2E_CHANNEL_ID }}
           E2E_GUILD_ID: ${{ secrets.E2E_GUILD_ID }}
-          E2E_SUITE_PATH: "crates/e2e/suites/bunkbot_bluebot.json"
-        run: cargo run -p starbunk-e2e
+        run: |
+          docker run --rm \
+            -e DISCORD_TOKEN="$DISCORD_TOKEN" \
+            -e E2E_CHANNEL_ID="$E2E_CHANNEL_ID" \
+            -e E2E_GUILD_ID="$E2E_GUILD_ID" \
+            -e E2E_SUITE_PATH="crates/e2e/suites/bunkbot_bluebot.json" \
+            "starbunk-e2e:ci-test"
 
   # ─── Build binaries (selective) ──────────────────────────────────────────────
   build:
