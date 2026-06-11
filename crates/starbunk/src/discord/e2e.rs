@@ -45,7 +45,7 @@ impl<H: EventHandler> EventHandler for E2eDebugHandler<H> {
         if let Some(webhook_id) = msg.webhook_id {
             let matches_webhook = match self.e2e_webhook_id {
                 Some(wh_id) => webhook_id == wh_id,
-                None => true, // Match any webhook in the debug guild if not specified
+                None => false, // No webhook ID configured — do not match any webhook
             };
 
             if matches_webhook {

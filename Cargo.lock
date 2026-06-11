@@ -2457,7 +2457,6 @@ dependencies = [
  "starbunk",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

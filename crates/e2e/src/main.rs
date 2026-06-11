@@ -80,10 +80,8 @@ fn get_default_suite_content() -> String {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 1. Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    // 1. Initialize logging — use the shared OTEL pipeline per AGENTS.md
+    let _telemetry = starbunk::telemetry::init("starbunk-e2e")?;
 
     tracing::info!("E2E Runner: Starting test run");
 
@@ -163,11 +161,8 @@ async fn main() -> anyhow::Result<()> {
     let webhook_url = webhook
         .url()
         .map_err(|e| anyhow::anyhow!("failed to resolve webhook URL: {}", e))?;
-    tracing::info!(
-        "E2E Runner: Resolved Webhook: {} (URL: {})",
-        webhook.id,
-        webhook_url
-    );
+    // Do not log webhook_url — it contains the secret token
+    tracing::info!(webhook_id = %webhook.id, "E2E Runner: Resolved webhook");
 
     // 5. Configure environment variables for the bots
     std::env::set_var("E2E_WEBHOOK_ID", webhook.id.to_string());
@@ -180,6 +175,12 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(true);
 
     if e2e_start_bots {
+        if std::env::var("E2E_GUILD_ID").is_err() {
+            anyhow::bail!(
+                "E2E_GUILD_ID must be set when E2E_START_BOTS=true — \
+                 spawned bots require a guild ID to operate in E2E mode"
+            );
+        }
         let bots_env =
             std::env::var("E2E_TEST_BOTS").unwrap_or_else(|_| "bunkbot,bluebot".to_string());
         let bots: Vec<&str> = bots_env.split(',').map(|s| s.trim()).collect();
@@ -232,8 +233,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // 7. Parse test suite configuration
-    let suite_path =
-        std::env::var("E2E_SUITE_PATH").unwrap_or_else(|_| "suites/default.json".to_string());
+    let suite_path = std::env::var("E2E_SUITE_PATH")
+        .unwrap_or_else(|_| format!("{}/suites/bunkbot_bluebot.json", env!("CARGO_MANIFEST_DIR")));
     let suite_content = std::fs::read_to_string(&suite_path).unwrap_or_else(|_| {
         tracing::info!("E2E Runner: E2E_SUITE_PATH not found or readable. Falling back to default built-in test suite.");
         get_default_suite_content()
@@ -271,12 +272,13 @@ async fn main() -> anyhow::Result<()> {
             "username": if test.sender == "bot" { "E2E_Simulated_Bot" } else { "E2E_Simulated_Human" }
         });
 
-        // Fire the test message via Discord Webhook
+        // Fire the test message via Discord Webhook; treat non-2xx as errors
         let send_res = reqwest_client
             .post(&webhook_url)
             .json(&payload)
             .send()
-            .await;
+            .await
+            .and_then(|r| r.error_for_status());
 
         if let Err(e) = send_res {
             tracing::error!("FAILED: Webhook request failed: {}", e);
