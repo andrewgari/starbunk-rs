@@ -27,8 +27,7 @@
 //! - `DEBUG`-level default log level (overrideable with `RUST_LOG`)
 //! - Thread IDs and names in console output
 //! - Source file and line numbers in console output
-//! - Span `ENTER`/`EXIT`/`CLOSE` events in console output
-//! - Extra structured fields on every log event
+//! - Span `NEW`/`CLOSE` events in console output (entry + exit timing)
 //!
 //! Example:
 //! ```sh
@@ -62,13 +61,13 @@ pub struct TelemetryGuard {
 impl Drop for TelemetryGuard {
     fn drop(&mut self) {
         if let Err(e) = self.tracer_provider.shutdown() {
-            eprintln!("[telemetry] trace provider shutdown error: {e}");
+            tracing::error!(err = %e, "trace provider shutdown error");
         }
         if let Err(e) = self.logger_provider.shutdown() {
-            eprintln!("[telemetry] logger provider shutdown error: {e}");
+            tracing::error!(err = %e, "logger provider shutdown error");
         }
         if let Err(e) = self.meter_provider.shutdown() {
-            eprintln!("[telemetry] meter provider shutdown error: {e}");
+            tracing::error!(err = %e, "meter provider shutdown error");
         }
     }
 }

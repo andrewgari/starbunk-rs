@@ -220,7 +220,7 @@ messages_received.add(1, &[
 
 **Errors across all bots:**
 ```logql
-{service_namespace="starbunk-rs"} |= "error"
+{namespace="starbunk-rs"} |= "error"
 ```
 
 **Trace search (Tempo):** Filter by `service.name = bluebot`
