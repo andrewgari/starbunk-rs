@@ -1,0 +1,95 @@
+# OpenTelemetry Collector configuration for starbunk-rs.
+#
+# Receives OTLP gRPC/HTTP from all bot containers and fans out to:
+#   - Loki   (logs)
+#   - Tempo  (traces)
+#   - Prometheus remote-write (metrics)
+#
+# Env vars available via Docker Compose for endpoint overrides.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Prevent OOM spikes under high cardinality load.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Batch before exporting for efficiency.
+  batch:
+    timeout: 5s
+    send_batch_size: 8192
+
+  # Promote resource attributes to Loki labels so Grafana can filter by bot.
+  resource:
+    attributes:
+      - action: insert
+        key: loki.resource.labels
+        value: service.name, service.version, service.namespace
+
+exporters:
+  # ── Logs → Loki ─────────────────────────────────────────────────────────────
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    default_labels_enabled:
+      exporter: false
+      job: true
+    labels:
+      resource:
+        service.name: "service_name"
+        service.version: "service_version"
+        service.namespace: "namespace"
+
+  # ── Traces → Tempo ──────────────────────────────────────────────────────────
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # ── Metrics → Prometheus (remote write) ─────────────────────────────────────
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # ── Debug logging for the collector itself (disable in prod) ─────────────────
+  debug:
+    verbosity: normal
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  # pprof and zpages are available for local debugging only.
+  # Bind to loopback and add them to service.extensions to enable.
+  # Never enable in production — they expose profiling data and pipeline internals.
+  # pprof:
+  #   endpoint: 127.0.0.1:1777
+  # zpages:
+  #   endpoint: 127.0.0.1:55679
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [loki]

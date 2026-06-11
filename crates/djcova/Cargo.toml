@@ -22,4 +22,3 @@ tokio.workspace              = true
 async-trait.workspace        = true
 anyhow.workspace             = true
 tracing.workspace            = true
-tracing-subscriber.workspace = true

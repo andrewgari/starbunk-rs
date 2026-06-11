@@ -85,16 +85,18 @@ echo "[reverse check]"
 while IFS= read -r svc; do
   # Strip the "starbunk-rs-" prefix if present to get the bot name.
   bot="${svc#starbunk-rs-}"
-  if [ "$bot" == "postgres" ] || [ "$bot" == "pgdata" ] || [ "$bot" == "db" ]; then
-    continue
-  fi
+  # Skip non-bot infrastructure services.
+  case "$bot" in
+    postgres|pgdata|db|otel-collector|loki|tempo|prometheus|grafana)
+      continue ;;
+  esac
 
   if [ ! -f "crates/${bot}/src/main.rs" ]; then
     fail "docker-compose.yml: service '${svc}' has no matching crates/${bot}/src/main.rs"
   else
     ok "docker-compose.yml: service '${svc}' backed by crates/${bot}/src/main.rs"
   fi
-done < <(grep -E '^  [a-z]' docker-compose.yml | grep -v '#' | sed 's/://g' | sed 's/^ *//' || true)
+done < <(awk '/^services:/{found=1;next} /^[^ ]/{found=0} found && /^  [a-z][a-z0-9_-]+:/{gsub(/:$/,"",$1); print $1}' docker-compose.yml || true)
 
 echo ""
 
