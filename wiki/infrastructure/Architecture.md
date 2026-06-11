@@ -10,7 +10,7 @@ executor; Discord is handled by the Serenity framework.
 starbunk-rs/
   Cargo.toml          # workspace root with [workspace.dependencies]
   crates/
-    starbunk-shared/  # lib crate — all shared code + run_bot + default_intents
+    starbunk/         # lib crate — all shared code + run_bot + default_intents
       src/
         lib.rs
         discord/      # Identity, MessageService, WebhookService
@@ -43,7 +43,7 @@ starbunk-rs/
     deploy.yml  # deploy to Tower server
 ```
 
-## Shared Libraries (`crates/starbunk-shared/`)
+## Shared Libraries (`crates/starbunk/`)
 
 ### `lib.rs`
 
@@ -136,7 +136,7 @@ and stops.
 ## Bot Pattern
 
 ```rust
-use starbunk_shared::middleware;
+use starbunk::middleware;
 
 struct MyHandler {
     filter: Arc<dyn MessageFilter>,
@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
         middleware::HAS_CONTENT.clone(),
     ]);
     let handler = MyHandler { filter, sender: ... };
-    starbunk_shared::run_bot("BotName", starbunk_shared::default_intents(), handler).await
+    starbunk::utils::run_bot("BotName", starbunk::utils::default_intents(), handler).await
 }
 ```
 
@@ -177,9 +177,9 @@ The CI `test` job runs `cargo test -p <package>` per changed crate, not `--all`:
 |---|---|
 | `crates/bluebot/**` | `bluebot` |
 | `crates/covabot/**` | `covabot` |
-| `crates/starbunk-shared/src/replybot/**` | `starbunk-shared`, `bluebot` |
-| `crates/starbunk-shared/src/llm/**` | `starbunk-shared`, `covabot` |
-| `crates/starbunk-shared/src/discord/**` | `starbunk-shared`, all bots |
+| `crates/starbunk/src/replybot/**` | `starbunk`, `bluebot` |
+| `crates/starbunk/src/llm/**` | `starbunk`, `covabot` |
+| `crates/starbunk/src/discord/**` | `starbunk`, all bots |
 | `Cargo.toml`, `Cargo.lock` | all packages |
 
 ## See Also

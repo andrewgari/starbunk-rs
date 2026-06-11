@@ -8,10 +8,10 @@ pub use tagger::{Addressee, Intent, LlmTagger, TagResult, TaggerService, Tagging
 
 use async_trait::async_trait;
 use serenity::all::{Context, EventHandler, Message, Ready};
-use starbunk_shared::discord::{DiscordMessageService, MessageService, WebhookService};
-use starbunk_shared::llm::{GenerateRequest, LlmMessage, Registry};
-use starbunk_shared::memory::{MemoryService, MemoryServiceImpl, PgStore, Store};
-use starbunk_shared::middleware::{all_of, GUILD_ONLY, HAS_CONTENT, NOT_BOT, NOT_SELF};
+use starbunk::discord::{DiscordMessageService, MessageService, WebhookService};
+use starbunk::llm::{GenerateRequest, LlmMessage, Registry};
+use starbunk::memory::{MemoryService, MemoryServiceImpl, PgStore, Store};
+use starbunk::middleware::{all_of, GUILD_ONLY, HAS_CONTENT, NOT_BOT, NOT_SELF};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -25,7 +25,7 @@ struct Services {
 }
 
 struct Handler {
-    filter: Arc<dyn starbunk_shared::middleware::MessageFilter>,
+    filter: Arc<dyn starbunk::middleware::MessageFilter>,
     services: OnceCell<Services>,
 }
 
@@ -51,7 +51,7 @@ impl EventHandler for Handler {
         let _ = self
             .services
             .get_or_init(|| async {
-                let llms = match starbunk_shared::llm::registry_from_env() {
+                let llms = match starbunk::llm::registry_from_env() {
                     Ok(r) => r,
                     Err(e) => {
                         tracing::error!("covabot: failed to init LLM registry: {}", e);
@@ -215,9 +215,9 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    starbunk_shared::run_bot(
+    starbunk::utils::run_bot(
         "CovaBot",
-        starbunk_shared::default_intents(),
+        starbunk::utils::default_intents(),
         Handler::new(),
     )
     .await

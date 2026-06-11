@@ -39,17 +39,17 @@ jobs:
             ratbot:
               - 'crates/ratbot/**'
             shared_discord:
-              - 'crates/starbunk-shared/src/discord/**'
+              - 'crates/starbunk/src/discord/**'
             shared_llm:
-              - 'crates/starbunk-shared/src/llm/**'
+              - 'crates/starbunk/src/llm/**'
             shared_memory:
-              - 'crates/starbunk-shared/src/memory/**'
+              - 'crates/starbunk/src/memory/**'
             shared_middleware:
-              - 'crates/starbunk-shared/src/middleware/**'
+              - 'crates/starbunk/src/middleware/**'
             shared_replybot:
-              - 'crates/starbunk-shared/src/replybot/**'
+              - 'crates/starbunk/src/replybot/**'
             shared_other:
-              - 'crates/starbunk-shared/!(src/discord|src/llm|src/memory|src/middleware|src/replybot)/**'
+              - 'crates/starbunk/!(src/discord|src/llm|src/memory|src/middleware|src/replybot)/**'
             global:
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -94,7 +94,7 @@ jobs:
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
             BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
-            for p in starbunk-shared bluebot bunkbot covabot djcova ratbot; do
+            for p in starbunk bluebot bunkbot covabot djcova ratbot; do
               add_pkg "$p"
             done
           else
@@ -107,14 +107,14 @@ jobs:
             # shared_replybot only affects bluebot
             if [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
               BLUEBOT_CHANGED="true"
-              add_pkg "starbunk-shared"
+              add_pkg "starbunk"
             fi
 
             # shared_llm / shared_memory only affect covabot
             if [ "${{ steps.filter.outputs.shared_llm }}" == "true" ] || \
                [ "${{ steps.filter.outputs.shared_memory }}" == "true" ]; then
               COVABOT_CHANGED="true"
-              add_pkg "starbunk-shared"
+              add_pkg "starbunk"
             fi
 
             [[ "$BLUEBOT_CHANGED" == "true" ]] && BOTS+=("bluebot") && add_pkg "bluebot"
@@ -295,7 +295,7 @@ jobs:
           docker build \
             -f docker/Dockerfile \
             --build-arg BOT_NAME="${{ matrix.bot }}" \
-            -t "starbunk-rs-${{ matrix.bot }}:ci-test" \
+            -t "starbunk-${{ matrix.bot }}:ci-test" \
             .
 
       - name: Smoke test — container starts without crashing

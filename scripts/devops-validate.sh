@@ -22,7 +22,7 @@ ok()   { echo "  ok    $1"; }
 BOTS=()
 for dir in crates/*/; do
   bot=$(basename "$dir")
-  if [ "$bot" == "starbunk-shared" ]; then
+  if [ "$bot" == "starbunk" ]; then
     continue
   fi
   if [ -f "crates/${bot}/src/main.rs" ]; then
@@ -43,8 +43,8 @@ for bot in "${BOTS[@]}"; do
   echo "[$bot]"
 
   # 1. docker-compose.yml (root — production GHCR images)
-  if grep -q "starbunk-rs-${bot}" docker-compose.yml 2>/dev/null; then
-    ok "docker-compose.yml: image starbunk-rs-${bot}"
+  if grep -q "starbunk-${bot}" docker-compose.yml 2>/dev/null; then
+    ok "docker-compose.yml: image starbunk-${bot}"
   else
     fail "docker-compose.yml: missing service / image for '${bot}'"
   fi
@@ -83,8 +83,8 @@ done
 # ── Reverse check: warn about services in compose not backed by a crates/ dir ─
 echo "[reverse check]"
 while IFS= read -r svc; do
-  # Strip the "starbunk-rs-" prefix if present to get the bot name.
-  bot="${svc#starbunk-rs-}"
+  # Strip the "starbunk-" prefix if present to get the bot name.
+  bot="${svc#starbunk-}"
   # Skip non-bot infrastructure services.
   case "$bot" in
     postgres|pgdata|db|otel-collector|loki|tempo|prometheus|grafana)

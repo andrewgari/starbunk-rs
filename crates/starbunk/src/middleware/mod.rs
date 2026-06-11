@@ -4,7 +4,7 @@
 //! composed freely using [`all_of`], [`any_of`], and [`not`]:
 //!
 //! ```no_run
-//! use starbunk_shared::middleware::{all_of, not, NOT_BOT, NOT_SELF, GUILD_ONLY, HAS_CONTENT};
+//! use starbunk::middleware::{all_of, not, NOT_BOT, NOT_SELF, GUILD_ONLY, HAS_CONTENT};
 //! let filter = all_of(vec![NOT_SELF.clone(), NOT_BOT.clone(), GUILD_ONLY.clone(), HAS_CONTENT.clone()]);
 //! ```
 

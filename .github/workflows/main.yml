@@ -171,7 +171,7 @@ jobs:
           BOT=${{ matrix.bot }}
           VERSION=${{ needs.version.outputs.version }}
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE="ghcr.io/${OWNER_LC}/starbunk-rs-${BOT}"
+          IMAGE="ghcr.io/${OWNER_LC}/starbunk-${BOT}"
 
           docker build \
             -f docker/Dockerfile \
@@ -231,7 +231,7 @@ jobs:
             echo "## Docker Images"
             echo ""
             for bot in bluebot bunkbot covabot djcova ratbot; do
-              echo "- \`ghcr.io/${OWNER_LC}/starbunk-rs-${bot}:${VERSION}\`"
+              echo "- \`ghcr.io/${OWNER_LC}/starbunk-${bot}:${VERSION}\`"
             done
             echo ""
             echo "## Changes (${RANGE})"

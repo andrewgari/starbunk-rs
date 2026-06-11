@@ -190,7 +190,7 @@ dependencies = [
  "regex",
  "serde_json",
  "serenity",
- "starbunk-shared",
+ "starbunk",
  "tokio",
  "tracing",
 ]
@@ -208,7 +208,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serenity",
- "starbunk-shared",
+ "starbunk",
  "tokio",
  "tracing",
 ]
@@ -351,7 +351,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serenity",
- "starbunk-shared",
+ "starbunk",
  "tokio",
  "tracing",
 ]
@@ -519,7 +519,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serenity",
- "starbunk-shared",
+ "starbunk",
  "tokio",
  "tracing",
 ]
@@ -1781,7 +1781,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serenity",
- "starbunk-shared",
+ "starbunk",
  "tokio",
  "tracing",
 ]
@@ -2415,7 +2415,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
-name = "starbunk-shared"
+name = "starbunk"
 version = "2026.0.1"
 dependencies = [
  "anyhow",
