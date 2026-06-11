@@ -31,8 +31,8 @@ On merge: prepend to `wiki/Changelog.md`, delete the raw file.
 
 > **Every task involving logic, behavior, or ports. No exceptions.**
 
-- **PR 1 — Tests only:** Add failing Rust tests that define the expected behavior. No implementation. Minimal stubs only to allow compilation.
-- **PR 2 — Implementation:** Write code to make the tests pass. Only after PR 1 is approved or merged.
+- **PR 1 — Tests only:** Add failing Rust tests that define the expected behavior. No implementation. Minimal stubs only to allow compilation. For bot logic changes, also add corresponding E2E integration test cases to the JSON test suite (e.g., `crates/e2e/suites/bunkbot_bluebot.json`).
+- **PR 2 — Implementation:** Write code to make the unit and E2E tests pass. Only after PR 1 is approved or merged.
 
 Reference behavior: check `../starbunk-go/cmd/<bot>/` or `../starbunk-js/src/<bot>/` first.
 Full details: `wiki/development/TDD.md`.

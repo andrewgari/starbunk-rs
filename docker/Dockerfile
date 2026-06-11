@@ -45,7 +45,7 @@ RUN mkdir -p crates/starbunk/src \
 # Copy real sources and rebuild (Cargo detects content changes and recompiles
 # only the workspace crates; external dep artifacts are reused from the cache).
 COPY crates ./crates
-RUN cargo build --release -p "${BOT_NAME}"
+RUN find crates -name "*.rs" -exec touch {} + && cargo build --release -p "${BOT_NAME}"
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
