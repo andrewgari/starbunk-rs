@@ -21,6 +21,7 @@ jobs:
       has_changes:      ${{ steps.matrix.outputs.has_changes }}
       run_lint:         ${{ steps.matrix.outputs.run_lint }}
       run_devops:       ${{ steps.matrix.outputs.run_devops }}
+      run_docker:       ${{ steps.matrix.outputs.run_docker }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +71,8 @@ jobs:
 
       - name: Build bot matrix
         id: matrix
+        env:
+          IS_QUICK_PR: ${{ contains(github.event.pull_request.labels.*.name, 'quick-pr') || contains(github.event.pull_request.labels.*.name, 'skip-docker') }}
         run: |
           BOTS=()
           declare -A SEEN_PKGS
@@ -156,16 +159,40 @@ jobs:
           fi
           echo "run_devops=${RUN_DEVOPS}" >> $GITHUB_OUTPUT
 
-  # ─── DevOps consistency gate ─────────────────────────────────────────────────
-  validate_devops:
-    name: Validate DevOps Consistency
+          # Determine if we should run docker validation steps
+          RUN_DOCKER="true"
+          if [ "$IS_QUICK_PR" == "true" ]; then
+            RUN_DOCKER="false"
+          fi
+          echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
+
+  # ─── Validation Success Gate ─────────────────────────────────────────────────
+  validation_success:
+    name: Validation Success
     runs-on: ubuntu-latest
-    needs: detect_changes
-    if: needs.detect_changes.outputs.run_devops == 'true'
+    needs: [detect_changes, lint, test]
+    if: always()
     steps:
       - uses: actions/checkout@v4
       - name: Check all DevOps files are in sync
+        if: needs.detect_changes.outputs.run_devops == 'true'
         run: bash scripts/devops-validate.sh
+      - name: Verify Lint and Test results
+        env:
+          DETECT_RESULT: ${{ needs.detect_changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          echo "Detect changes result: $DETECT_RESULT"
+          echo "Lint result: $LINT_RESULT"
+          echo "Test result: $TEST_RESULT"
+          for res in "$DETECT_RESULT" "$LINT_RESULT" "$TEST_RESULT"; do
+            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
+              echo "Required check failed or was cancelled: $res"
+              exit 1
+            fi
+          done
+          echo "All builds, tests, and lints succeeded (or skipped)."
 
   # ─── Lint ────────────────────────────────────────────────────────────────────
   lint:
@@ -242,7 +269,7 @@ jobs:
     name: Build Container / ${{ matrix.bot }}
     runs-on: ubuntu-latest
     needs: detect_changes
-    if: needs.detect_changes.outputs.has_bot_changes == 'true'
+    if: needs.detect_changes.outputs.has_bot_changes == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -278,7 +305,7 @@ jobs:
     name: Build E2E Container
     runs-on: ubuntu-latest
     needs: detect_changes
-    if: needs.detect_changes.outputs.run_lint == 'true'
+    if: needs.detect_changes.outputs.run_lint == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -310,7 +337,7 @@ jobs:
     name: Docker Test / ${{ matrix.bot }}
     runs-on: ubuntu-latest
     needs: [detect_changes, build_containers]
-    if: needs.detect_changes.outputs.has_bot_changes == 'true'
+    if: needs.detect_changes.outputs.has_bot_changes == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -358,7 +385,7 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [detect_changes, build_e2e_container]
-    if: needs.detect_changes.outputs.run_lint == 'true'
+    if: needs.detect_changes.outputs.run_lint == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     env:
       DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
     steps:
@@ -390,12 +417,12 @@ jobs:
   validation_complete:
     name: Validation Complete
     runs-on: ubuntu-latest
-    needs: [validate_devops, lint, test, build_containers, build_e2e_container, docker_test, e2e_test]
+    needs: [validation_success, lint, test, build_containers, build_e2e_container, docker_test, e2e_test]
     if: always()
     steps:
       - name: Check overall status
         env:
-          DEVOPS_RESULT: ${{ needs.validate_devops.result }}
+          VALIDATION_SUCCESS_RESULT: ${{ needs.validation_success.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_CONTAINERS_RESULT: ${{ needs.build_containers.result }}
@@ -403,7 +430,7 @@ jobs:
           DOCKER_TEST_RESULT: ${{ needs.docker_test.result }}
           E2E_TEST_RESULT: ${{ needs.e2e_test.result }}
         run: |
-          echo "Devops result: $DEVOPS_RESULT"
+          echo "Validation Success result: $VALIDATION_SUCCESS_RESULT"
           echo "Lint result: $LINT_RESULT"
           echo "Test result: $TEST_RESULT"
           echo "Build containers result: $BUILD_CONTAINERS_RESULT"
@@ -411,7 +438,7 @@ jobs:
           echo "Docker test result: $DOCKER_TEST_RESULT"
           echo "E2E test result: $E2E_TEST_RESULT"
 
-          for res in "$DEVOPS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_CONTAINERS_RESULT" "$BUILD_E2E_RESULT" "$DOCKER_TEST_RESULT" "$E2E_TEST_RESULT"; do
+          for res in "$VALIDATION_SUCCESS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_CONTAINERS_RESULT" "$BUILD_E2E_RESULT" "$DOCKER_TEST_RESULT" "$E2E_TEST_RESULT"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "One or more required checks failed or were cancelled."
               exit 1
