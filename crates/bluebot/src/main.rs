@@ -1,5 +1,5 @@
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    let _telemetry = starbunk_shared::telemetry::init("bluebot")?;
     bluebot::run().await
 }

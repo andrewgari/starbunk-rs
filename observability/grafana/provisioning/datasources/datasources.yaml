@@ -1,0 +1,71 @@
+# Grafana datasource provisioning for starbunk-rs.
+# All three LGTM stack backends are wired together with cross-links.
+
+apiVersion: 1
+
+datasources:
+  # ── Loki (logs) ─────────────────────────────────────────────────────────────
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      derivedFields:
+        # Extract trace IDs from structured log fields and link to Tempo.
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id"\s*:\s*"([0-9a-f]+)"'
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: View Trace in Tempo
+
+  # ── Prometheus (metrics) ─────────────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+          urlDisplayLabel: View Trace in Tempo
+
+  # ── Tempo (traces) ───────────────────────────────────────────────────────────
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: GET
+      # Link trace spans back to Loki logs by service name.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{service_name="$${__span.tags.service.name}"} |= "$${__span.traceId}"'
+      # Link traces to Prometheus service graph.
+      serviceMap:
+        datasourceUid: prometheus
+      # Enable search and node graph.
+      search:
+        hide: false
+      nodeGraph:
+        enabled: true
+      # Prometheus metrics for span duration histograms.
+      spanBar:
+        type: None

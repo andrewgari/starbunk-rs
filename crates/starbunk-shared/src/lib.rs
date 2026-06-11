@@ -3,6 +3,7 @@ pub mod llm;
 pub mod memory;
 pub mod middleware;
 pub mod replybot;
+pub mod telemetry;
 
 use serenity::all::{EventHandler, GatewayIntents};
 use serenity::Client;

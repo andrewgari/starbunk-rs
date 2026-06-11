@@ -54,6 +54,7 @@ Full details: `wiki/development/TDD.md`.
 | CI/CD workflows | `wiki/development/CI-CD.md` |
 | Testing patterns | `wiki/development/Testing.md` |
 | Deployment / Docker | `wiki/infrastructure/Deployment.md` |
+| Logging / tracing / OTEL | `wiki/development/Observability.md` |
 
 ---
 
@@ -85,6 +86,76 @@ Full details: `wiki/development/TDD.md`.
 Every task lives in its own worktree under `.claude/worktrees/`. Main stays on `main`, clean,
 and always synced to `origin/main`. **Context-check before every task** — if the task doesn't
 belong to the current worktree, switch first. See `/worktree` for the full protocol.
+
+---
+
+## Observability Standards — MANDATORY
+
+**Full details: `wiki/development/Observability.md`**
+
+All bots use the unified OTEL pipeline via `starbunk_shared::telemetry::init`.
+Never call `tracing_subscriber::fmt::init()` directly — it bypasses OTEL.
+
+### Logging (tracing macros)
+
+Use the `tracing` crate. **Never** use `println!`, `eprintln!`, or the `log` crate.
+
+| Level | When to use |
+|---|---|
+| `error!` | Unrecoverable condition or external failure (Discord send fail, DB error) |
+| `warn!` | Degraded behaviour — bot continues but something unexpected happened |
+| `info!` | Lifecycle events: startup, shutdown, Discord `ready`, successful operations |
+| `debug!` | Internal decision-making — only enabled in verbose mode |
+| `trace!` | Per-message evaluation, loop iterations — extremely chatty, never in prod |
+
+**Always include structured fields** — fields are indexed in Loki and Tempo.
+
+```rust
+// Good — fields are searchable in Grafana
+tracing::info!(bot = "bluebot", channel = %msg.channel_id, "message received");
+tracing::error!(strategy = strategy.name(), err = %e, "send failed");
+
+// Bad — unstructured string only
+tracing::info!("bluebot got a message in channel {}", msg.channel_id);
+```
+
+### Spans (`#[tracing::instrument]`)
+
+Add `#[tracing::instrument]` to every public async function that does meaningful
+work — Discord event handlers, LLM calls, DB queries, message sends.
+
+```rust
+#[tracing::instrument(skip(ctx, msg), fields(channel = %msg.channel_id))]
+pub async fn handle(&self, ctx: &Context, msg: &Message) { ... }
+```
+
+- `skip` the fields you don't want in every span (large or secret values).
+- Add `fields(...)` for high-value searchable attributes.
+
+### Verbose mode
+
+Set `VERBOSE=1` to activate debug-level logging, span enter/close events,
+thread IDs, and file+line numbers. Never log at debug/trace in normal mode
+unless gated by `tracing::enabled!(Level::DEBUG)`.
+
+### Metrics
+
+Use `opentelemetry::global::meter("botname")` to get a meter and record
+custom metrics. Standard counters to add to every bot:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `bot.messages.received` | Counter | `bot`, `guild` |
+| `bot.messages.sent` | Counter | `bot`, `strategy` |
+| `bot.errors` | Counter | `bot`, `kind` |
+
+### Environment variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTLP gRPC endpoint |
+| `RUST_LOG` | `info` | tracing filter (e.g. `debug,serenity=warn`) |
+| `VERBOSE` | `false` | Verbose mode (`1` or `true`) |
 
 ---
 
