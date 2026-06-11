@@ -237,6 +237,44 @@ jobs:
       - name: Run tests for ${{ matrix.package }}
         run: cargo test -p ${{ matrix.package }}
 
+  # ─── E2E Integration Tests (Live Discord) ───────────────────────────────────
+  e2e_test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: detect_changes
+    if: |
+      needs.detect_changes.outputs.run_lint == 'true' &&
+      secrets.DISCORD_TOKEN != '' &&
+      secrets.E2E_CHANNEL_ID != '' &&
+      secrets.E2E_GUILD_ID != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Run E2E Test Suite
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          E2E_CHANNEL_ID: ${{ secrets.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ secrets.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: "crates/e2e/suites/bunkbot_bluebot.json"
+        run: cargo run -p starbunk-e2e
+
   # ─── Build binaries (selective) ──────────────────────────────────────────────
   build:
     name: Build / ${{ matrix.bot }}
