@@ -22,7 +22,7 @@ ok()   { echo "  ok    $1"; }
 BOTS=()
 for dir in crates/*/; do
   bot=$(basename "$dir")
-  if [ "$bot" == "starbunk" ]; then
+  if [ "$bot" == "starbunk" ] || [ "$bot" == "e2e" ]; then
     continue
   fi
   if [ -f "crates/${bot}/src/main.rs" ]; then
