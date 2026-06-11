@@ -229,6 +229,9 @@ messages_received.add(1, &[
 ```promql
 rate(bot_messages_received_total[5m])
 ```
+> **Note:** The `bot.messages.received`, `bot.messages.sent`, and `bot.errors` metrics are
+> defined in AGENTS.md but not yet instrumented in any bot crate. This query will return
+> no data until the metrics are implemented.
 
 ---
 

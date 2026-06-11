@@ -8,7 +8,7 @@ services:
   # ── Observability stack ──────────────────────────────────────────────────────
   # Receives OTLP from all bots and fans out to Loki, Tempo, Prometheus.
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.115.0
     container_name: starbunk-rs-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otel/otel-collector.yaml"]
@@ -19,14 +19,23 @@ services:
       - "127.0.0.1:4318:4318"   # OTLP HTTP
       - "127.0.0.1:13133:13133" # Health check
     depends_on:
-      - loki
-      - tempo
-      - prometheus
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.2.0
     container_name: starbunk-rs-loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki.yaml"]
@@ -35,24 +44,36 @@ services:
       - loki-data:/loki
     ports:
       - "127.0.0.1:3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.0
     container_name: starbunk-rs-tempo
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
       - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
-      - tempo-data:/tmp/tempo
+      - tempo-data:/var/lib/tempo
     ports:
       - "127.0.0.1:3200:3200"   # Tempo HTTP (Grafana queries here)
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.54.1
     container_name: starbunk-rs-prometheus
     restart: unless-stopped
     command:
@@ -67,11 +88,17 @@ services:
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     container_name: starbunk-rs-grafana
     restart: unless-stopped
     environment:
@@ -87,9 +114,18 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
-      - loki
-      - tempo
-      - prometheus
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
@@ -99,7 +135,8 @@ services:
     container_name: starbunk-rs-bluebot
     restart: unless-stopped
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_healthy
     environment:
       - DISCORD_TOKEN=${BLUEBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
@@ -118,7 +155,8 @@ services:
     container_name: starbunk-rs-bunkbot
     restart: unless-stopped
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_healthy
     environment:
       - DISCORD_TOKEN=${BUNKBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
@@ -140,7 +178,7 @@ services:
       postgres:
         condition: service_healthy
       otel-collector:
-        condition: service_started
+        condition: service_healthy
     environment:
       - DISCORD_TOKEN=${COVABOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
@@ -170,7 +208,8 @@ services:
     container_name: starbunk-rs-djcova
     restart: unless-stopped
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_healthy
     environment:
       - DISCORD_TOKEN=${DJCOVA_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}
@@ -189,7 +228,8 @@ services:
     container_name: starbunk-rs-ratbot
     restart: unless-stopped
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_healthy
     environment:
       - DISCORD_TOKEN=${RATBOT_TOKEN:-${STARBUNK_TOKEN}}
       - RUST_LOG=${RUST_LOG:-info}

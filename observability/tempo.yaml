@@ -19,9 +19,9 @@ storage:
   trace:
     backend: local
     local:
-      path: /tmp/tempo/blocks
+      path: /var/lib/tempo/blocks
     wal:
-      path: /tmp/tempo/wal
+      path: /var/lib/tempo/wal
 
 # Retention — keep 48 hours of traces.
 compactor:
@@ -35,7 +35,7 @@ metrics_generator:
       source: tempo
       cluster: starbunk-rs
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/lib/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true

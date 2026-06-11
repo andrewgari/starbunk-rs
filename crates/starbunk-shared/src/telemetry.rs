@@ -5,7 +5,7 @@
 //! ```rust,ignore
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let _guard = starbunk_shared::telemetry::init("mybot");
+//!     let _guard = starbunk_shared::telemetry::init("mybot")?;
 //!     mybot::run().await
 //! }
 //! ```
@@ -27,13 +27,14 @@
 //! - `DEBUG`-level default log level (overrideable with `RUST_LOG`)
 //! - Thread IDs and names in console output
 //! - Source file and line numbers in console output
-//! - Span `NEW`/`CLOSE` events in console output (entry + exit timing)
+//! - Span `NEW`/`CLOSE` events in console output (span creation and completion timing)
 //!
 //! Example:
 //! ```sh
 //! VERBOSE=1 RUST_LOG=debug,serenity=info cargo run --bin bluebot
 //! ```
 
+use anyhow::Context as _;
 use opentelemetry::{trace::TracerProvider as _, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{LogExporter, MetricExporter, SpanExporter, WithExportConfig};
@@ -60,6 +61,9 @@ pub struct TelemetryGuard {
 
 impl Drop for TelemetryGuard {
     fn drop(&mut self) {
+        // Shut down in reverse init order. Errors here are logged to the
+        // console (fmt layer) only — the OTEL log/trace layers are already
+        // being torn down, so these messages will not reach Loki or Tempo.
         if let Err(e) = self.tracer_provider.shutdown() {
             tracing::error!(err = %e, "trace provider shutdown error");
         }
@@ -77,18 +81,24 @@ impl Drop for TelemetryGuard {
 /// Must be called once in `main`, before the bot starts. The returned
 /// [`TelemetryGuard`] must be held for the entire lifetime of the process.
 ///
+/// Returns an error if the OTEL exporters cannot be built (e.g. invalid
+/// `OTEL_EXPORTER_OTLP_ENDPOINT`).
+///
 /// Pipelines (all via OTLP gRPC → otel-collector):
 /// - **Traces** → Tempo
 /// - **Logs**   → Loki
 /// - **Metrics** → Prometheus
-pub fn init(service_name: &'static str) -> TelemetryGuard {
+pub fn init(service_name: &'static str) -> anyhow::Result<TelemetryGuard> {
     let verbose = is_verbose();
     let endpoint = otel_endpoint();
     let resource = build_resource(service_name);
 
-    let tracer_provider = build_tracer_provider(&endpoint, resource.clone());
-    let logger_provider = build_logger_provider(&endpoint, resource.clone());
-    let meter_provider = build_meter_provider(&endpoint, resource);
+    let tracer_provider = build_tracer_provider(&endpoint, resource.clone())
+        .context("failed to build OTEL tracer provider — check OTEL_EXPORTER_OTLP_ENDPOINT")?;
+    let logger_provider = build_logger_provider(&endpoint, resource.clone())
+        .context("failed to build OTEL logger provider — check OTEL_EXPORTER_OTLP_ENDPOINT")?;
+    let meter_provider = build_meter_provider(&endpoint, resource)
+        .context("failed to build OTEL meter provider — check OTEL_EXPORTER_OTLP_ENDPOINT")?;
 
     opentelemetry::global::set_tracer_provider(tracer_provider.clone());
     opentelemetry::global::set_meter_provider(meter_provider.clone());
@@ -117,6 +127,9 @@ pub fn init(service_name: &'static str) -> TelemetryGuard {
         .with(OpenTelemetryTracingBridge::new(&logger_provider))
         .init();
 
+    // NOTE: service.version is the version of starbunk-shared (the crate that
+    // owns this code), not the individual bot binary. If per-bot versioning is
+    // ever introduced, pass the version through init() instead.
     if verbose {
         tracing::debug!(
             service = service_name,
@@ -129,11 +142,11 @@ pub fn init(service_name: &'static str) -> TelemetryGuard {
         tracing::info!(service = service_name, "telemetry initialised");
     }
 
-    TelemetryGuard {
+    Ok(TelemetryGuard {
         tracer_provider,
         logger_provider,
         meter_provider,
-    }
+    })
 }
 
 // ──────────────────────────── internal helpers ───────────────────────────────
@@ -157,44 +170,116 @@ fn build_resource(service_name: &'static str) -> Resource {
     ])
 }
 
-fn build_tracer_provider(endpoint: &str, resource: Resource) -> TracerProvider {
+fn build_tracer_provider(endpoint: &str, resource: Resource) -> anyhow::Result<TracerProvider> {
     let exporter = SpanExporter::builder()
         .with_tonic()
         .with_endpoint(endpoint)
-        .build()
-        .expect("OTEL span exporter: check OTEL_EXPORTER_OTLP_ENDPOINT");
-    TracerProvider::builder()
+        .build()?;
+    Ok(TracerProvider::builder()
         .with_resource(resource)
         .with_batch_exporter(exporter, Tokio)
-        .build()
+        .build())
 }
 
-fn build_logger_provider(endpoint: &str, resource: Resource) -> LoggerProvider {
+fn build_logger_provider(endpoint: &str, resource: Resource) -> anyhow::Result<LoggerProvider> {
     let exporter = LogExporter::builder()
         .with_tonic()
         .with_endpoint(endpoint)
-        .build()
-        .expect("OTEL log exporter: check OTEL_EXPORTER_OTLP_ENDPOINT");
-    LoggerProvider::builder()
+        .build()?;
+    Ok(LoggerProvider::builder()
         .with_resource(resource)
         .with_batch_exporter(exporter, Tokio)
-        .build()
+        .build())
 }
 
-fn build_meter_provider(endpoint: &str, resource: Resource) -> SdkMeterProvider {
+fn build_meter_provider(endpoint: &str, resource: Resource) -> anyhow::Result<SdkMeterProvider> {
     let exporter = MetricExporter::builder()
         .with_tonic()
         .with_endpoint(endpoint)
-        .build()
-        .expect("OTEL metric exporter: check OTEL_EXPORTER_OTLP_ENDPOINT");
+        .build()?;
     let reader = PeriodicReader::builder(exporter, Tokio).build();
-    SdkMeterProvider::builder()
+    Ok(SdkMeterProvider::builder()
         .with_resource(resource)
         .with_reader(reader)
-        .build()
+        .build())
 }
 
 fn build_filter(verbose: bool) -> EnvFilter {
     let default_level = if verbose { "debug" } else { "info" };
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_verbose_false_by_default() {
+        std::env::remove_var("VERBOSE");
+        assert!(!is_verbose());
+    }
+
+    #[test]
+    fn is_verbose_true_for_one() {
+        std::env::set_var("VERBOSE", "1");
+        assert!(is_verbose());
+        std::env::remove_var("VERBOSE");
+    }
+
+    #[test]
+    fn is_verbose_true_for_true_string() {
+        std::env::set_var("VERBOSE", "true");
+        assert!(is_verbose());
+        std::env::remove_var("VERBOSE");
+    }
+
+    #[test]
+    fn is_verbose_true_case_insensitive() {
+        std::env::set_var("VERBOSE", "TRUE");
+        assert!(is_verbose());
+        std::env::remove_var("VERBOSE");
+    }
+
+    #[test]
+    fn is_verbose_false_for_other_values() {
+        std::env::set_var("VERBOSE", "false");
+        assert!(!is_verbose());
+        std::env::remove_var("VERBOSE");
+    }
+
+    #[test]
+    fn otel_endpoint_default() {
+        std::env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
+        assert_eq!(otel_endpoint(), "http://otel-collector:4317");
+    }
+
+    #[test]
+    fn otel_endpoint_custom() {
+        std::env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317");
+        assert_eq!(otel_endpoint(), "http://localhost:4317");
+        std::env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
+    }
+
+    #[test]
+    fn build_filter_uses_info_by_default() {
+        std::env::remove_var("RUST_LOG");
+        let filter = build_filter(false);
+        // EnvFilter's Display shows the directives; "info" should be present.
+        assert!(filter.to_string().contains("info"));
+    }
+
+    #[test]
+    fn build_filter_uses_debug_in_verbose_mode() {
+        std::env::remove_var("RUST_LOG");
+        let filter = build_filter(true);
+        assert!(filter.to_string().contains("debug"));
+    }
+
+    #[test]
+    fn build_filter_respects_rust_log_override() {
+        std::env::set_var("RUST_LOG", "warn");
+        let filter = build_filter(false);
+        assert!(filter.to_string().contains("warn"));
+        std::env::remove_var("RUST_LOG");
+    }
 }
