@@ -9,10 +9,13 @@ FROM rust:slim AS builder
 
 ARG BOT_NAME
 
-# System deps for sqlx / openssl / native-tls
+# System deps for sqlx / openssl / native-tls, and C toolchain for native deps
+# (libopus-dev + build-essential satisfy libopus_sys used by songbird/djcova)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
+    build-essential \
+    libopus-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
