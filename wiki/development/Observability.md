@@ -22,7 +22,7 @@ Bot process
 All telemetry is initialised by a single call in each bot's `main.rs`:
 
 ```rust
-let _guard = starbunk_shared::telemetry::init("bluebot");
+let _guard = starbunk::telemetry::init("bluebot");
 ```
 
 The `_guard` must be held for the full lifetime of the process — dropping it
@@ -237,6 +237,6 @@ rate(bot_messages_received_total[5m])
 
 ## See Also
 
-- `crates/starbunk-shared/src/telemetry.rs` — init code and env var reference
+- `crates/starbunk/src/telemetry.rs` — init code and env var reference
 - `observability/` — all collector, Loki, Tempo, Prometheus, Grafana config
 - [[../infrastructure/Deployment|Deployment]] — Tower deploy notes

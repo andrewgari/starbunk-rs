@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use regex::Regex;
 use serenity::all::{Context, Message};
-use starbunk_shared::replybot::Strategy;
+use starbunk::replybot::Strategy;
 use std::sync::LazyLock;
 
 /// Pattern matches any plausible reference to "blue" — the colour, the job,

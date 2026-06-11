@@ -1,5 +1,5 @@
 version: "3.8"
-name: starbunk-rs
+name: starbunk
 # Production — pulls pre-built images from GHCR.
 # On each deploy, Tower sets IMAGE_TAG to the specific release version (e.g. v1.2.3).
 # Usage: IMAGE_TAG=v1.2.3 docker compose up -d
@@ -9,7 +9,7 @@ services:
   # Receives OTLP from all bots and fans out to Loki, Tempo, Prometheus.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.115.0
-    container_name: starbunk-rs-otel-collector
+    container_name: starbunk-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otel/otel-collector.yaml"]
     volumes:
@@ -36,7 +36,7 @@ services:
 
   loki:
     image: grafana/loki:3.2.0
-    container_name: starbunk-rs-loki
+    container_name: starbunk-loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki.yaml"]
     volumes:
@@ -55,7 +55,7 @@ services:
 
   tempo:
     image: grafana/tempo:2.6.0
-    container_name: starbunk-rs-tempo
+    container_name: starbunk-tempo
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
@@ -74,7 +74,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: starbunk-rs-prometheus
+    container_name: starbunk-prometheus
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -99,7 +99,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.3.0
-    container_name: starbunk-rs-grafana
+    container_name: starbunk-grafana
     restart: unless-stopped
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -131,8 +131,8 @@ services:
 
   # ── Bots ─────────────────────────────────────────────────────────────────────
   bluebot:
-    image: ghcr.io/andrewgari/starbunk-rs-bluebot:${IMAGE_TAG:-latest}
-    container_name: starbunk-rs-bluebot
+    image: ghcr.io/andrewgari/starbunk-bluebot:${IMAGE_TAG:-latest}
+    container_name: starbunk-bluebot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -151,8 +151,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   bunkbot:
-    image: ghcr.io/andrewgari/starbunk-rs-bunkbot:${IMAGE_TAG:-latest}
-    container_name: starbunk-rs-bunkbot
+    image: ghcr.io/andrewgari/starbunk-bunkbot:${IMAGE_TAG:-latest}
+    container_name: starbunk-bunkbot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -171,8 +171,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   covabot:
-    image: ghcr.io/andrewgari/starbunk-rs-covabot:${IMAGE_TAG:-latest}
-    container_name: starbunk-rs-covabot
+    image: ghcr.io/andrewgari/starbunk-covabot:${IMAGE_TAG:-latest}
+    container_name: starbunk-covabot
     restart: unless-stopped
     depends_on:
       postgres:
@@ -204,8 +204,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   djcova:
-    image: ghcr.io/andrewgari/starbunk-rs-djcova:${IMAGE_TAG:-latest}
-    container_name: starbunk-rs-djcova
+    image: ghcr.io/andrewgari/starbunk-djcova:${IMAGE_TAG:-latest}
+    container_name: starbunk-djcova
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -224,8 +224,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   ratbot:
-    image: ghcr.io/andrewgari/starbunk-rs-ratbot:${IMAGE_TAG:-latest}
-    container_name: starbunk-rs-ratbot
+    image: ghcr.io/andrewgari/starbunk-ratbot:${IMAGE_TAG:-latest}
+    container_name: starbunk-ratbot
     restart: unless-stopped
     depends_on:
       otel-collector:
@@ -245,7 +245,7 @@ services:
 
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: starbunk-rs-postgres
+    container_name: starbunk-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-starbunk}

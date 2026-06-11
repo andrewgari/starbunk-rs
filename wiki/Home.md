@@ -48,11 +48,11 @@ memory-safe, high-performance implementation.
 
 | Bot | Image | Binary |
 |-----|-------|--------|
-| BlueBot | `ghcr.io/andrewgari/starbunk-rs-bluebot` | `crates/bluebot/src/main.rs` |
-| BunkBot | `ghcr.io/andrewgari/starbunk-rs-bunkbot` | `crates/bunkbot/src/main.rs` |
-| CovaBot | `ghcr.io/andrewgari/starbunk-rs-covabot` | `crates/covabot/src/main.rs` |
-| DJCova  | `ghcr.io/andrewgari/starbunk-rs-djcova`  | `crates/djcova/src/main.rs`  |
-| RatBot  | `ghcr.io/andrewgari/starbunk-rs-ratbot`  | `crates/ratbot/src/main.rs`  |
+| BlueBot | `ghcr.io/andrewgari/starbunk-bluebot` | `crates/bluebot/src/main.rs` |
+| BunkBot | `ghcr.io/andrewgari/starbunk-bunkbot` | `crates/bunkbot/src/main.rs` |
+| CovaBot | `ghcr.io/andrewgari/starbunk-covabot` | `crates/covabot/src/main.rs` |
+| DJCova  | `ghcr.io/andrewgari/starbunk-djcova`  | `crates/djcova/src/main.rs`  |
+| RatBot  | `ghcr.io/andrewgari/starbunk-ratbot`  | `crates/ratbot/src/main.rs`  |
 
 ### Key Commands
 

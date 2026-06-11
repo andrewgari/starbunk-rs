@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use async_trait::async_trait;
-use starbunk_shared::llm::{EmbedRequest, LlmService};
+use starbunk::llm::{EmbedRequest, LlmService};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -167,7 +167,7 @@ mod hex {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use starbunk_shared::llm::{EmbedResponse, GenerateRequest, GenerateResponse};
+    use starbunk::llm::{EmbedResponse, GenerateRequest, GenerateResponse};
 
     struct MockLlm {
         embeddings: Vec<Vec<f32>>,

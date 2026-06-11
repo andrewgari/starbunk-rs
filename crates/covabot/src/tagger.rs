@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use starbunk_shared::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
+use starbunk::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,7 +125,7 @@ impl TaggerService for LlmTagger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use starbunk_shared::llm::{EmbedRequest, EmbedResponse, GenerateRequest, GenerateResponse};
+    use starbunk::llm::{EmbedRequest, EmbedResponse, GenerateRequest, GenerateResponse};
     use std::sync::Arc;
 
     struct MockLlm {
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl starbunk_shared::llm::LlmService for MockLlm {
+    impl starbunk::llm::LlmService for MockLlm {
         async fn generate(&self, _req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
             Ok(GenerateResponse {
                 text: self.response_json.to_string(),
@@ -186,7 +186,7 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl starbunk_shared::llm::LlmService for CaptureLlm {
+        impl starbunk::llm::LlmService for CaptureLlm {
             async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
                 *self.captured.lock().unwrap() = Some(req);
                 Ok(GenerateResponse {
@@ -214,7 +214,7 @@ mod tests {
         let system_content = req
             .messages
             .iter()
-            .find(|m| matches!(m.role, starbunk_shared::llm::Role::System))
+            .find(|m| matches!(m.role, starbunk::llm::Role::System))
             .map(|m| m.content.as_str())
             .unwrap_or("");
         assert!(system_content.contains("topical tags"));
@@ -231,7 +231,7 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl starbunk_shared::llm::LlmService for CaptureLlm {
+        impl starbunk::llm::LlmService for CaptureLlm {
             async fn generate(&self, req: GenerateRequest) -> anyhow::Result<GenerateResponse> {
                 *self.captured.lock().unwrap() = Some(req);
                 Ok(GenerateResponse {
@@ -262,7 +262,7 @@ mod tests {
         let system_content = req
             .messages
             .iter()
-            .find(|m| matches!(m.role, starbunk_shared::llm::Role::System))
+            .find(|m| matches!(m.role, starbunk::llm::Role::System))
             .map(|m| m.content.as_str())
             .unwrap_or("");
         assert!(system_content.contains("some thread"));
