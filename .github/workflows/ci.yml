@@ -22,6 +22,7 @@ jobs:
       run_lint:         ${{ steps.matrix.outputs.run_lint }}
       run_devops:       ${{ steps.matrix.outputs.run_devops }}
       run_docker:       ${{ steps.matrix.outputs.run_docker }}
+      run_e2e:          ${{ steps.matrix.outputs.run_e2e }}
     steps:
       - uses: actions/checkout@v4
 
@@ -166,6 +167,16 @@ jobs:
           fi
           echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
 
+          # Determine if we should run E2E integration tests (if bluebot, bunkbot, or global changed)
+          RUN_E2E="false"
+          if [ "$GLOBAL_CHANGE" == "true" ] || \
+             [ "${{ steps.filter.outputs.bluebot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.bunkbot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
+            RUN_E2E="true"
+          fi
+          echo "run_e2e=${RUN_E2E}" >> $GITHUB_OUTPUT
+
   # ─── Validation Success Gate ─────────────────────────────────────────────────
   validation_success:
     name: Validation Success
@@ -305,7 +316,7 @@ jobs:
     name: Build E2E Container
     runs-on: ubuntu-latest
     needs: detect_changes
-    if: needs.detect_changes.outputs.run_lint == 'true' && needs.detect_changes.outputs.run_docker == 'true'
+    if: needs.detect_changes.outputs.run_e2e == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -385,7 +396,7 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [detect_changes, build_e2e_container]
-    if: needs.detect_changes.outputs.run_lint == 'true' && needs.detect_changes.outputs.run_docker == 'true'
+    if: needs.detect_changes.outputs.run_e2e == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     env:
       DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
     steps:
