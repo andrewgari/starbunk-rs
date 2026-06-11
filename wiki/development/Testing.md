@@ -123,6 +123,29 @@ E2E_GUILD_ID="9876543210" \
 cargo run -p starbunk-e2e
 ```
 
+### Running via Docker
+Since the workspace Dockerfile is parameterized by `BOT_NAME`, you can build and run the E2E runner as a container out-of-the-box:
+
+1. **Build the container**:
+   ```bash
+   docker build \
+     --build-arg BOT_NAME=starbunk-e2e \
+     -t starbunk-e2e \
+     -f docker/Dockerfile \
+     .
+   ```
+
+2. **Run the container**:
+   ```bash
+   docker run --rm \
+     -e DISCORD_TOKEN="your-bot-token" \
+     -e E2E_CHANNEL_ID="1234567890" \
+     -e E2E_GUILD_ID="9876543210" \
+     -e E2E_START_BOTS="true" \
+     -e E2E_TEST_BOTS="bunkbot,bluebot" \
+     starbunk-e2e
+   ```
+
 ### JSON Test Suite Format
 Test suites are defined in simple JSON files:
 ```json
