@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
 use serenity::all::{EventHandler, GatewayIntents};
 use serenity::Client;
+
+use crate::health::HealthMonitor;
 
 /// Start a Discord bot with the given EventHandler and block until the process
 /// receives SIGINT / SIGTERM.
@@ -53,4 +57,32 @@ pub async fn run_bot(
 /// Standard intents used by most reply bots.
 pub fn default_intents() -> GatewayIntents {
     GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT
+}
+
+/// Like [`run_bot`], but also installs a startup watchdog that logs a
+/// structured `health.status = "startup_timeout"` error if the Discord
+/// `ready` event has not fired within 30 seconds.
+///
+/// Bots that opt in pass their [`HealthMonitor`] here and call
+/// [`HealthMonitor::on_connected`] from their `EventHandler::ready` impl.
+pub async fn run_bot_with_health(
+    bot_name: &'static str,
+    intents: GatewayIntents,
+    health: Arc<HealthMonitor>,
+    handler: impl EventHandler + 'static,
+) -> anyhow::Result<()> {
+    let watchdog = Arc::clone(&health);
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        if !watchdog.is_connected() {
+            tracing::error!(
+                bot = bot_name,
+                health.status = "startup_timeout",
+                "health: startup timeout — bot did not connect within 30s; \
+                 check DISCORD_TOKEN and network connectivity"
+            );
+        }
+    });
+
+    run_bot(bot_name, intents, handler).await
 }

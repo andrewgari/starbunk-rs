@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "DJCova startup — channel access via ping",
+      "sender": "human",
+      "message": "ping djcova",
+      "expect": "Pong from djcova!",
+      "timeout_ms": 5000
+    },
+    {
+      "name": "DJCova startup — bot self-message filter holds",
+      "sender": "bot",
+      "message": "ping djcova",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "DJCova help lists available commands",
+      "sender": "human",
+      "message": "djcova help",
+      "expect": "DJCova",
+      "timeout_ms": 3000
+    },
+    {
+      "name": "DJCova silently ignores unknown input",
+      "sender": "human",
+      "message": "djcova zxqwrandom99",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}
