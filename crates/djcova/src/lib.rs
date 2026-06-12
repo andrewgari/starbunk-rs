@@ -21,7 +21,7 @@ impl Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
-        tracing::info!("DJCova connected as {}", ready.user.name);
+        tracing::info!(bot = "djcova", user = %ready.user.name, "connected");
         let _ = self
             .webhooks
             .set(Arc::new(WebhookService::new(ctx.http.clone())));
@@ -39,7 +39,7 @@ impl EventHandler for Handler {
                 .unwrap_or_else(|| Arc::new(WebhookService::new(ctx.http.clone())));
             let sender = DiscordMessageService::new(ctx.http.clone(), ws);
             if let Err(e) = sender.send(msg.channel_id, "Pong from djcova!").await {
-                tracing::error!("djcova: send failed: {}", e);
+                tracing::error!(bot = "djcova", channel = %msg.channel_id, err = %e, "send failed");
             }
         }
     }

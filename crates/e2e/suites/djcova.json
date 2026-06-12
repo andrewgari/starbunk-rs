@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "DJCova ping response",
+      "sender": "human",
+      "message": "ping djcova",
+      "expect": "Pong from djcova!",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "DJCova ignores bot pings",
+      "sender": "bot",
+      "message": "ping djcova",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}

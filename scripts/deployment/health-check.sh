@@ -100,6 +100,39 @@ check_container_logs() {
   done
 }
 
+check_djcova_logs() {
+  echo ""
+  echo "Checking djcova voice/audio health..."
+
+  RECENT_LOGS=$($COMPOSE_CMD logs --tail=50 djcova 2>/dev/null || echo "")
+  [ -z "$RECENT_LOGS" ] && return
+
+  # Check yt-dlp errors
+  YTDLP_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" || echo "0")
+  if [ "$YTDLP_ERRORS" -gt 0 ]; then
+    echo "WARN  djcova: ${YTDLP_ERRORS} yt-dlp error(s) in recent logs"
+    echo "$RECENT_LOGS" | grep -iE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" | head -3 | sed 's/^/      /'
+  else
+    echo "OK    djcova: no yt-dlp errors"
+  fi
+
+  # Check voice connection errors
+  VOICE_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(Failed to join voice|VoiceService.*error|songbird.*error)" || echo "0")
+  if [ "$VOICE_ERRORS" -gt 0 ]; then
+    echo "WARN  djcova: ${VOICE_ERRORS} voice connection error(s) in recent logs"
+    echo "$RECENT_LOGS" | grep -iE "(Failed to join voice|VoiceService.*error|songbird.*error)" | head -3 | sed 's/^/      /'
+  else
+    echo "OK    djcova: no voice connection errors"
+  fi
+
+  # Confirm bot connected successfully
+  if echo "$RECENT_LOGS" | grep -qE "bot.*djcova.*connected|connected.*djcova"; then
+    echo "OK    djcova: connected log entry found"
+  else
+    echo "WARN  djcova: no 'connected' log entry found — bot may not have started cleanly"
+  fi
+}
+
 main() {
   ATTEMPT=1
 
@@ -114,6 +147,7 @@ main() {
       echo "All containers are running!"
       check_restart_counts
       check_container_logs
+      check_djcova_logs
       echo ""
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "Health Check PASSED"
