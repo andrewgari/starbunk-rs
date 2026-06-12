@@ -171,7 +171,7 @@ jobs:
           BOT=${{ matrix.bot }}
           VERSION=${{ needs.version.outputs.version }}
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE="ghcr.io/${OWNER_LC}/starbunk-${BOT}"
+          IMAGE="ghcr.io/${OWNER_LC}/starbunk-rs-${BOT}"
 
           docker build \
             -f docker/Dockerfile \
