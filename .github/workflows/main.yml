@@ -156,12 +156,14 @@ jobs:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -170,8 +172,7 @@ jobs:
         run: |
           BOT=${{ matrix.bot }}
           VERSION=${{ needs.version.outputs.version }}
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE="ghcr.io/${OWNER_LC}/starbunk-${BOT}"
+          IMAGE="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-${BOT}"
 
           docker build \
             -f docker/Dockerfile \
@@ -231,7 +232,7 @@ jobs:
             echo "## Docker Images"
             echo ""
             for bot in bluebot bunkbot covabot djcova ratbot; do
-              echo "- \`ghcr.io/${OWNER_LC}/starbunk-${bot}:${VERSION}\`"
+              echo "- \`us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-${bot}:${VERSION}\`"
             done
             echo ""
             echo "## Changes (${RANGE})"

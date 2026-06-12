@@ -7,14 +7,8 @@ name: Deploy to Production
 # The release is created only after images are successfully built and tagged :latest.
 #
 # Required secrets (production environment):
-#   TAILSCALE_OAUTH_CLIENT_ID      — Tailscale OAuth client ID (tag:ci)
-#   TAILSCALE_OAUTH_CLIENT_SECRET  — Tailscale OAuth client secret
-#   SSH_PRIVATE_KEY                — Private key in Tower's authorized_keys
-#   SSH_HOST                       — Tower's Tailscale IP (100.x.x.x)
-#   SSH_USER                       — SSH user on Tower (e.g. root)
-#
-# Required variables (production environment):
-#   PROD_DOCKER_COMPOSE_DIR        — Path on Tower where docker-compose.yml lives
+#   GCP_WORKLOAD_IDENTITY_PROVIDER — Workload Identity Provider ID
+#   GCP_SERVICE_ACCOUNT            — GCP Service Account email
 
 on:
   release:
@@ -55,65 +49,29 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "deploy_tag=${DEPLOY_TAG}" >> $GITHUB_OUTPUT
 
-      - name: Preflight — check required secrets
-        env:
-          CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
-          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          HOST: ${{ secrets.SSH_HOST }}
-          USER: ${{ secrets.SSH_USER }}
-          COMPOSE_DIR: ${{ vars.PROD_DOCKER_COMPOSE_DIR }}
-        run: |
-          MISSING=""
-          [[ -z "$CLIENT_ID" ]]     && MISSING="$MISSING TAILSCALE_OAUTH_CLIENT_ID"
-          [[ -z "$CLIENT_SECRET" ]] && MISSING="$MISSING TAILSCALE_OAUTH_CLIENT_SECRET"
-          [[ -z "$KEY" ]]           && MISSING="$MISSING SSH_PRIVATE_KEY"
-          [[ -z "$HOST" ]]          && MISSING="$MISSING SSH_HOST"
-          [[ -z "$USER" ]]          && MISSING="$MISSING SSH_USER"
-          [[ -z "$COMPOSE_DIR" ]]   && MISSING="$MISSING PROD_DOCKER_COMPOSE_DIR"
-          if [[ -n "$MISSING" ]]; then
-            echo "::error::Missing required secrets/variables:$MISSING"
-            exit 1
-          fi
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Verify connectivity to Tower
-        run: tailscale ping --c 3 "${{ secrets.SSH_HOST }}"
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: starbunk-gke-cluster
+          location: us-central1
 
-      - name: Set up SSH
+      - name: Deploy to GKE
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          kubectl apply -f kubernetes/
+          
+          # Force a rollout of the new images
+          kubectl rollout restart deployment/bluebot deployment/bunkbot deployment/covabot deployment/djcova deployment/ratbot -n starbunk
 
-      - name: Stage docker-compose.yml on Tower
+      - name: Health check (Wait for Rollout)
         run: |
-          scp -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=30 \
-            docker-compose.yml \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.PROD_DOCKER_COMPOSE_DIR }}/docker-compose.yml.incoming"
-
-      - name: Deploy
-        run: |
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=30 \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "bash -s -- ${{ vars.PROD_DOCKER_COMPOSE_DIR }} ${{ steps.deploy_info.outputs.deploy_tag }} ${{ steps.deploy_info.outputs.version }} ${{ vars.PROD_DOCKER_COMPOSE_DIR }}/docker-compose.yml.incoming" \
-            < scripts/deployment/deploy.sh
-
-      - name: Health check
-        run: |
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=30 \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "bash -s -- ${{ vars.PROD_DOCKER_COMPOSE_DIR }}" \
-            < scripts/deployment/health-check.sh
+          kubectl rollout status deployment/bluebot -n starbunk --timeout=3m
+          kubectl rollout status deployment/bunkbot -n starbunk --timeout=3m
+          kubectl rollout status deployment/covabot -n starbunk --timeout=3m
+          kubectl rollout status deployment/djcova -n starbunk --timeout=3m
+          kubectl rollout status deployment/ratbot -n starbunk --timeout=3m

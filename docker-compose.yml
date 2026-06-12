@@ -131,7 +131,7 @@ services:
 
   # ── Bots ─────────────────────────────────────────────────────────────────────
   bluebot:
-    image: ghcr.io/andrewgari/starbunk-bluebot:${IMAGE_TAG:-latest}
+    image: ghcr.io/andrewgari/starbunk-rs-bluebot:${IMAGE_TAG:-latest}
     container_name: starbunk-bluebot
     restart: unless-stopped
     depends_on:
@@ -151,7 +151,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   bunkbot:
-    image: ghcr.io/andrewgari/starbunk-bunkbot:${IMAGE_TAG:-latest}
+    image: ghcr.io/andrewgari/starbunk-rs-bunkbot:${IMAGE_TAG:-latest}
     container_name: starbunk-bunkbot
     restart: unless-stopped
     depends_on:
@@ -171,7 +171,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   covabot:
-    image: ghcr.io/andrewgari/starbunk-covabot:${IMAGE_TAG:-latest}
+    image: ghcr.io/andrewgari/starbunk-rs-covabot:${IMAGE_TAG:-latest}
     container_name: starbunk-covabot
     restart: unless-stopped
     depends_on:
@@ -204,7 +204,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   djcova:
-    image: ghcr.io/andrewgari/starbunk-djcova:${IMAGE_TAG:-latest}
+    image: ghcr.io/andrewgari/starbunk-rs-djcova:${IMAGE_TAG:-latest}
     container_name: starbunk-djcova
     restart: unless-stopped
     depends_on:
@@ -224,7 +224,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   ratbot:
-    image: ghcr.io/andrewgari/starbunk-ratbot:${IMAGE_TAG:-latest}
+    image: ghcr.io/andrewgari/starbunk-rs-ratbot:${IMAGE_TAG:-latest}
     container_name: starbunk-ratbot
     restart: unless-stopped
     depends_on:

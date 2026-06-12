@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: covabot
+  namespace: starbunk
+  labels:
+    app: covabot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: covabot
+  template:
+    metadata:
+      labels:
+        app: covabot
+    spec:
+      containers:
+        - name: covabot
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-covabot:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: COVABOT_TOKEN
+            - name: RUST_LOG
+              value: "info"
+            - name: VERBOSE
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: POSTGRES_USER
+                  optional: true
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: "starbunk_memory"
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: GOOGLE_API_KEY
+                  optional: true
+            - name: LLM_TIER_HIGH_PROVIDER
+              value: "anthropic"
+            - name: LLM_TIER_HIGH_MODEL
+              value: "claude-3-5-sonnet-latest"
+            - name: LLM_TIER_MEDIUM_PROVIDER
+              value: "google"
+            - name: LLM_TIER_MEDIUM_MODEL
+              value: "gemini-1.5-flash"
+            - name: LLM_TIER_LOW_PROVIDER
+              value: "openai"
+            - name: LLM_TIER_LOW_MODEL
+              value: "text-embedding-3-small"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

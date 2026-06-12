@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: djcova
+  namespace: starbunk
+  labels:
+    app: djcova
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: djcova
+  template:
+    metadata:
+      labels:
+        app: djcova
+    spec:
+      containers:
+        - name: djcova
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-djcova:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: DJCOVA_TOKEN
+            - name: RUST_LOG
+              value: "info"
+            - name: VERBOSE
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
