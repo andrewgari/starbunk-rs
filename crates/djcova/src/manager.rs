@@ -32,6 +32,7 @@ pub struct GuildAudioManager {
     current_track: Option<QueueItem>,
     volume: u8,
     repeat_mode: RepeatMode,
+    is_paused: bool,
     voice: Arc<dyn VoiceService>,
     gif: Arc<dyn GifService>,
     pub idle_timer_active: bool,
@@ -50,6 +51,7 @@ impl GuildAudioManager {
             current_track: None,
             volume: 50,
             repeat_mode: RepeatMode::Off,
+            is_paused: false,
             voice,
             gif,
             idle_timer_active: false,
@@ -214,34 +216,47 @@ impl GuildAudioManager {
 
     /// Pauses the current track without clearing the queue.
     pub async fn pause(&mut self) -> anyhow::Result<()> {
-        // stub — implementation in PR 2
+        if self.current_track.is_none() {
+            anyhow::bail!("Nothing is currently playing.");
+        }
+        self.voice.pause(self.guild_id).await?;
+        self.is_paused = true;
         Ok(())
     }
 
     /// Resumes a paused track.
     pub async fn resume(&mut self) -> anyhow::Result<()> {
-        // stub — implementation in PR 2
+        if !self.is_paused {
+            anyhow::bail!("Playback is not paused.");
+        }
+        self.voice.resume(self.guild_id).await?;
+        self.is_paused = false;
         Ok(())
     }
 
     /// Returns whether playback is currently paused.
     pub fn is_paused(&self) -> bool {
-        // stub — always false until PR 2
-        false
+        self.is_paused
     }
 
     /// Removes and returns the title of the first queued song requested by `requester`.
     /// Returns `None` if no matching item exists.
-    pub fn skip_next_by(&mut self, _requester: &str) -> Option<String> {
-        // stub — always returns None until PR 2
-        None
+    pub fn skip_next_by(&mut self, requester: &str) -> Option<String> {
+        let pos = self
+            .queue
+            .iter()
+            .position(|item| item.requester == requester)?;
+        self.queue.remove(pos).map(|item| item.title)
     }
 
     /// Removes and returns the title of the last queued song requested by `requester`.
     /// Returns `None` if no matching item exists.
-    pub fn skip_last_by(&mut self, _requester: &str) -> Option<String> {
-        // stub — always returns None until PR 2
-        None
+    pub fn skip_last_by(&mut self, requester: &str) -> Option<String> {
+        let pos = self
+            .queue
+            .iter()
+            .rposition(|item| item.requester == requester)?;
+        self.queue.remove(pos).map(|item| item.title)
     }
 
     pub fn tick_idle_timer(&mut self) -> bool {
