@@ -3,6 +3,20 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-11 — E2E Testing Framework
+
+### Added
+- Created a new workspace crate `crates/e2e` containing the E2E test runner.
+- Added `crates/e2e/suites/bunkbot_bluebot.json` with sample E2E test cases for BlueBot and BunkBot.
+- Added `E2eDebugHandler` wrapper in `crates/starbunk/src/discord/e2e.rs` to filter events and mock simulated user/bot authors for E2E validation.
+- Documented the E2E framework in the wiki `wiki/development/Testing.md`.
+
+### Changed
+- Registered `crates/e2e` in the workspace `Cargo.toml`.
+- Integrated `E2eDebugHandler` into `starbunk::utils::run_bot` conditionally activated via `E2E_MODE` environment variable.
+
+---
+
 ## 2026-06-11 — Crate and container rename
 
 ### Changed

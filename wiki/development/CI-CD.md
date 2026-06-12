@@ -6,21 +6,24 @@
 
 Triggered on all PRs to `main`. Jobs:
 
-1. **Validate DevOps Consistency** — runs `scripts/devops-validate.sh` to check if all bots are registered in required config files; skipped if no DevOps files or bot code changed.
-2. **Lint** — runs `cargo fmt --check` and `cargo clippy -- -D warnings`; skipped if no Rust files or Rust config files changed.
-3. **Test** — runs `cargo test --all` for all crates; skipped if no bot code changed.
-4. **Build** — matrix build; builds each affected bot binary (`cargo build --bin <bot>`) to verify compilation; skipped if no bot code changed.
-5. **Docker Test** — matrix build; builds each affected Docker image to verify the Dockerfile; skipped if no bot code changed.
+1. **Lint** — runs `cargo fmt --check` and `cargo clippy -- -D warnings`; skipped if no Rust files or Rust config files changed.
+2. **Test** — runs `cargo test` for all affected packages; skipped if no bot code changed.
+3. **Validation Success** — gate job that succeeds only if all builds (compilation), tests, and lints succeed. It waits for those and also runs the DevOps validation checks (`scripts/devops-validate.sh`), but does not wait for the docker/E2E test jobs.
+4. **Docker Test** — matrix build; builds and smoke-tests each affected bot Docker image; skipped if no bot code changed.
+5. **E2E Tests** — builds and runs end-to-end integration tests using the live Discord test suite; skipped if no bot code changed.
+6. **Validation Complete** — final check that waits for all jobs, including docker/E2E test jobs.
 
-All five jobs are required to pass before a PR can merge (unless they are skipped due to change-detection logic, which counts as passed/success).
+The `Validation Success` job serves as the primary required status check for PR merging, ensuring builds, tests, and lints pass quickly without waiting for container builds and E2E runs.
 
 #### Selective Validation (Change Detection)
 
-The `ci.yml` workflow optimizes execution times by gating jobs based on changed paths:
+The `ci.yml` workflow optimizes execution times by gating jobs based on changed paths and PR labels:
 - **No Rust / DevOps changes (e.g. pure documentation/wiki PRs)**: All CI check jobs are skipped.
 - **Global / Core Changes**: Modifying `Cargo.toml`, `Cargo.lock`, `docker/Dockerfile`, or `src/shared/` triggers builds, tests, and docker checks for **all** bots.
 - **Specific Shared Libraries**: Changes under `src/shared/replybot` only trigger checks for `bluebot`. Changes under `src/shared/llm` or `src/shared/memory` only trigger checks for `covabot`.
 - **Bot-Specific Code**: Modifying code in a specific bot's directory only triggers checks for that bot.
+- **E2E Integration Tests**: The E2E container build and integration tests are only executed if `bluebot`, `bunkbot`, or global/shared dependencies changed (since the E2E suite primarily targets those bots).
+- **Quick PRs / Docker Skipping**: If the PR has the `quick-pr` or `skip-docker` label, all Docker container builds, Docker smoke tests, and E2E integration test runs are skipped entirely, allowing for fast verification.
 
 
 ### `main.yml` — Merge to Main (auto-release)

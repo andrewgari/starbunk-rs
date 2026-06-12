@@ -1,7 +1,9 @@
+pub mod e2e;
 pub mod identity;
 pub mod message_service;
 pub mod webhook_service;
 
+pub use e2e::E2eDebugHandler;
 pub use identity::Identity;
 pub use message_service::{DiscordMessageService, MessageService};
 pub use webhook_service::WebhookService;

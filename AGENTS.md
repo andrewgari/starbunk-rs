@@ -31,8 +31,8 @@ On merge: prepend to `wiki/Changelog.md`, delete the raw file.
 
 > **Every task involving logic, behavior, or ports. No exceptions.**
 
-- **PR 1 — Tests only:** Add failing Rust tests that define the expected behavior. No implementation. Minimal stubs only to allow compilation.
-- **PR 2 — Implementation:** Write code to make the tests pass. Only after PR 1 is approved or merged.
+- **PR 1 — Tests only:** Add failing Rust tests that define the expected behavior. No implementation. Minimal stubs only to allow compilation. For bot logic changes, also add corresponding E2E integration test cases to the JSON test suite (e.g., `crates/e2e/suites/bunkbot_bluebot.json`).
+- **PR 2 — Implementation:** Write code to make the unit and E2E tests pass. Only after PR 1 is approved or merged.
 
 Reference behavior: check `../starbunk-go/cmd/<bot>/` or `../starbunk-js/src/<bot>/` first.
 Full details: `wiki/development/TDD.md`.
@@ -60,7 +60,7 @@ Full details: `wiki/development/TDD.md`.
 
 ## Definition of Done
 
-- [ ] All CI checks pass (`Validate DevOps Consistency`, `Lint`, `Test`)
+- [ ] All CI checks pass (`Validation Success`)
 - [ ] PR has at least one approval and all checks are green
 - [ ] `bash scripts/devops-validate.sh` exits cleanly (if any bot or CI/CD file was touched)
 - [ ] `cargo test` passes locally
@@ -225,7 +225,7 @@ Discord intents: `GUILD_MESSAGES | MESSAGE_CONTENT`. DJCova also needs `GUILD_VO
 
 | Rule | Setting |
 |---|---|
-| Required checks | `Validate DevOps Consistency`, `Lint`, `Test` |
+| Required checks | `Validation Success` |
 | Up to date | Yes (strict) |
 | Required approvals | 1 |
 | Force push | Blocked |

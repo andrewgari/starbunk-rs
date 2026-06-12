@@ -27,13 +27,14 @@ COPY crates/bunkbot/Cargo.toml         crates/bunkbot/
 COPY crates/covabot/Cargo.toml         crates/covabot/
 COPY crates/djcova/Cargo.toml          crates/djcova/
 COPY crates/ratbot/Cargo.toml          crates/ratbot/
+COPY crates/e2e/Cargo.toml             crates/e2e/
 
 # Create minimal stub sources so `cargo build` can compile all external deps
 # without the real implementation.  Stubs for every workspace member are
 # required because Cargo resolves the full dependency graph up-front.
 RUN mkdir -p crates/starbunk/src \
     && echo "pub fn _stub() {}" > crates/starbunk/src/lib.rs \
-    && for bot in bluebot bunkbot covabot djcova ratbot; do \
+    && for bot in bluebot bunkbot covabot djcova ratbot e2e; do \
          mkdir -p crates/$bot/src; \
          echo "pub fn _stub() {}" > crates/$bot/src/lib.rs; \
          echo "fn main() {}" > crates/$bot/src/main.rs; \
@@ -44,7 +45,7 @@ RUN mkdir -p crates/starbunk/src \
 # Copy real sources and rebuild (Cargo detects content changes and recompiles
 # only the workspace crates; external dep artifacts are reused from the cache).
 COPY crates ./crates
-RUN cargo build --release -p "${BOT_NAME}"
+RUN find crates -name "*.rs" -exec touch {} + && cargo build --release -p "${BOT_NAME}"
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
