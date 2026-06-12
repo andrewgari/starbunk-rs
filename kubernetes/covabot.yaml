@@ -36,7 +36,6 @@ spec:
                 secretKeyRef:
                   name: starbunk-secrets
                   key: POSTGRES_USER
-                  optional: true
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:

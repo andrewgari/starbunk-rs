@@ -18,6 +18,7 @@ on:
 permissions:
   contents: read
   deployments: write
+  id-token: write
 
 concurrency:
   group: deploy-production
@@ -63,10 +64,16 @@ jobs:
 
       - name: Deploy to GKE
         run: |
+          # Apply namespace first so it exists before dependent resources
+          kubectl apply -f kubernetes/namespace.yaml
           kubectl apply -f kubernetes/
-          
-          # Force a rollout of the new images
-          kubectl rollout restart deployment/bluebot deployment/bunkbot deployment/covabot deployment/djcova deployment/ratbot -n starbunk
+
+          # Pin each deployment to the exact image tag for this release
+          DEPLOY_TAG="${{ steps.deploy_info.outputs.deploy_tag }}"
+          REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
+          for BOT in bluebot bunkbot covabot djcova ratbot; do
+            kubectl set image "deployment/${BOT}" "${BOT}=${REGISTRY}/starbunk-${BOT}:${DEPLOY_TAG}" -n starbunk
+          done
 
       - name: Health check (Wait for Rollout)
         run: |
