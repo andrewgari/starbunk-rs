@@ -89,7 +89,7 @@ check_container_logs() {
     RECENT_LOGS=$($COMPOSE_CMD logs --tail=30 "$service" 2>/dev/null || echo "")
     [ -z "$RECENT_LOGS" ] && continue
 
-    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -icE "(panicked at|FATAL|thread '.*' panicked)" || echo "0")
+    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -icE "(panicked at|FATAL|thread '.*' panicked)" || true)
 
     if [ "$ERROR_COUNT" -gt 0 ]; then
       echo "WARN  $service: ${ERROR_COUNT} fatal/panic entries in recent logs"
@@ -138,7 +138,7 @@ check_user_facing_errors() {
     [ -z "$RECENT_LOGS" ] && continue
 
     # Count structured "health: user-facing error" events from HealthMonitor::on_error
-    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -c "health: user-facing error" || echo "0")
+    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -c "health: user-facing error" || true)
     if [ "$ERROR_COUNT" -gt "$ERROR_THRESHOLD" ]; then
       echo "WARN  $service: ${ERROR_COUNT} user-facing error(s) in recent logs (threshold: ${ERROR_THRESHOLD})"
       echo "$RECENT_LOGS" | grep "health: user-facing error" | tail -3 | sed 's/^/      /'
@@ -158,7 +158,7 @@ check_djcova_logs() {
   [ -z "$RECENT_LOGS" ] && return
 
   # Check yt-dlp errors
-  YTDLP_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" || echo "0")
+  YTDLP_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" || true)
   if [ "$YTDLP_ERRORS" -gt 0 ]; then
     echo "WARN  djcova: ${YTDLP_ERRORS} yt-dlp error(s) in recent logs"
     echo "$RECENT_LOGS" | grep -iE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" | head -3 | sed 's/^/      /'
@@ -167,7 +167,7 @@ check_djcova_logs() {
   fi
 
   # Check voice connection errors
-  VOICE_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(Failed to join voice|VoiceService.*error|songbird.*error)" || echo "0")
+  VOICE_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(Failed to join voice|VoiceService.*error|songbird.*error)" || true)
   if [ "$VOICE_ERRORS" -gt 0 ]; then
     echo "WARN  djcova: ${VOICE_ERRORS} voice connection error(s) in recent logs"
     echo "$RECENT_LOGS" | grep -iE "(Failed to join voice|VoiceService.*error|songbird.*error)" | head -3 | sed 's/^/      /'

@@ -47,20 +47,21 @@ history, volume, and repeat state. Ported from starbunk-js DJCova.
 
 ## Architecture
 
+> **Current implementation** — voice/music commands are not yet ported.
+> The files below marked _planned_ do not exist in the codebase yet.
+
 ```
-lib.rs          — Handler (EventHandler): ready, interaction_create, voice_state_update
-manager.rs      — GuildAudioManager: queue (VecDeque), history, volume, repeat, idle/leave timers
+lib.rs          — Handler (EventHandler): ready, message; HealthMonitor wiring
+main.rs         — entry point: telemetry init, calls run()
+
+— planned —
+manager.rs      — GuildAudioManager: queue, history, volume, repeat, idle/leave timers
 voice.rs        — VoiceService trait + DiscordVoiceService (songbird)
 gif_client.rs   — GifService trait + TenorGifClient (Tenor API)
-commands.rs     — Module root: declares all command submodules, re-exports handlers
-commands/
-  play.rs, skip.rs, skipnext.rs, skiplast.rs, stop.rs, pause.rs
-  queue.rs, nowplaying.rs, history.rs, shuffle.rs, repeat.rs, volume.rs, clear.rs, help.rs
-  buttons.rs    — Component interaction handler for nowplaying button row
-  shared.rs     — Shared embed/button builders
+commands/       — slash command handlers (play, skip, stop, queue, …)
 ```
 
-**Key types:**
+**Planned key types** (not yet implemented):
 
 ```rust
 pub struct QueueItem {
@@ -120,9 +121,11 @@ pub struct GuildAudioManager {
 
 ## Testing
 
-Unit tests live in `crates/djcova/src/manager.rs` (15 tests covering queue ops, skip ownership, pause toggle, idle/leave timers).
+Unit tests for the audio manager (`GuildAudioManager`) are **not yet implemented** — `manager.rs` does not exist yet. Tests will be added alongside the voice port (TDD: tests-first PR, then implementation).
 
-E2E voice tests are **not** supported by the webhook-based E2E runner — voice channel joining requires a different test harness. The `crates/e2e/suites/djcova.json` suite covers bot connectivity only.
+E2E health tests live in `crates/e2e/suites/health_djcova.json` and cover: startup channel access (ping), bot self-filter, help command, and unknown input handling.
+
+E2E voice tests are **not** supported by the webhook-based E2E runner — voice channel joining requires a different test harness.
 
 ## See Also
 
