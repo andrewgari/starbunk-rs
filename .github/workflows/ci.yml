@@ -50,6 +50,8 @@ jobs:
               - 'crates/starbunk/src/middleware/**'
             shared_replybot:
               - 'crates/starbunk/src/replybot/**'
+            shared_health:
+              - 'crates/starbunk/src/health.rs'
             shared_other:
               - 'crates/starbunk/!(src/discord|src/llm|src/memory|src/middleware|src/replybot)/**'
             global:
@@ -167,12 +169,15 @@ jobs:
           fi
           echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
 
-          # Determine if we should run E2E integration tests (if bluebot, bunkbot, or global changed)
+          # Determine if we should run E2E integration tests
+          # Triggers: global changes, any bot that has an E2E suite, or the health module
           RUN_E2E="false"
           if [ "$GLOBAL_CHANGE" == "true" ] || \
              [ "${{ steps.filter.outputs.bluebot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.bunkbot }}" == "true" ] || \
-             [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
+             [ "${{ steps.filter.outputs.djcova }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_health }}" == "true" ]; then
             RUN_E2E="true"
           fi
           echo "run_e2e=${RUN_E2E}" >> $GITHUB_OUTPUT
