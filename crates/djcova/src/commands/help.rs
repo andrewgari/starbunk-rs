@@ -19,7 +19,8 @@ pub async fn handle(ctx: &Context, cmd: &CommandInteraction) -> anyhow::Result<(
         .field("/repeat", "Set repeat mode (off/song/queue)", false)
         .field("/shuffle", "Shuffle queue", false)
         .field("/clear", "Clear queue", false)
-        .field("/nowplaying", "Show current track with controls", false);
+        .field("/nowplaying", "Show current track with controls", false)
+        .field("/help", "Show this command list", false);
 
     let _ = cmd
         .create_response(

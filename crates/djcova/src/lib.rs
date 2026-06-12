@@ -186,6 +186,10 @@ impl EventHandler for Handler {
                         .values()
                         .filter(|vs| vs.channel_id == Some(voice_channel))
                         .filter(|vs| vs.user_id != bot_user_id)
+                        .filter(|vs| {
+                            // Exclude other bots; treat unknown users as non-bots (conservative).
+                            ctx.cache.user(vs.user_id).map(|u| !u.bot).unwrap_or(true)
+                        })
                         .count();
                     if non_bot_count == 0 {
                         m.user_left_voice_channel();

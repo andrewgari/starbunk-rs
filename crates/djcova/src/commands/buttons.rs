@@ -68,6 +68,7 @@ pub async fn handle(
             if let Some(track) = track {
                 match voice_channel {
                     Some(vc) => {
+                        let title = track.title.clone();
                         let mut m = mgr.lock().await;
                         let _ = m
                             .play(
@@ -84,7 +85,7 @@ pub async fn handle(
                                 &ctx.http,
                                 EditInteractionResponse::new().content(format!(
                                     "Re-queued: {} (Queue size: {})",
-                                    track.title,
+                                    title,
                                     queue_len + 1
                                 )),
                             )

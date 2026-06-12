@@ -104,6 +104,11 @@ impl GuildAudioManager {
                 thumbnail_url: resolved.thumbnail_url,
             };
             self.queue.push_back(item.clone());
+            // Restart the GIF loop so it posts to the new text channel.
+            if let Some(h) = http {
+                self.stop_gif_loop();
+                self.start_gif_loop(h, text_channel);
+            }
             Ok(format!(
                 "Queued: {} requested by {}",
                 item.title, item.requester
@@ -596,7 +601,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_idle_timer_disconnects_after_timeout() {
+    async fn test_idle_timer_tick_cleans_up_state() {
         let mut manager = setup();
         manager
             .play(
