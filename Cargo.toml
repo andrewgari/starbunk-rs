@@ -18,6 +18,7 @@ edition = "2021"
 starbunk = { path = "crates/starbunk" }
 
 serenity           = { version = "0.12", features = ["client", "gateway", "model", "http", "rustls_backend", "cache"] }
+songbird           = { version = "0.6.0", features = ["gateway", "rustls", "serenity", "driver", "builtin-queue"] }
 tokio              = { version = "1",    features = ["rt-multi-thread", "macros", "sync", "time"] }
 async-trait        = "0.1"
 serde              = { version = "1",    features = ["derive"] }

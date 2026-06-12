@@ -13,7 +13,7 @@ history, volume, and repeat state. Ported from starbunk-js DJCova.
 
 | Command | Description | Permission |
 |---|---|---|
-| `/play <url>` | Join voice and play/queue a YouTube URL | Everyone |
+| `/play <url\|query> [file]` | Join voice and play/queue a YouTube URL, search query, or uploaded audio file (MP3/FLAC/OGG/WAV) | Everyone |
 | `/skip` | Skip the current track (own tracks only; admins skip any) | Everyone |
 | `/skipnext <user>` | Remove the next queued track by a specific user | Everyone |
 | `/skiplast <user>` | Remove the last queued track by a specific user | Everyone |
@@ -47,21 +47,17 @@ history, volume, and repeat state. Ported from starbunk-js DJCova.
 
 ## Architecture
 
-> **Current implementation** — voice/music commands are not yet ported.
-> The files below marked _planned_ do not exist in the codebase yet.
-
 ```
-lib.rs          — Handler (EventHandler): ready, message; HealthMonitor wiring
+lib.rs          — Handler (EventHandler): ready, interaction_create, voice_state_update
 main.rs         — entry point: telemetry init, calls run()
-
-— planned —
 manager.rs      — GuildAudioManager: queue, history, volume, repeat, idle/leave timers
 voice.rs        — VoiceService trait + DiscordVoiceService (songbird)
 gif_client.rs   — GifService trait + TenorGifClient (Tenor API)
-commands/       — slash command handlers (play, skip, stop, queue, …)
+commands/       — slash command handlers (play, skip, skipnext, skiplast, pause, stop, …)
+commands/buttons.rs — interactive button component handler
 ```
 
-**Planned key types** (not yet implemented):
+Key types:
 
 ```rust
 pub struct QueueItem {
@@ -121,7 +117,7 @@ pub struct GuildAudioManager {
 
 ## Testing
 
-Unit tests for the audio manager (`GuildAudioManager`) are **not yet implemented** — `manager.rs` does not exist yet. Tests will be added alongside the voice port (TDD: tests-first PR, then implementation).
+Unit tests for `GuildAudioManager` command logic live in `crates/djcova/src/`. Failing tests for `skipnext`, `skiplast`, `pause`, and `resume` have been added as the TDD tests-first PR; implementation follows in the next PR.
 
 E2E health tests live in `crates/e2e/suites/health_djcova.json` and cover: startup channel access (ping), bot self-filter, help command, and unknown input handling.
 
