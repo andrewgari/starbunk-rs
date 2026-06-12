@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bluebot
+  namespace: starbunk
+  labels:
+    app: bluebot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bluebot
+  template:
+    metadata:
+      labels:
+        app: bluebot
+    spec:
+      containers:
+        - name: bluebot
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bluebot:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: BLUEBOT_TOKEN
+            - name: RUST_LOG
+              value: "info"
+            - name: VERBOSE
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

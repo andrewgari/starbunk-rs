@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bunkbot
+  namespace: starbunk
+  labels:
+    app: bunkbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bunkbot
+  template:
+    metadata:
+      labels:
+        app: bunkbot
+    spec:
+      containers:
+        - name: bunkbot
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bunkbot:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: BUNKBOT_TOKEN
+            - name: RUST_LOG
+              value: "info"
+            - name: VERBOSE
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

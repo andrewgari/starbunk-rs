@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratbot
+  namespace: starbunk
+  labels:
+    app: ratbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ratbot
+  template:
+    metadata:
+      labels:
+        app: ratbot
+    spec:
+      containers:
+        - name: ratbot
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-ratbot:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: RATBOT_TOKEN
+            - name: RUST_LOG
+              value: "info"
+            - name: VERBOSE
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
