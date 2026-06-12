@@ -212,6 +212,38 @@ impl GuildAudioManager {
         self.current_track.clone()
     }
 
+    /// Pauses the current track without clearing the queue.
+    pub async fn pause(&mut self) -> anyhow::Result<()> {
+        // stub — implementation in PR 2
+        Ok(())
+    }
+
+    /// Resumes a paused track.
+    pub async fn resume(&mut self) -> anyhow::Result<()> {
+        // stub — implementation in PR 2
+        Ok(())
+    }
+
+    /// Returns whether playback is currently paused.
+    pub fn is_paused(&self) -> bool {
+        // stub — always false until PR 2
+        false
+    }
+
+    /// Removes and returns the title of the first queued song requested by `requester`.
+    /// Returns `None` if no matching item exists.
+    pub fn skip_next_by(&mut self, _requester: &str) -> Option<String> {
+        // stub — always returns None until PR 2
+        None
+    }
+
+    /// Removes and returns the title of the last queued song requested by `requester`.
+    /// Returns `None` if no matching item exists.
+    pub fn skip_last_by(&mut self, _requester: &str) -> Option<String> {
+        // stub — always returns None until PR 2
+        None
+    }
+
     pub fn tick_idle_timer(&mut self) -> bool {
         if self.idle_timer_active {
             self.current_track = None;
@@ -390,6 +422,12 @@ mod tests {
             })
         }
         async fn stop(&self, _guild_id: GuildId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn pause(&self, _guild_id: GuildId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn resume(&self, _guild_id: GuildId) -> anyhow::Result<()> {
             Ok(())
         }
         async fn set_volume(&self, _guild_id: GuildId, _volume: f32) -> anyhow::Result<()> {
@@ -666,5 +704,246 @@ mod tests {
 
         let disconnected = manager.tick_leave_timer();
         assert!(!disconnected);
+    }
+
+    // ── skip_next_by tests ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_skip_next_by_removes_first_matching_item() {
+        let mut manager = setup();
+        // current: UserA | queue: [UserB, UserA, UserC]
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song3".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song4".to_string(),
+                "UserC".to_string(),
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_next_by("UserA");
+        assert!(
+            skipped.is_some(),
+            "should return the title of the removed song"
+        );
+
+        // Queue should now have 2 items: [UserB, UserC] — first UserA item was removed
+        let queue = manager.get_queue();
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue[0].requester, "UserB");
+        assert_eq!(queue[1].requester, "UserC");
+    }
+
+    #[tokio::test]
+    async fn test_skip_next_by_no_match_returns_none_and_queue_unchanged() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_next_by("UserC");
+        assert!(skipped.is_none());
+        assert_eq!(manager.get_queue().len(), 1);
+    }
+
+    // ── skip_last_by tests ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_skip_last_by_removes_last_matching_item() {
+        let mut manager = setup();
+        // current: UserA | queue: [UserA, UserB, UserA]
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song3".to_string(),
+                "UserB".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song4".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_last_by("UserA");
+        assert!(
+            skipped.is_some(),
+            "should return the title of the removed song"
+        );
+
+        // Queue should now have 2 items: [UserA, UserB] — last UserA item was removed
+        let queue = manager.get_queue();
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue[0].requester, "UserA");
+        assert_eq!(queue[1].requester, "UserB");
+    }
+
+    #[tokio::test]
+    async fn test_skip_last_by_no_match_returns_none_and_queue_unchanged() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_last_by("UserC");
+        assert!(skipped.is_none());
+        assert_eq!(manager.get_queue().len(), 1);
+    }
+
+    // ── pause / resume tests ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_pause_sets_paused_state_and_preserves_queue() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "User".to_string(),
+            )
+            .await
+            .unwrap();
+
+        manager.pause().await.unwrap();
+
+        assert!(
+            manager.is_paused(),
+            "manager should report paused after pause()"
+        );
+        assert!(
+            manager.get_current_track().is_some(),
+            "current track must be preserved"
+        );
+        assert_eq!(manager.get_queue().len(), 1, "queue must be preserved");
+    }
+
+    #[tokio::test]
+    async fn test_resume_clears_paused_state() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+            )
+            .await
+            .unwrap();
+
+        manager.pause().await.unwrap();
+        assert!(manager.is_paused());
+
+        manager.resume().await.unwrap();
+        assert!(
+            !manager.is_paused(),
+            "manager should not report paused after resume()"
+        );
     }
 }
