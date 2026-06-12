@@ -1,6 +1,6 @@
 use crate::gif_client::GifService;
 use crate::voice::VoiceService;
-use serenity::all::{ChannelId, GuildId, MessageId};
+use serenity::all::{ChannelId, GuildId, MessageId, UserId};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,7 +17,10 @@ pub enum RepeatMode {
 pub struct QueueItem {
     pub title: String,
     pub url: String,
+    /// Display name of the requester (may change; use `requester_id` for identity checks).
     pub requester: String,
+    /// Stable Discord user ID — use this for ownership/permission comparisons.
+    pub requester_id: UserId,
     pub duration: Option<Duration>,
     pub thumbnail_url: Option<String>,
 }
@@ -32,6 +35,7 @@ pub struct GuildAudioManager {
     current_track: Option<QueueItem>,
     volume: u8,
     repeat_mode: RepeatMode,
+    is_paused: bool,
     voice: Arc<dyn VoiceService>,
     gif: Arc<dyn GifService>,
     pub idle_timer_active: bool,
@@ -50,6 +54,7 @@ impl GuildAudioManager {
             current_track: None,
             volume: 50,
             repeat_mode: RepeatMode::Off,
+            is_paused: false,
             voice,
             gif,
             idle_timer_active: false,
@@ -65,6 +70,7 @@ impl GuildAudioManager {
         voice_channel: ChannelId,
         input: String,
         requester: String,
+        requester_id: UserId,
     ) -> anyhow::Result<String> {
         self.text_channel_id = Some(text_channel);
         self.voice_channel_id = Some(voice_channel);
@@ -77,6 +83,7 @@ impl GuildAudioManager {
                 title: info.title,
                 url: input,
                 requester,
+                requester_id,
                 duration: info.duration,
                 thumbnail_url: info.thumbnail_url,
             };
@@ -100,6 +107,7 @@ impl GuildAudioManager {
                 title: resolved.title,
                 url: input,
                 requester,
+                requester_id,
                 duration: resolved.duration,
                 thumbnail_url: resolved.thumbnail_url,
             };
@@ -210,6 +218,56 @@ impl GuildAudioManager {
 
     pub fn get_current_track(&self) -> Option<QueueItem> {
         self.current_track.clone()
+    }
+
+    /// Pauses the current track without clearing the queue.
+    pub async fn pause(&mut self) -> anyhow::Result<()> {
+        if self.current_track.is_none() {
+            anyhow::bail!("Nothing is currently playing.");
+        }
+        self.voice.pause(self.guild_id).await?;
+        self.is_paused = true;
+        Ok(())
+    }
+
+    /// Resumes a paused track.
+    pub async fn resume(&mut self) -> anyhow::Result<()> {
+        if !self.is_paused {
+            anyhow::bail!("Playback is not paused.");
+        }
+        if self.current_track.is_none() {
+            // is_paused flag became stale (track stopped/cleared while paused)
+            self.is_paused = false;
+            anyhow::bail!("No active track to resume.");
+        }
+        self.voice.resume(self.guild_id).await?;
+        self.is_paused = false;
+        Ok(())
+    }
+
+    /// Returns whether playback is currently paused.
+    pub fn is_paused(&self) -> bool {
+        self.is_paused
+    }
+
+    /// Removes and returns the title of the first queued song requested by `requester_id`.
+    /// Returns `None` if no matching item exists.
+    pub fn skip_next_by(&mut self, requester_id: UserId) -> Option<String> {
+        let pos = self
+            .queue
+            .iter()
+            .position(|item| item.requester_id == requester_id)?;
+        self.queue.remove(pos).map(|item| item.title)
+    }
+
+    /// Removes and returns the title of the last queued song requested by `requester_id`.
+    /// Returns `None` if no matching item exists.
+    pub fn skip_last_by(&mut self, requester_id: UserId) -> Option<String> {
+        let pos = self
+            .queue
+            .iter()
+            .rposition(|item| item.requester_id == requester_id)?;
+        self.queue.remove(pos).map(|item| item.title)
     }
 
     pub fn tick_idle_timer(&mut self) -> bool {
@@ -364,6 +422,12 @@ mod tests {
     use crate::voice::TrackInfo;
     use async_trait::async_trait;
 
+    // Stable test user IDs — never use usernames for comparisons in production code.
+    const USER_A: UserId = UserId::new(1);
+    const USER_B: UserId = UserId::new(2);
+    const USER_C: UserId = UserId::new(3);
+    const USER: UserId = UserId::new(4);
+
     #[derive(Debug)]
     struct MockVoiceService;
 
@@ -390,6 +454,12 @@ mod tests {
             })
         }
         async fn stop(&self, _guild_id: GuildId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn pause(&self, _guild_id: GuildId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn resume(&self, _guild_id: GuildId) -> anyhow::Result<()> {
             Ok(())
         }
         async fn set_volume(&self, _guild_id: GuildId, _volume: f32) -> anyhow::Result<()> {
@@ -428,6 +498,7 @@ mod tests {
                 ChannelId::new(2),
                 "https://youtube.com/watch?v=123".to_string(),
                 "UserA".to_string(),
+                USER_A,
             )
             .await
             .unwrap();
@@ -449,6 +520,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "UserA".to_string(),
+                USER_A,
             )
             .await
             .unwrap();
@@ -461,6 +533,7 @@ mod tests {
                 ChannelId::new(2),
                 "song2".to_string(),
                 "UserB".to_string(),
+                USER_B,
             )
             .await
             .unwrap();
@@ -482,6 +555,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "UserA".to_string(),
+                USER_A,
             )
             .await
             .unwrap();
@@ -493,6 +567,7 @@ mod tests {
                 ChannelId::new(2),
                 "song2".to_string(),
                 "UserB".to_string(),
+                USER_B,
             )
             .await
             .unwrap();
@@ -515,6 +590,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "UserA".to_string(),
+                USER_A,
             )
             .await
             .unwrap();
@@ -538,6 +614,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "UserA".to_string(),
+                USER_A,
             )
             .await
             .unwrap();
@@ -548,6 +625,7 @@ mod tests {
                 ChannelId::new(2),
                 "song2".to_string(),
                 "UserB".to_string(),
+                USER_B,
             )
             .await
             .unwrap();
@@ -572,6 +650,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "User".to_string(),
+                USER,
             )
             .await
             .unwrap();
@@ -583,6 +662,7 @@ mod tests {
                     ChannelId::new(2),
                     format!("song{}", i),
                     "User".to_string(),
+                    USER,
                 )
                 .await
                 .unwrap();
@@ -610,6 +690,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "User".to_string(),
+                USER,
             )
             .await
             .unwrap();
@@ -633,6 +714,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "User".to_string(),
+                USER,
             )
             .await
             .unwrap();
@@ -654,6 +736,7 @@ mod tests {
                 ChannelId::new(2),
                 "song1".to_string(),
                 "User".to_string(),
+                USER,
             )
             .await
             .unwrap();
@@ -666,5 +749,261 @@ mod tests {
 
         let disconnected = manager.tick_leave_timer();
         assert!(!disconnected);
+    }
+
+    // ── skip_next_by tests ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_skip_next_by_removes_first_matching_item() {
+        let mut manager = setup();
+        // current: UserA | queue: [UserB, UserA, UserC]
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+                USER_B,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song3".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song4".to_string(),
+                "UserC".to_string(),
+                USER_C,
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_next_by(USER_A);
+        assert!(
+            skipped.is_some(),
+            "should return the title of the removed song"
+        );
+
+        // Queue should now have 2 items: [UserB, UserC] — first UserA item was removed
+        let queue = manager.get_queue();
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue[0].requester, "UserB");
+        assert_eq!(queue[1].requester, "UserC");
+    }
+
+    #[tokio::test]
+    async fn test_skip_next_by_no_match_returns_none_and_queue_unchanged() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+                USER_B,
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_next_by(USER_C);
+        assert!(skipped.is_none());
+        assert_eq!(manager.get_queue().len(), 1);
+    }
+
+    // ── skip_last_by tests ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_skip_last_by_removes_last_matching_item() {
+        let mut manager = setup();
+        // current: UserA | queue: [UserA, UserB, UserA]
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song3".to_string(),
+                "UserB".to_string(),
+                USER_B,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song4".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_last_by(USER_A);
+        assert!(
+            skipped.is_some(),
+            "should return the title of the removed song"
+        );
+
+        // Queue should now have 2 items: [UserA, UserB] — last UserA item was removed
+        let queue = manager.get_queue();
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue[0].requester, "UserA");
+        assert_eq!(queue[1].requester, "UserB");
+    }
+
+    #[tokio::test]
+    async fn test_skip_last_by_no_match_returns_none_and_queue_unchanged() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "UserA".to_string(),
+                USER_A,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "UserB".to_string(),
+                USER_B,
+            )
+            .await
+            .unwrap();
+
+        let skipped = manager.skip_last_by(USER_C);
+        assert!(skipped.is_none());
+        assert_eq!(manager.get_queue().len(), 1);
+    }
+
+    // ── pause / resume tests ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_pause_sets_paused_state_and_preserves_queue() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song2".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+
+        manager.pause().await.unwrap();
+
+        assert!(
+            manager.is_paused(),
+            "manager should report paused after pause()"
+        );
+        assert!(
+            manager.get_current_track().is_some(),
+            "current track must be preserved"
+        );
+        assert_eq!(manager.get_queue().len(), 1, "queue must be preserved");
+    }
+
+    #[tokio::test]
+    async fn test_resume_clears_paused_state() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+
+        manager.pause().await.unwrap();
+        assert!(manager.is_paused());
+
+        manager.resume().await.unwrap();
+        assert!(
+            !manager.is_paused(),
+            "manager should not report paused after resume()"
+        );
     }
 }

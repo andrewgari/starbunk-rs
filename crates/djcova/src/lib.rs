@@ -138,7 +138,10 @@ impl EventHandler for Handler {
                 let _ = match cmd.data.name.as_str() {
                     "play" => commands::handle_play(&ctx, &cmd, mgr).await,
                     "skip" => commands::handle_skip(&ctx, &cmd, mgr).await,
+                    "skipnext" => commands::handle_skipnext(&ctx, &cmd, mgr).await,
+                    "skiplast" => commands::handle_skiplast(&ctx, &cmd, mgr).await,
                     "stop" => commands::handle_stop(&ctx, &cmd, mgr).await,
+                    "pause" => commands::handle_pause(&ctx, &cmd, mgr).await,
                     "clear" => commands::handle_clear(&ctx, &cmd, mgr).await,
                     "shuffle" => commands::handle_shuffle(&ctx, &cmd, mgr).await,
                     "volume" => commands::handle_volume(&ctx, &cmd, mgr).await,

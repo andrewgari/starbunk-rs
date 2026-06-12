@@ -109,6 +109,7 @@ pub async fn handle(
             voice_channel,
             input_str,
             cmd.user.name.clone(),
+            cmd.user.id,
         )
         .await;
 

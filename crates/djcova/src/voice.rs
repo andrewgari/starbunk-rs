@@ -19,6 +19,8 @@ pub trait VoiceService: Send + Sync + std::fmt::Debug {
     /// Resolves metadata and starts playback in a single yt-dlp invocation.
     async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<TrackInfo>;
     async fn stop(&self, guild_id: GuildId) -> anyhow::Result<()>;
+    async fn pause(&self, guild_id: GuildId) -> anyhow::Result<()>;
+    async fn resume(&self, guild_id: GuildId) -> anyhow::Result<()>;
     async fn set_volume(&self, guild_id: GuildId, volume: f32) -> anyhow::Result<()>;
     async fn get_track_position(&self, guild_id: GuildId) -> anyhow::Result<Option<Duration>>;
 }
@@ -115,6 +117,36 @@ impl VoiceService for DiscordVoiceService {
             handler.stop();
         }
         Ok(())
+    }
+
+    async fn pause(&self, guild_id: GuildId) -> anyhow::Result<()> {
+        let handler_lock = self
+            .songbird
+            .get(guild_id)
+            .ok_or_else(|| anyhow::anyhow!("Not connected to a voice channel"))?;
+        let handler = handler_lock.lock().await;
+        let track = handler
+            .queue()
+            .current()
+            .ok_or_else(|| anyhow::anyhow!("Nothing is currently playing"))?;
+        track
+            .pause()
+            .map_err(|e| anyhow::anyhow!("Failed to pause track: {e}"))
+    }
+
+    async fn resume(&self, guild_id: GuildId) -> anyhow::Result<()> {
+        let handler_lock = self
+            .songbird
+            .get(guild_id)
+            .ok_or_else(|| anyhow::anyhow!("Not connected to a voice channel"))?;
+        let handler = handler_lock.lock().await;
+        let track = handler
+            .queue()
+            .current()
+            .ok_or_else(|| anyhow::anyhow!("Nothing is currently playing"))?;
+        track
+            .play()
+            .map_err(|e| anyhow::anyhow!("Failed to resume track: {e}"))
     }
 
     async fn set_volume(&self, guild_id: GuildId, volume: f32) -> anyhow::Result<()> {
