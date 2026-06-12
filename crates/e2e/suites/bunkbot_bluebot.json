@@ -1,0 +1,39 @@
+{
+  "tests": [
+    {
+      "name": "Bunkbot ping response",
+      "sender": "human",
+      "message": "ping bunkbot",
+      "expect": "Pong from bunkbot!",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bunkbot ignores bot pings",
+      "sender": "bot",
+      "message": "ping bunkbot",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot trigger on 'blue'",
+      "sender": "human",
+      "message": "Did somebody say blue?",
+      "expect": "Did somebody say Blu?",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot ignores bot trigger",
+      "sender": "bot",
+      "message": "Did somebody say blue?",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot word boundary trigger failure",
+      "sender": "human",
+      "message": "This bluetooth speaker is great",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}

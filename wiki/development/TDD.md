@@ -32,13 +32,14 @@ Submit PR 2: Implementation
 
 ### 1. PR 1: Test-Only / Behavior Definition
 - **Scope**: Must contain **only** test code (`#[cfg(test)]` blocks, `tests/` files) and the minimal necessary stubs or trait definitions to allow the code to compile.
+- **E2E Integration Tests**: If the change affects a bot's message strategy or trigger logic, you **must** also add corresponding E2E integration test cases to the JSON test suite (e.g. `crates/e2e/suites/bunkbot_bluebot.json`).
 - **Rule**: Absolutely no functional production implementation changes are allowed in this PR.
-- **Goal**: To define the expected behavior through tests. The newly added tests must fail when run. This is the **Red** phase.
+- **Goal**: To define the expected behavior through unit and integration tests. The newly added tests must fail. This is the **Red** phase.
 
 ### 2. PR 2: Implementation
 - **Scope**: Contains the actual production code that implements the feature or bot behavior.
-- **Rule**: This PR must make the tests added in PR 1 pass without modifying the tests themselves (unless test bugs are found and corrected).
-- **Goal**: To satisfy the test constraints with clean, minimal code. This is the **Green & Refactor** phase.
+- **Rule**: This PR must make both the unit tests and the live E2E integration tests pass without modifying the tests themselves (unless test bugs are found and corrected).
+- **Goal**: To satisfy all test constraints (unit and E2E) with clean, minimal code. This is the **Green & Refactor** phase.
 
 ---
 

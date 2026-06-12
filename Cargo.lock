@@ -4184,6 +4184,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "starbunk-e2e"
+version = "2026.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bluebot",
+ "bunkbot",
+ "covabot",
+ "djcova",
+ "ratbot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serenity",
+ "starbunk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

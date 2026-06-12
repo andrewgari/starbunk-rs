@@ -212,15 +212,20 @@ fn build_filter(verbose: bool) -> EnvFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn is_verbose_false_by_default() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("VERBOSE");
         assert!(!is_verbose());
     }
 
     #[test]
     fn is_verbose_true_for_one() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("VERBOSE", "1");
         assert!(is_verbose());
         std::env::remove_var("VERBOSE");
@@ -228,6 +233,7 @@ mod tests {
 
     #[test]
     fn is_verbose_true_for_true_string() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("VERBOSE", "true");
         assert!(is_verbose());
         std::env::remove_var("VERBOSE");
@@ -235,6 +241,7 @@ mod tests {
 
     #[test]
     fn is_verbose_true_case_insensitive() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("VERBOSE", "TRUE");
         assert!(is_verbose());
         std::env::remove_var("VERBOSE");
@@ -242,6 +249,7 @@ mod tests {
 
     #[test]
     fn is_verbose_false_for_other_values() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("VERBOSE", "false");
         assert!(!is_verbose());
         std::env::remove_var("VERBOSE");
@@ -249,12 +257,14 @@ mod tests {
 
     #[test]
     fn otel_endpoint_default() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
         assert_eq!(otel_endpoint(), "http://otel-collector:4317");
     }
 
     #[test]
     fn otel_endpoint_custom() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317");
         assert_eq!(otel_endpoint(), "http://localhost:4317");
         std::env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
@@ -262,6 +272,7 @@ mod tests {
 
     #[test]
     fn build_filter_uses_info_by_default() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("RUST_LOG");
         let filter = build_filter(false);
         // EnvFilter's Display shows the directives; "info" should be present.
@@ -270,6 +281,7 @@ mod tests {
 
     #[test]
     fn build_filter_uses_debug_in_verbose_mode() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("RUST_LOG");
         let filter = build_filter(true);
         assert!(filter.to_string().contains("debug"));
@@ -277,6 +289,7 @@ mod tests {
 
     #[test]
     fn build_filter_respects_rust_log_override() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         std::env::set_var("RUST_LOG", "warn");
         let filter = build_filter(false);
         assert!(filter.to_string().contains("warn"));

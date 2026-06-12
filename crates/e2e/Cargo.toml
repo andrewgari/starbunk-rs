@@ -1,0 +1,21 @@
+[package]
+name = "starbunk-e2e"
+version = "2026.0.1"
+edition = "2021"
+
+[dependencies]
+starbunk = { path = "../starbunk" }
+bluebot = { path = "../bluebot" }
+bunkbot = { path = "../bunkbot" }
+covabot = { path = "../covabot" }
+djcova = { path = "../djcova" }
+ratbot = { path = "../ratbot" }
+
+serenity = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
