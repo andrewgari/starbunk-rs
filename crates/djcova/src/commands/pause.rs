@@ -17,6 +17,27 @@ pub async fn handle(
     cmd: &CommandInteraction,
     mgr: Arc<Mutex<GuildAudioManager>>,
 ) -> anyhow::Result<()> {
+    let is_admin = cmd
+        .member
+        .as_ref()
+        .and_then(|m| m.permissions)
+        .map(|p| p.contains(Permissions::MANAGE_MESSAGES))
+        .unwrap_or(false);
+
+    if !is_admin {
+        let _ = cmd
+            .create_response(
+                &ctx.http,
+                CreateInteractionResponse::Message(
+                    CreateInteractionResponseMessage::new()
+                        .content("Only administrators can pause or resume playback.")
+                        .ephemeral(true),
+                ),
+            )
+            .await;
+        return Ok(());
+    }
+
     let mut manager = mgr.lock().await;
 
     let content = if manager.is_paused() {

@@ -23,25 +23,28 @@ pub async fn handle(
         .map(|p| p.contains(Permissions::MANAGE_MESSAGES))
         .unwrap_or(false);
 
-    let caller = cmd.user.name.as_str();
+    let caller_id = cmd.user.id;
 
-    {
+    // Read ownership state under the lock, then release before any HTTP await.
+    let should_deny = {
         let manager = mgr.lock().await;
-        if let Some(track) = manager.get_current_track() {
-            if !is_admin && track.requester != caller {
-                let _ = cmd
-                    .create_response(
-                        &ctx.http,
-                        CreateInteractionResponse::Message(
-                            CreateInteractionResponseMessage::new()
-                                .content("You can only skip songs you requested.")
-                                .ephemeral(true),
-                        ),
-                    )
-                    .await;
-                return Ok(());
-            }
-        }
+        manager
+            .get_current_track()
+            .is_some_and(|track| !is_admin && track.requester_id != caller_id)
+    };
+
+    if should_deny {
+        let _ = cmd
+            .create_response(
+                &ctx.http,
+                CreateInteractionResponse::Message(
+                    CreateInteractionResponseMessage::new()
+                        .content("You can only skip songs you requested.")
+                        .ephemeral(true),
+                ),
+            )
+            .await;
+        return Ok(());
     }
 
     let _ = cmd.defer(&ctx.http).await;

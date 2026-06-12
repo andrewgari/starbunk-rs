@@ -120,23 +120,33 @@ impl VoiceService for DiscordVoiceService {
     }
 
     async fn pause(&self, guild_id: GuildId) -> anyhow::Result<()> {
-        if let Some(handler_lock) = self.songbird.get(guild_id) {
-            let handler = handler_lock.lock().await;
-            if let Some(track) = handler.queue().current() {
-                let _ = track.pause();
-            }
-        }
-        Ok(())
+        let handler_lock = self
+            .songbird
+            .get(guild_id)
+            .ok_or_else(|| anyhow::anyhow!("Not connected to a voice channel"))?;
+        let handler = handler_lock.lock().await;
+        let track = handler
+            .queue()
+            .current()
+            .ok_or_else(|| anyhow::anyhow!("Nothing is currently playing"))?;
+        track
+            .pause()
+            .map_err(|e| anyhow::anyhow!("Failed to pause track: {e}"))
     }
 
     async fn resume(&self, guild_id: GuildId) -> anyhow::Result<()> {
-        if let Some(handler_lock) = self.songbird.get(guild_id) {
-            let handler = handler_lock.lock().await;
-            if let Some(track) = handler.queue().current() {
-                let _ = track.play();
-            }
-        }
-        Ok(())
+        let handler_lock = self
+            .songbird
+            .get(guild_id)
+            .ok_or_else(|| anyhow::anyhow!("Not connected to a voice channel"))?;
+        let handler = handler_lock.lock().await;
+        let track = handler
+            .queue()
+            .current()
+            .ok_or_else(|| anyhow::anyhow!("Nothing is currently playing"))?;
+        track
+            .play()
+            .map_err(|e| anyhow::anyhow!("Failed to resume track: {e}"))
     }
 
     async fn set_volume(&self, guild_id: GuildId, volume: f32) -> anyhow::Result<()> {

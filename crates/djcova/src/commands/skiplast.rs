@@ -15,8 +15,8 @@ pub async fn handle(
     cmd: &CommandInteraction,
     mgr: Arc<Mutex<GuildAudioManager>>,
 ) -> anyhow::Result<()> {
-    let requester = cmd.user.name.as_str();
-    let result = mgr.lock().await.skip_last_by(requester);
+    let requester_id = cmd.user.id;
+    let result = mgr.lock().await.skip_last_by(requester_id);
 
     let content = match result {
         Some(title) => format!("Removed your last queued song: **{}**", title),
