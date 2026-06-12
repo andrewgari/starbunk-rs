@@ -1,4 +1,5 @@
 pub mod discord;
+pub mod health;
 pub mod llm;
 pub mod memory;
 pub mod middleware;

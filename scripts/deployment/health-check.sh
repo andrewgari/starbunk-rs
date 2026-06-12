@@ -6,8 +6,8 @@ set -euo pipefail
 # Called by the GitHub Actions deploy workflow via SSH.
 
 COMPOSE_DIR="${1:-/mnt/user/appdata/starbunk-rs}"
-RETRY_COUNT=3
-RETRY_DELAY=10
+RETRY_COUNT=4
+RETRY_DELAY=15
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Starbunk-Rs Health Check"
@@ -89,7 +89,7 @@ check_container_logs() {
     RECENT_LOGS=$($COMPOSE_CMD logs --tail=30 "$service" 2>/dev/null || echo "")
     [ -z "$RECENT_LOGS" ] && continue
 
-    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -icE "(panicked at|FATAL|thread '.*' panicked)" || echo "0")
+    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -icE "(panicked at|FATAL|thread '.*' panicked)" || true)
 
     if [ "$ERROR_COUNT" -gt 0 ]; then
       echo "WARN  $service: ${ERROR_COUNT} fatal/panic entries in recent logs"
@@ -98,6 +98,82 @@ check_container_logs() {
       echo "OK    $service: no fatal errors"
     fi
   done
+}
+
+check_startup_health() {
+  echo ""
+  echo "Checking bot startup confirmation..."
+  ALL_STARTED=true
+
+  for service in "${EXPECTED_SERVICES[@]}"; do
+    RECENT_LOGS=$($COMPOSE_CMD logs --tail=100 "$service" 2>/dev/null || echo "")
+    [ -z "$RECENT_LOGS" ] && continue
+
+    if echo "$RECENT_LOGS" | grep -qE "health: startup ok"; then
+      echo "OK    $service: startup confirmed"
+    elif echo "$RECENT_LOGS" | grep -qiE "bot.*connected|connected.*bot"; then
+      # Legacy log format predating HealthMonitor
+      echo "OK    $service: connected (legacy log)"
+    elif echo "$RECENT_LOGS" | grep -qE "health: startup timeout"; then
+      # Watchdog fired — bot is running but never reached Discord gateway
+      echo "FAIL  $service: startup timed out — bot did not connect within 30s"
+      ALL_STARTED=false
+    else
+      # Container is up but ready event hasn't fired yet — worth retrying
+      echo "WAIT  $service: no startup confirmation yet"
+      ALL_STARTED=false
+    fi
+  done
+
+  [ "$ALL_STARTED" = true ]
+}
+
+check_user_facing_errors() {
+  echo ""
+  echo "Checking user-facing error counts..."
+  ERROR_THRESHOLD=5
+
+  for service in "${EXPECTED_SERVICES[@]}"; do
+    RECENT_LOGS=$($COMPOSE_CMD logs --tail=100 "$service" 2>/dev/null || echo "")
+    [ -z "$RECENT_LOGS" ] && continue
+
+    # Count structured "health: user-facing error" events from HealthMonitor::on_error
+    ERROR_COUNT=$(echo "$RECENT_LOGS" | grep -c "health: user-facing error" || true)
+    if [ "$ERROR_COUNT" -gt "$ERROR_THRESHOLD" ]; then
+      echo "WARN  $service: ${ERROR_COUNT} user-facing error(s) in recent logs (threshold: ${ERROR_THRESHOLD})"
+      echo "$RECENT_LOGS" | grep "health: user-facing error" | tail -3 | sed 's/^/      /'
+    elif [ "$ERROR_COUNT" -gt 0 ]; then
+      echo "OK    $service: ${ERROR_COUNT} user-facing error(s) (within threshold)"
+    else
+      echo "OK    $service: no user-facing errors"
+    fi
+  done
+}
+
+check_djcova_logs() {
+  echo ""
+  echo "Checking djcova voice/audio health..."
+
+  RECENT_LOGS=$($COMPOSE_CMD logs --tail=50 djcova 2>/dev/null || echo "")
+  [ -z "$RECENT_LOGS" ] && return
+
+  # Check yt-dlp errors
+  YTDLP_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" || true)
+  if [ "$YTDLP_ERRORS" -gt 0 ]; then
+    echo "WARN  djcova: ${YTDLP_ERRORS} yt-dlp error(s) in recent logs"
+    echo "$RECENT_LOGS" | grep -iE "(yt.dlp.*error|yt-dlp.*failed|yt-dlp exited)" | head -3 | sed 's/^/      /'
+  else
+    echo "OK    djcova: no yt-dlp errors"
+  fi
+
+  # Check voice connection errors
+  VOICE_ERRORS=$(echo "$RECENT_LOGS" | grep -icE "(Failed to join voice|VoiceService.*error|songbird.*error)" || true)
+  if [ "$VOICE_ERRORS" -gt 0 ]; then
+    echo "WARN  djcova: ${VOICE_ERRORS} voice connection error(s) in recent logs"
+    echo "$RECENT_LOGS" | grep -iE "(Failed to join voice|VoiceService.*error|songbird.*error)" | head -3 | sed 's/^/      /'
+  else
+    echo "OK    djcova: no voice connection errors"
+  fi
 }
 
 main() {
@@ -109,11 +185,13 @@ main() {
     echo "Health Check Attempt $ATTEMPT of $RETRY_COUNT"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-    if check_containers_running; then
+    if check_containers_running && check_startup_health; then
       echo ""
-      echo "All containers are running!"
+      echo "All containers are running and bots have connected!"
       check_restart_counts
       check_container_logs
+      check_user_facing_errors
+      check_djcova_logs
       echo ""
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "Health Check PASSED"
