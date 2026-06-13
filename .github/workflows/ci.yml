@@ -176,6 +176,8 @@ jobs:
              [ "${{ steps.filter.outputs.bluebot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.bunkbot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.covabot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_llm }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_memory }}" == "true" ] || \
              [ "${{ steps.filter.outputs.djcova }}" == "true" ] || \
              [ "${{ steps.filter.outputs.ratbot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ] || \
