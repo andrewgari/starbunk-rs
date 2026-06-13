@@ -42,61 +42,29 @@ echo ""
 for bot in "${BOTS[@]}"; do
   echo "[$bot]"
 
-  # 1. docker-compose.yml (root — production GHCR images)
-  if grep -q "starbunk-${bot}" docker-compose.yml 2>/dev/null; then
-    ok "docker-compose.yml: image starbunk-${bot}"
-  else
-    fail "docker-compose.yml: missing service / image for '${bot}'"
-  fi
-
-  # 2. docker/docker-compose.yml (local dev — build from source)
+  # 1. docker/docker-compose.yml (local dev — build from source)
   if grep -q "BOT_NAME: ${bot}" docker/docker-compose.yml 2>/dev/null; then
     ok "docker/docker-compose.yml: BOT_NAME=${bot}"
   else
     fail "docker/docker-compose.yml: missing BOT_NAME: ${bot}"
   fi
 
-  # 3. .github/workflows/ci.yml — path filter for crate directory
+  # 2. .github/workflows/ci.yml — path filter for crate directory
   if grep -q "crates/${bot}/" .github/workflows/ci.yml 2>/dev/null; then
     ok ".github/workflows/ci.yml: filter includes crates/${bot}/"
   else
     fail ".github/workflows/ci.yml: missing 'crates/${bot}/' in path filter"
   fi
 
-  # 4. .github/workflows/main.yml — docker build matrix
+  # 3. .github/workflows/main.yml — docker build matrix
   if grep -q "${bot}" .github/workflows/main.yml 2>/dev/null; then
     ok ".github/workflows/main.yml: docker matrix includes ${bot}"
   else
     fail ".github/workflows/main.yml: missing '${bot}' in docker build matrix"
   fi
 
-  # 5. scripts/deployment/health-check.sh — EXPECTED_SERVICES
-  if grep -qw "${bot}" scripts/deployment/health-check.sh 2>/dev/null; then
-    ok "scripts/deployment/health-check.sh: includes ${bot}"
-  else
-    fail "scripts/deployment/health-check.sh: missing '${bot}' in EXPECTED_SERVICES"
-  fi
-
   echo ""
 done
-
-# ── Reverse check: warn about services in compose not backed by a crates/ dir ─
-echo "[reverse check]"
-while IFS= read -r svc; do
-  # Strip the "starbunk-" prefix if present to get the bot name.
-  bot="${svc#starbunk-}"
-  # Skip non-bot infrastructure services.
-  case "$bot" in
-    postgres|pgdata|db|otel-collector|loki|tempo|prometheus|grafana)
-      continue ;;
-  esac
-
-  if [ ! -f "crates/${bot}/src/main.rs" ]; then
-    fail "docker-compose.yml: service '${svc}' has no matching crates/${bot}/src/main.rs"
-  else
-    ok "docker-compose.yml: service '${svc}' backed by crates/${bot}/src/main.rs"
-  fi
-done < <(awk '/^services:/{found=1;next} /^[^ ]/{found=0} found && /^  [a-z][a-z0-9_-]+:/{gsub(/:$/,"",$1); print $1}' docker-compose.yml || true)
 
 echo ""
 

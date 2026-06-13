@@ -205,15 +205,13 @@ Key rules — **see `/rust-standards` for the full ruleset:**
 
 ## DevOps File Maintenance
 
-Every bot crate must be registered in all six files. Use `/add-bot` when adding a new bot.
+Every bot crate must be registered in all four files. Use `/add-bot` when adding a new bot.
 
 | File | What to update |
 |---|---|
-| `docker-compose.yml` | Add service with `image: ghcr.io/andrewgari/starbunk-rs-<bot>:${IMAGE_TAG:-latest}` |
 | `docker/docker-compose.yml` | Add service with `BOT_NAME: <bot>` build arg |
 | `.github/workflows/ci.yml` | Add `crates/<bot>/**` to paths-filter |
 | `.github/workflows/main.yml` | Add `<bot>` to docker build matrix |
-| `scripts/deployment/health-check.sh` | Add `"<bot>"` to `EXPECTED_SERVICES` |
 | `AGENTS.md` | Update bot list in Architecture and Bots sections |
 
 Run `bash scripts/devops-validate.sh` after any change and fix every `FAIL` before opening a PR.
