@@ -6,7 +6,7 @@ name: starbunk
 services:
   # ── Observability stack ──────────────────────────────────────────────────────
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.115.0
+    image: otel/opentelemetry-collector-contrib:0.154.0
     container_name: starbunk-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otel/otel-collector.yaml"]

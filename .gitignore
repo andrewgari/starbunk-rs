@@ -8,6 +8,11 @@ wiki/raw
 /djcova
 /ratbot
 
+# Secrets & credentials — never commit
+kube_secrets.sh
+*_secrets.sh
+secrets/
+
 # Claude Code & Antigravity IDE Files
 .claude/worktrees/
 .claude/scheduled_tasks.json

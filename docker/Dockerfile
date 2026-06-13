@@ -5,7 +5,7 @@
 ARG BOT_NAME=bluebot
 
 # ── Stage 1: build ──────────────────────────────────────────────────────────
-FROM rust:slim AS builder
+FROM rust:slim-bookworm AS builder
 
 ARG BOT_NAME
 
