@@ -13,12 +13,6 @@
       "message": "Did you see the game last night?",
       "expect_no_response": true,
       "timeout_ms": 3000
-    },
-    {
-      "name": "TODO(human): CovaBot responds to human message - replace message and expect",
-      "sender": "human",
-      "message": "TODO: replace with a message that triggers CovaBot",
-      "expect": "TODO"
     }
   ]
 }
