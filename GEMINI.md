@@ -44,10 +44,16 @@ the skill immediately — don't describe what you'd do, just do it.
 | Any coding, fixing, or refactoring task | `/task` (or execute `/task` workflow) |
 | Developing features, bugfixes, or ports | **Mandatory TDD**: Write Rust tests first (Test-Only PR 1), then implement (PR 2) |
 | Code has been written or changed | `rust-craftsman` — review for quality and reuse |
+| File exceeds ~150 lines | Split by responsibility — one concept per file |
+| New bot or shared module added | Verify isolation: `bots/` never imports from another bot; `shared/` never imports from `bots/` |
 | Deploying or updating containers on Tower | `devops` skill |
-| PR is open — review comments to address | run `cargo test` locally, then address each comment |
 | CI pipeline is failing on current branch | Use `ci-diagnose` skill to autonomously fix it |
 | Making any commits to the repo | Git Commit Standards — follow conventional commits & commit-msg hook validation |
+| Creating a pull request | `pr-create` skill |
+| Reviewing PR code | `pr-review` skill |
+| PR is open — review comments to address | `pr-comment-review` skill (after running `cargo test` locally) |
+| User asks about Gemini API / tools | `gemini-api-dev` skill |
+| Setting up hooks or automated behaviors | Update configurations |
 
 ## Task Integration & Discretionary Loading
 If the user asks to implement a feature, fix a bug, or perform any refactoring/coding task directly in chat without explicitly typing `/task`:
@@ -56,5 +62,14 @@ If the user asks to implement a feature, fix a bug, or perform any refactoring/c
 
 Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. If tests fail,
 fixing them is part of the task.
+
+Rust quality checklist — apply to every file touched:
+- Dependencies injected as `Arc<dyn Trait>`, not concrete types
+- `#[derive(Debug)]` on every public struct and enum
+- Regexes compiled once in `LazyLock<Regex>` statics
+- No `.unwrap()` in production code (`.expect("reason")` on programmer-error panics only)
+- Slow async work spawned with `tokio::spawn`
+- See **Rust Code Standards** in `AGENTS.md` for the full ruleset
+- See `/git-workflow` skill for conventional commit format and push rules
 
 Please read `AGENTS.md` for the core rules of this codebase.

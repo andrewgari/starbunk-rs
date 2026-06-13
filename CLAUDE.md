@@ -40,7 +40,11 @@ the skill immediately — don't describe what you'd do, just do it.
 | File exceeds ~150 lines | Split by responsibility — one concept per file |
 | New bot or shared module added | Verify isolation: `bots/` never imports from another bot; `shared/` never imports from `bots/` |
 | Deploying or updating containers on Tower | `/deploy` |
-| PR is open — review comments to address | run `cargo test` locally, then address each comment |
+| CI pipeline is failing on current branch | Use `ci-diagnose` skill to autonomously fix it |
+| Making any commits to the repo | Git Commit Standards — follow conventional commits & commit-msg hook validation |
+| Creating a pull request | `pr-create` skill |
+| Reviewing PR code | `pr-review` skill |
+| PR is open — review comments to address | `pr-comment-review` skill (after running `cargo test` locally) |
 | User asks about Claude Code / Anthropic API | `claude-code-guide` agent |
 | Setting up hooks or automated behaviors | `/update-config` |
 
