@@ -167,6 +167,9 @@ jobs:
           if [ "$IS_QUICK_PR" == "true" ]; then
             RUN_DOCKER="false"
           fi
+          if [ "$FORCE_VALIDATE" == "true" ]; then
+            RUN_DOCKER="true"
+          fi
           echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
 
           # Determine if we should run E2E integration tests
