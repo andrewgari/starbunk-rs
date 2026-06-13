@@ -74,6 +74,7 @@ jobs:
         id: matrix
         env:
           IS_QUICK_PR: ${{ contains(github.event.pull_request.labels.*.name, 'quick-pr') || contains(github.event.pull_request.labels.*.name, 'skip-docker') }}
+          FORCE_VALIDATE: ${{ contains(github.event.pull_request.labels.*.name, 'validate') }}
         run: |
           BOTS=()
           declare -A SEEN_PKGS
@@ -92,7 +93,8 @@ jobs:
           if [ "${{ steps.filter.outputs.global }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_discord }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_middleware }}" == "true" ] || \
-             [ "${{ steps.filter.outputs.shared_other }}" == "true" ]; then
+             [ "${{ steps.filter.outputs.shared_other }}" == "true" ] || \
+             [ "$FORCE_VALIDATE" == "true" ]; then
             GLOBAL_CHANGE=true
           fi
 
@@ -148,14 +150,14 @@ jobs:
 
           # Determine if Rust-related changes occurred
           RUN_LINT="false"
-          if [ "${{ steps.filter.outputs.rust_related }}" == "true" ]; then
+          if [ "${{ steps.filter.outputs.rust_related }}" == "true" ] || [ "$FORCE_VALIDATE" == "true" ]; then
             RUN_LINT="true"
           fi
           echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
 
           # Determine if DevOps changes occurred
           RUN_DEVOPS="false"
-          if [ "${{ steps.filter.outputs.devops }}" == "true" ] || [ ${#BOTS[@]} -gt 0 ]; then
+          if [ "${{ steps.filter.outputs.devops }}" == "true" ] || [ ${#BOTS[@]} -gt 0 ] || [ "$FORCE_VALIDATE" == "true" ]; then
             RUN_DEVOPS="true"
           fi
           echo "run_devops=${RUN_DEVOPS}" >> $GITHUB_OUTPUT
@@ -164,6 +166,9 @@ jobs:
           RUN_DOCKER="true"
           if [ "$IS_QUICK_PR" == "true" ]; then
             RUN_DOCKER="false"
+          fi
+          if [ "$FORCE_VALIDATE" == "true" ]; then
+            RUN_DOCKER="true"
           fi
           echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
 
