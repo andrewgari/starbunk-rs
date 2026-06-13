@@ -28,7 +28,9 @@ jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/releases
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
     timeout-minutes: 15
     steps:
