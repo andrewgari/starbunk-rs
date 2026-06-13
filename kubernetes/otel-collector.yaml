@@ -57,7 +57,7 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:0.115.0
+          image: otel/opentelemetry-collector-contrib:0.154.0
           args: ["--config=/etc/otel/otel-collector.yaml"]
           volumeMounts:
             - name: config
