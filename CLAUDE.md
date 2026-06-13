@@ -32,7 +32,7 @@ You have broad autonomy to work without asking for confirmation. Default to doin
 Use available skills **without being told**. When the situation matches, invoke
 the skill immediately — don't describe what you'd do, just do it.
 
-| Situation | Skill / Rule |
+| Situation | Command |
 |---|---|
 | Any coding, fixing, or refactoring task | `/task` |
 | Developing features, bugfixes, or ports | **Mandatory TDD**: Write Rust tests first (Test-Only PR 1), then implement (PR 2) |
@@ -40,8 +40,12 @@ the skill immediately — don't describe what you'd do, just do it.
 | File exceeds ~150 lines | Split by responsibility — one concept per file |
 | New bot or shared module added | Verify isolation: `bots/` never imports from another bot; `shared/` never imports from `bots/` |
 | Deploying or updating containers on Tower | `/deploy` |
-| PR is open — review comments to address | run `cargo test` locally, then address each comment |
-| User asks about Claude Code / Anthropic API | `claude-code-guide` agent |
+| CI pipeline is failing on current branch | `/ci-diagnose` |
+| Making any commits to the repo | Git Commit Standards — follow conventional commits & commit-msg hook validation |
+| Creating a pull request | `/pr-create` |
+| Reviewing PR code | `/pr-review` |
+| PR is open — review comments to address | `/pr-comment-review` |
+| User asks about Agent API / tools | `/api-guide` |
 | Setting up hooks or automated behaviors | `/update-config` |
 
 ## Task Integration & Discretionary Loading
