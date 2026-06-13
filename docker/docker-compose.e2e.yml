@@ -30,7 +30,10 @@ services:
       - DISCORD_TOKEN
       - E2E_CHANNEL_ID
       - E2E_GUILD_ID
-      - E2E_SUITE_PATH=crates/e2e/suites/bunkbot_bluebot.json
+      - E2E_SUITE_PATH=${E2E_SUITE_PATH:-crates/e2e/suites/bunkbot_bluebot.json}
       - E2E_START_BOTS=true
-      - E2E_TEST_BOTS=bunkbot,bluebot
+      - E2E_TEST_BOTS=${E2E_TEST_BOTS:-bunkbot,bluebot}
       - DATABASE_URL=postgresql://starbunk:starbunk@postgres:5432/starbunk_memory
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - GOOGLE_API_KEY

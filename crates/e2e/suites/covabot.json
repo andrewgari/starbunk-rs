@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "CovaBot ignores bot messages",
+      "sender": "bot",
+      "message": "Hey what do you think?",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "CovaBot does not respond to unaddressed human message without prior context",
+      "sender": "human",
+      "message": "Did you see the game last night?",
+      "expect_no_response": true,
+      "timeout_ms": 3000
+    },
+    {
+      "name": "TODO(human): CovaBot responds to human message - replace message and expect",
+      "sender": "human",
+      "message": "TODO: replace with a message that triggers CovaBot",
+      "expect": "TODO"
+    }
+  ]
+}
