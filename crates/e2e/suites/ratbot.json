@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "RatBot ping response from human",
+      "sender": "human",
+      "message": "ping ratbot",
+      "expect": "Pong from ratbot!",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "RatBot ignores non-command messages",
+      "sender": "human",
+      "message": "hello ratbot",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "RatBot ignores case-mismatched command",
+      "sender": "human",
+      "message": "ping RatBot",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "RatBot ignores command with extra words",
+      "sender": "human",
+      "message": "please ping ratbot now",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}

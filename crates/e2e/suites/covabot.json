@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "CovaBot ignores bot messages",
+      "sender": "bot",
+      "message": "Hey what do you think?",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "CovaBot does not respond to unaddressed human message without prior context",
+      "sender": "human",
+      "message": "Did you see the game last night?",
+      "expect_no_response": true,
+      "timeout_ms": 3000
+    }
+  ]
+}
