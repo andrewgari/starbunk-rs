@@ -168,12 +168,16 @@ jobs:
           echo "run_docker=${RUN_DOCKER}" >> $GITHUB_OUTPUT
 
           # Determine if we should run E2E integration tests
-          # Triggers: global changes, any bot that has an E2E suite, or the health module
+          # Triggers: global changes, any bot change, or shared module changes
           RUN_E2E="false"
           if [ "$GLOBAL_CHANGE" == "true" ] || \
              [ "${{ steps.filter.outputs.bluebot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.bunkbot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.covabot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_llm }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared_memory }}" == "true" ] || \
              [ "${{ steps.filter.outputs.djcova }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.ratbot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_health }}" == "true" ]; then
             RUN_E2E="true"
@@ -278,48 +282,6 @@ jobs:
       - name: Run tests for ${{ matrix.package }}
         run: cargo test -p ${{ matrix.package }}
 
-  # ─── Build Bot Containers (selective) ─────────────────────────────────────────
-  build_containers:
-    name: Build / ${{ matrix.bot }}
-    runs-on: ubuntu-latest
-    needs: detect_changes
-    if: needs.detect_changes.outputs.has_bot_changes == 'true' && needs.detect_changes.outputs.run_docker == 'true'
-    permissions:
-      contents: read
-      actions: write
-    strategy:
-      fail-fast: false
-      matrix:
-        bot: ${{ fromJson(needs.detect_changes.outputs.bots) }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
-          build-args: BOT_NAME=${{ matrix.bot }}
-          tags: starbunk-${{ matrix.bot }}:ci-test
-          cache-from: type=gha,scope=bot-${{ matrix.bot }}
-          cache-to: type=gha,scope=bot-${{ matrix.bot }},mode=max
-          load: true
-
-      - name: Save Docker image
-        run: |
-          mkdir -p /tmp/images
-          docker save "starbunk-${{ matrix.bot }}:ci-test" -o "/tmp/images/${{ matrix.bot }}.tar"
-
-      - name: Upload Docker image
-        uses: actions/upload-artifact@v4
-        with:
-          name: container-${{ matrix.bot }}
-          path: /tmp/images/${{ matrix.bot }}.tar
-          retention-days: 1
-
   # ─── Build E2E Test Runner Container ─────────────────────────────────────────
   build_e2e_container:
     name: Build E2E Container
@@ -358,54 +320,6 @@ jobs:
           path: /tmp/images/starbunk-e2e.tar
           retention-days: 1
 
-  # ─── Container Smoke Test (health check) ─────────────────────────────────────
-  docker_test:
-    name: Docker Test / ${{ matrix.bot }}
-    runs-on: ubuntu-latest
-    needs: [detect_changes, build_containers]
-    if: needs.detect_changes.outputs.has_bot_changes == 'true' && needs.detect_changes.outputs.run_docker == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        bot: ${{ fromJson(needs.detect_changes.outputs.bots) }}
-    steps:
-      - name: Download Docker image
-        uses: actions/download-artifact@v4
-        with:
-          name: container-${{ matrix.bot }}
-          path: /tmp/images
-
-      - name: Load Docker image
-        run: docker load -i /tmp/images/${{ matrix.bot }}.tar
-
-      - name: Smoke test — container starts without crashing
-        run: |
-          BOT="${{ matrix.bot }}"
-          IMAGE="starbunk-${BOT}:ci-test"
-          echo "Running smoke test for ${BOT}..."
-
-          OUTPUT=$(timeout 10 docker run --rm \
-            -e DISCORD_TOKEN=invalid_ci_test_token \
-            "${IMAGE}" 2>&1) || true
-
-          echo "=== Container output ==="
-          echo "$OUTPUT"
-          echo "========================"
-
-          # Binary/OS-level failure
-          if echo "$OUTPUT" | grep -q "exec format error"; then
-            echo "FAIL: exec format error — wrong architecture or corrupt binary"
-            exit 1
-          fi
-
-          # Rust runtime panic
-          if echo "$OUTPUT" | grep -qE "^thread '.*' panicked"; then
-            echo "FAIL: Rust panic in container output"
-            exit 1
-          fi
-
-          echo "OK: Smoke test passed for ${BOT}"
-
   # ─── E2E Integration Tests (Live Discord) ───────────────────────────────────
   e2e_test:
     name: E2E Tests
@@ -430,19 +344,56 @@ jobs:
         if: env.DISCORD_TOKEN != ''
         run: docker load -i /tmp/images/starbunk-e2e.tar
 
-      - name: Run E2E Tests inside Container Stack
+      - name: Run E2E — bunkbot + bluebot
         if: env.DISCORD_TOKEN != ''
         env:
           E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
           E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: crates/e2e/suites/bunkbot_bluebot.json
+          E2E_TEST_BOTS: bunkbot,bluebot
         run: |
           docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
+          EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
+
+      - name: Run E2E — djcova
+        if: env.DISCORD_TOKEN != ''
+        env:
+          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: crates/e2e/suites/health_djcova.json
+          E2E_TEST_BOTS: djcova
+        run: |
+          docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
+          EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
+
+      - name: Run E2E — ratbot
+        if: env.DISCORD_TOKEN != ''
+        env:
+          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: crates/e2e/suites/ratbot.json
+          E2E_TEST_BOTS: ratbot
+        run: |
+          docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
+          EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
+
+      - name: Run E2E — covabot
+        if: env.DISCORD_TOKEN != ''
+        env:
+          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: crates/e2e/suites/covabot.json
+          E2E_TEST_BOTS: covabot
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
+          EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
 
   # ─── Validation Gate ─────────────────────────────────────────────────────────
   validation_complete:
     name: Validation Complete
     runs-on: ubuntu-latest
-    needs: [validation_success, lint, test, build_containers, build_e2e_container, docker_test, e2e_test]
+    needs: [validation_success, lint, test, build_e2e_container, e2e_test]
     if: always()
     steps:
       - name: Check overall status
@@ -450,20 +401,16 @@ jobs:
           VALIDATION_SUCCESS_RESULT: ${{ needs.validation_success.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
-          BUILD_CONTAINERS_RESULT: ${{ needs.build_containers.result }}
           BUILD_E2E_RESULT: ${{ needs.build_e2e_container.result }}
-          DOCKER_TEST_RESULT: ${{ needs.docker_test.result }}
           E2E_TEST_RESULT: ${{ needs.e2e_test.result }}
         run: |
           echo "Validation Success result: $VALIDATION_SUCCESS_RESULT"
           echo "Lint result: $LINT_RESULT"
           echo "Test result: $TEST_RESULT"
-          echo "Build containers result: $BUILD_CONTAINERS_RESULT"
           echo "Build E2E result: $BUILD_E2E_RESULT"
-          echo "Docker test result: $DOCKER_TEST_RESULT"
           echo "E2E test result: $E2E_TEST_RESULT"
 
-          for res in "$VALIDATION_SUCCESS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_CONTAINERS_RESULT" "$BUILD_E2E_RESULT" "$DOCKER_TEST_RESULT" "$E2E_TEST_RESULT"; do
+          for res in "$VALIDATION_SUCCESS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_E2E_RESULT" "$E2E_TEST_RESULT"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "One or more required checks failed or were cancelled."
               exit 1
