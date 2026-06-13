@@ -39,21 +39,21 @@ You have broad autonomy to work without asking for confirmation. Default to doin
 Use available skills **without being told**. When the situation matches, invoke
 the skill immediately — don't describe what you'd do, just do it.
 
-| Situation | Skill / Rule |
+| Situation | Command |
 |---|---|
-| Any coding, fixing, or refactoring task | `/task` (or execute `/task` workflow) |
+| Any coding, fixing, or refactoring task | `/task` |
 | Developing features, bugfixes, or ports | **Mandatory TDD**: Write Rust tests first (Test-Only PR 1), then implement (PR 2) |
-| Code has been written or changed | `rust-craftsman` — review for quality and reuse |
+| Code has been written or changed | `/simplify` — review for quality and reuse |
 | File exceeds ~150 lines | Split by responsibility — one concept per file |
 | New bot or shared module added | Verify isolation: `bots/` never imports from another bot; `shared/` never imports from `bots/` |
-| Deploying or updating containers on Tower | `devops` skill |
-| CI pipeline is failing on current branch | Use `ci-diagnose` skill to autonomously fix it |
+| Deploying or updating containers on Tower | `/deploy` |
+| CI pipeline is failing on current branch | `/ci-diagnose` |
 | Making any commits to the repo | Git Commit Standards — follow conventional commits & commit-msg hook validation |
-| Creating a pull request | `pr-create` skill |
-| Reviewing PR code | `pr-review` skill |
-| PR is open — review comments to address | `pr-comment-review` skill (after running `cargo test` locally) |
-| User asks about Gemini API / tools | `gemini-api-dev` skill |
-| Setting up hooks or automated behaviors | Update configurations |
+| Creating a pull request | `/pr-create` |
+| Reviewing PR code | `/pr-review` |
+| PR is open — review comments to address | `/pr-comment-review` |
+| User asks about Agent API / tools | `/api-guide` |
+| Setting up hooks or automated behaviors | `/update-config` |
 
 ## Task Integration & Discretionary Loading
 If the user asks to implement a feature, fix a bug, or perform any refactoring/coding task directly in chat without explicitly typing `/task`:
