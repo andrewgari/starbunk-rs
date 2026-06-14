@@ -179,6 +179,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_discord_voice_service_resolve_metadata() {
+        // Skip test if yt-dlp is not present on the system path (e.g. in CI)
+        let yt_dlp_exists = std::process::Command::new("yt-dlp")
+            .arg("--version")
+            .output()
+            .is_ok();
+        if !yt_dlp_exists {
+            eprintln!("yt-dlp is not installed. Skipping live resolve_metadata test.");
+            return;
+        }
+
         // Check if we can construct Songbird with default or if we need a custom constructor
         let songbird = songbird::Songbird::serenity();
         let service = DiscordVoiceService::new(songbird);
