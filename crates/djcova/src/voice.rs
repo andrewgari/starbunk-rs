@@ -99,8 +99,9 @@ impl VoiceService for DiscordVoiceService {
 
         if let Some(handler_lock) = self.songbird.get(guild_id) {
             let mut handler = handler_lock.lock().await;
-            handler.stop();
-            handler.play_input(source.into());
+            let queue = handler.queue().clone();
+            queue.stop();
+            queue.add_source(source.into(), &mut handler).await;
             Ok(TrackInfo {
                 title,
                 duration: metadata.duration,
@@ -113,8 +114,8 @@ impl VoiceService for DiscordVoiceService {
 
     async fn stop(&self, guild_id: GuildId) -> anyhow::Result<()> {
         if let Some(handler_lock) = self.songbird.get(guild_id) {
-            let mut handler = handler_lock.lock().await;
-            handler.stop();
+            let handler = handler_lock.lock().await;
+            handler.queue().stop();
         }
         Ok(())
     }
@@ -169,5 +170,32 @@ impl VoiceService for DiscordVoiceService {
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_discord_voice_service_resolve_metadata() {
+        // Check if we can construct Songbird with default or if we need a custom constructor
+        let songbird = songbird::Songbird::serenity();
+        let service = DiscordVoiceService::new(songbird);
+
+        // Resolve metadata for a public YouTube URL
+        let res = service
+            .resolve_metadata("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            .await;
+
+        assert!(res.is_ok(), "resolve_metadata failed: {:?}", res.err());
+        let info = res.unwrap();
+        assert!(!info.title.is_empty());
+        let title_lower = info.title.to_lowercase();
+        assert!(
+            title_lower.contains("rick astley") || title_lower.contains("never gonna give you up"),
+            "Title did not contain expected terms: {}",
+            info.title
+        );
     }
 }
