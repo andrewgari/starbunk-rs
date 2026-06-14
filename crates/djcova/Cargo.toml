@@ -15,6 +15,7 @@ path = "src/main.rs"
 starbunk.workspace           = true
 serenity.workspace           = true
 songbird.workspace           = true
+symphonia.workspace          = true
 reqwest.workspace            = true
 rand.workspace               = true
 serde.workspace              = true
