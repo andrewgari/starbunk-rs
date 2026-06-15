@@ -23,3 +23,6 @@ tokio.workspace              = true
 async-trait.workspace        = true
 anyhow.workspace             = true
 tracing.workspace            = true
+
+[dev-dependencies]
+symphonia.workspace          = true
