@@ -285,6 +285,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_youtube_cookies_path_env_var() {
         let _lock = ENV_MUTEX.lock().unwrap();
 
