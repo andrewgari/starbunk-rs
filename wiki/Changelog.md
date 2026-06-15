@@ -3,6 +3,24 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-15 — Asynchronous YouTube Metadata Resolution for DJCova
+
+### Changed
+- Modified `VoiceService::play` signature and `DiscordVoiceService::play` implementation to no longer block on `yt-dlp` metadata resolution synchronously. Audio playback now starts immediately after joining.
+- Changed `GuildAudioManager::play` to return immediately with a "Loading..." title placeholder and a unique `id` for each `QueueItem`.
+- Updated `/play` command handler in `crates/djcova/src/commands/play.rs` to spawn a background tokio task that resolves metadata asynchronously using `VoiceService::resolve_metadata` and edits the original interaction response via `cmd.edit_response` when resolved.
+- Scoped the `GuildAudioManager` mutex lock within the `/play` background task so it drops before calling `cmd.edit_response`, preventing voice channel command deadlocks and responsiveness stalls.
+- Updated `GuildAudioManager::play` to search the current track, queue, and history for any duplicate URL, reusing existing resolved metadata immediately.
+
+### Added
+- Added `id` field to `QueueItem` and a `next_item_id` counter to `GuildAudioManager` to track and update individual queued tracks.
+- Added a `get_voice_service` getter on `GuildAudioManager` to retrieve a clone of the inner `VoiceService` reference without holding the manager's lock during background resolution.
+- Added `update_track_metadata` to `GuildAudioManager` to safely update track title, duration, and thumbnail of a queue item (current or queued) by its unique ID.
+- Added a unit test `test_update_track_metadata` in `manager.rs` to verify that immediate playback starts with a placeholder and metadata is correctly updated when resolved.
+- Added a unit test `test_metadata_caching` in `manager.rs` to verify duplicate URLs immediately reuse resolved metadata.
+
+---
+
 ## 2026-06-11 — E2E Testing Framework
 
 ### Added
