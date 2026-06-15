@@ -235,6 +235,130 @@ rate(bot_messages_received_total[5m])
 
 ---
 
+## GKE Cloud Log Ingestion
+
+To pull logs from a GKE cluster into the local Loki instance, use **Grafana Alloy**
+with a GCP Pub/Sub receiver. This routes Cloud Logging output into the same Loki
+instance that receives bot OTEL logs, so GKE and bot logs are correlated in one place.
+
+### Architecture
+
+```
+GKE cluster (Cloud Logging)
+    ↓  (Log Sink)
+GCP Pub/Sub topic
+    ↓  (pull subscription)
+Grafana Alloy  (Docker container on Tower)
+    ↓  (HTTP push)
+Loki:3100
+    ↓
+Grafana:3000
+```
+
+### Step 1 — GCP: Create a Log Sink
+
+In GCP Console → Logging → Log Router → **Create Sink**:
+
+- **Sink destination:** Cloud Pub/Sub topic (create a new topic, e.g. `grafana-logs`)
+- **Inclusion filter** — scope to your GKE cluster to avoid pulling everything:
+
+```
+resource.type="k8s_container"
+resource.labels.cluster_name="YOUR_CLUSTER"
+```
+
+Then create a Pub/Sub **subscription** for Alloy to pull from:
+
+```bash
+gcloud pubsub subscriptions create grafana-logs-sub \
+  --topic=grafana-logs \
+  --ack-deadline=60
+```
+
+### Step 2 — GCP: Service Account
+
+```bash
+gcloud iam service-accounts create grafana-loki-reader \
+  --display-name="Grafana Loki Log Reader"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:grafana-loki-reader@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/pubsub.subscriber"
+
+gcloud iam service-accounts keys create ~/gcp-key.json \
+  --iam-account=grafana-loki-reader@YOUR_PROJECT.iam.gserviceaccount.com
+```
+
+Place `gcp-key.json` on Tower at a path accessible to Docker (e.g. `~/secrets/gcp-key.json`).
+
+### Step 3 — Docker: Add Alloy service
+
+In the production `docker-compose.yml`, add alongside the existing LGTM stack:
+
+```yaml
+alloy:
+  image: grafana/alloy:latest
+  volumes:
+    - ./alloy/config.alloy:/etc/alloy/config.alloy
+    - ~/secrets/gcp-key.json:/etc/alloy/gcp-key.json:ro
+  environment:
+    - GOOGLE_APPLICATION_CREDENTIALS=/etc/alloy/gcp-key.json
+  command: run /etc/alloy/config.alloy
+  depends_on:
+    - loki
+  restart: unless-stopped
+```
+
+### Step 4 — Alloy config
+
+Create `observability/alloy/config.alloy`:
+
+```hcl
+loki.source.pubsub "gke_logs" {
+  project_id           = "YOUR_GCP_PROJECT"
+  subscription         = "projects/YOUR_GCP_PROJECT/subscriptions/grafana-logs-sub"
+  use_incoming_timestamp = true
+
+  forward_to = [loki.write.local.receiver]
+
+  labels = {
+    source  = "gcp",
+    cluster = "YOUR_CLUSTER",
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
+
+### Querying GKE logs in Grafana (Loki)
+
+GKE log entries arrive with their original Cloud Logging structure. Useful LogQL queries:
+
+**All logs from a specific namespace:**
+```logql
+{source="gcp", cluster="YOUR_CLUSTER"} | json | kubernetes_namespace_name="your-ns"
+```
+
+**Pod logs by name:**
+```logql
+{source="gcp"} | json | kubernetes_pod_name=~"my-pod-.*"
+```
+
+**Errors across the cluster:**
+```logql
+{source="gcp"} | json | severity="ERROR"
+```
+
+**Cross-correlate with bot traces** — GKE logs land in the same Loki instance, so
+you can use Grafana's split-panel view to show GKE errors alongside bot trace spans
+from Tempo.
+
+---
+
 ## See Also
 
 - `crates/starbunk/src/telemetry.rs` — init code and env var reference
