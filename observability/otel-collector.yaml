@@ -42,7 +42,7 @@ processors:
     log_statements:
       - context: resource
         statements:
-          - set(attributes["service.name"], attributes["gcp.container_name"]) where attributes["service.name"] == "unknown_service" and attributes["gcp.container_name"] != nil
+          - set(attributes["service.name"], attributes["gcp.container_name"]) where attributes["service.name"] == nil and attributes["gcp.container_name"] != nil
 
   # Promote resource attributes to Loki labels so Grafana can filter by bot.
   resource:

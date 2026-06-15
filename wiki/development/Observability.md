@@ -301,8 +301,10 @@ chmod 644 /mnt/user/vault/secrets/projects/starbunk-bot/gcp-key.json
 
 The `googlecloudpubsub` receiver and `transform/gcp_service_name` processor are
 already in `observability/otel-collector.yaml`. The transform promotes
-`gcp.container_name` → `service.name` so GKE pods appear under their bot names
-in Loki (e.g. `bluebot`, `covabot`) rather than `unknown_service`.
+`gcp.container_name` → `service.name` for logs where `service.name` is absent
+(nil), so GKE pods appear under their bot names in Loki (e.g. `bluebot`, `covabot`)
+rather than `unknown_service`. Note: the condition is `== nil`, not `== "unknown_service"` —
+Loki synthesizes that string from an absent attribute; the OTEL resource itself is nil.
 
 The Tower production otel-collector (`starbunk-exporter`) must have:
 - `GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp-key.json`
