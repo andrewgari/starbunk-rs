@@ -43,6 +43,22 @@ impl DiscordVoiceService {
     }
 }
 
+/// Copies the cookies file to a writable temp path and returns that path.
+///
+/// Kubernetes secret volumes are always read-only (projected tmpfs). yt-dlp tries to save
+/// updated session cookies back to the `--cookies` file on teardown; passing the K8s secret
+/// path directly causes an EROFS crash. Copying to /tmp gives yt-dlp a writable location.
+fn writable_cookies_path(source_path: &str) -> String {
+    const TMP_COOKIES: &str = "/tmp/yt-dlp-cookies.txt";
+    match std::fs::copy(source_path, TMP_COOKIES) {
+        Ok(_) => TMP_COOKIES.to_string(),
+        Err(e) => {
+            tracing::warn!(source = source_path, err = %e, "failed to copy cookies to /tmp, falling back to source path");
+            source_path.to_string()
+        }
+    }
+}
+
 #[async_trait]
 impl VoiceService for DiscordVoiceService {
     async fn join(&self, guild_id: GuildId, channel_id: ChannelId) -> anyhow::Result<()> {
@@ -69,7 +85,10 @@ impl VoiceService for DiscordVoiceService {
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
             let trimmed = cookies_path.trim();
             if !trimmed.is_empty() {
-                ytdl = ytdl.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+                ytdl = ytdl.user_args(vec![
+                    "--cookies".to_string(),
+                    writable_cookies_path(trimmed),
+                ]);
             }
         }
         let metadata = ytdl.aux_metadata().await?;
@@ -100,7 +119,10 @@ impl VoiceService for DiscordVoiceService {
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
             let trimmed = cookies_path.trim();
             if !trimmed.is_empty() {
-                source = source.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+                source = source.user_args(vec![
+                    "--cookies".to_string(),
+                    writable_cookies_path(trimmed),
+                ]);
             }
         }
         let metadata = source.aux_metadata().await?;
