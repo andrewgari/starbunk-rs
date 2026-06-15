@@ -235,6 +235,104 @@ rate(bot_messages_received_total[5m])
 
 ---
 
+## GKE Cloud Log Ingestion
+
+GKE bot logs flow to **Google Cloud Logging** via the in-cluster otel-collector's
+`googlecloud` exporter. A Cloud Logging sink forwards them to a Pub/Sub topic, and
+the local otel-collector (Tower) pulls that subscription into the same Loki instance
+that receives local bot logs — so everything is queryable in one place.
+
+### Architecture
+
+```
+GKE pods (stdout/stderr)
+    ↓  (node fluent-bit DaemonSet)
+Google Cloud Logging
+    ↓  (Log Sink: grafana-loki-sink)
+GCP Pub/Sub topic: grafana-logs
+    ↓  (pull subscription: grafana-logs-sub)
+otel-collector on Tower  (googlecloudpubsub receiver)
+    ↓  transform/gcp_service_name: maps gcp.container_name → service.name
+Loki:3100
+    ↓
+Grafana:3030
+```
+
+### GCP resources (already provisioned)
+
+| Resource | Name |
+|---|---|
+| GCP project | `starbunk-bot` |
+| GKE cluster | `starbunk-gke-cluster` (us-central1) |
+| Log sink | `grafana-loki-sink` → topic `grafana-logs` |
+| Pub/Sub topic | `projects/starbunk-bot/topics/grafana-logs` |
+| Pub/Sub subscription | `projects/starbunk-bot/subscriptions/grafana-logs-sub` |
+| Service account | `grafana-loki-reader@starbunk-bot.iam.gserviceaccount.com` |
+| Key file (Tower) | `/mnt/user/vault/secrets/projects/starbunk-bot/gcp-key.json` (mode 644) |
+
+### Re-provisioning from scratch
+
+```bash
+# Service account + role
+gcloud iam service-accounts create grafana-loki-reader --project=starbunk-bot
+gcloud projects add-iam-policy-binding starbunk-bot \
+  --member="serviceAccount:grafana-loki-reader@starbunk-bot.iam.gserviceaccount.com" \
+  --role="roles/pubsub.subscriber"
+
+# Pub/Sub topic + log sink
+gcloud pubsub topics create grafana-logs --project=starbunk-bot
+gcloud logging sinks create grafana-loki-sink \
+  pubsub.googleapis.com/projects/starbunk-bot/topics/grafana-logs \
+  --log-filter='resource.type="k8s_container" AND resource.labels.cluster_name="starbunk-gke-cluster"' \
+  --project=starbunk-bot
+gcloud pubsub topics add-iam-policy-binding grafana-logs \
+  --member="serviceAccount:service-487937378621@gcp-sa-logging.iam.gserviceaccount.com" \
+  --role="roles/pubsub.publisher" --project=starbunk-bot
+gcloud pubsub subscriptions create grafana-logs-sub \
+  --topic=grafana-logs --ack-deadline=60 --project=starbunk-bot
+
+# Key file
+gcloud iam service-accounts keys create /mnt/user/vault/secrets/projects/starbunk-bot/gcp-key.json \
+  --iam-account=grafana-loki-reader@starbunk-bot.iam.gserviceaccount.com
+chmod 644 /mnt/user/vault/secrets/projects/starbunk-bot/gcp-key.json
+```
+
+### otel-collector config
+
+The `googlecloudpubsub` receiver and `transform/gcp_service_name` processor are
+already in `observability/otel-collector.yaml`. The transform promotes
+`gcp.container_name` → `service.name` so GKE pods appear under their bot names
+in Loki (e.g. `bluebot`, `covabot`) rather than `unknown_service`.
+
+The Tower production otel-collector (`starbunk-exporter`) must have:
+- `GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp-key.json`
+- Volume mount: `/mnt/user/vault/secrets/projects/starbunk-bot/gcp-key.json:/etc/gcp-key.json:ro`
+
+Both are set in `/mnt/user/appdata/portainer/compose/46/docker-compose.yml`.
+
+### Querying GKE logs in Grafana (Loki)
+
+**All logs for a specific bot:**
+```logql
+{service_name="covabot"}
+```
+
+**Errors across all GKE bots:**
+```logql
+{service_name=~"bluebot|covabot|bunkbot|djcova|ratbot"} | json | level="ERROR"
+```
+
+**Filter by Kubernetes namespace:**
+```logql
+{service_name="covabot"} | json | gcp_namespace_name="starbunk"
+```
+
+**Cross-correlate with bot traces** — GKE logs share the same Loki instance as
+local bot logs, so Grafana's Explore split-panel can show GKE errors alongside
+Tempo trace spans from the same time window.
+
+---
+
 ## See Also
 
 - `crates/starbunk/src/telemetry.rs` — init code and env var reference
