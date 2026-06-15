@@ -80,17 +80,58 @@ impl GuildAudioManager {
         self.next_item_id += 1;
         let item_id = self.next_item_id;
 
+        // Search for existing resolved metadata for the same URL
+        let mut existing_metadata = None;
+        if let Some(track) = &self.current_track {
+            if track.url == input && track.title != "Loading..." {
+                existing_metadata = Some((
+                    track.title.clone(),
+                    track.duration,
+                    track.thumbnail_url.clone(),
+                ));
+            }
+        }
+        if existing_metadata.is_none() {
+            for track in &self.queue {
+                if track.url == input && track.title != "Loading..." {
+                    existing_metadata = Some((
+                        track.title.clone(),
+                        track.duration,
+                        track.thumbnail_url.clone(),
+                    ));
+                    break;
+                }
+            }
+        }
+        if existing_metadata.is_none() {
+            for track in &self.history {
+                if track.url == input && track.title != "Loading..." {
+                    existing_metadata = Some((
+                        track.title.clone(),
+                        track.duration,
+                        track.thumbnail_url.clone(),
+                    ));
+                    break;
+                }
+            }
+        }
+
+        let (title, duration, thumbnail_url) = match existing_metadata {
+            Some((t, d, th)) => (t, d, th),
+            None => ("Loading...".to_string(), None, None),
+        };
+
         if self.current_track.is_none() {
             self.voice.join(self.guild_id, voice_channel).await?;
             self.voice.play(self.guild_id, &input).await?;
             let item = QueueItem {
                 id: item_id,
-                title: "Loading...".to_string(),
+                title,
                 url: input,
                 requester,
                 requester_id,
-                duration: None,
-                thumbnail_url: None,
+                duration,
+                thumbnail_url,
             };
             self.current_track = Some(item.clone());
             let _ = self
@@ -108,12 +149,12 @@ impl GuildAudioManager {
         } else {
             let item = QueueItem {
                 id: item_id,
-                title: "Loading...".to_string(),
+                title,
                 url: input,
                 requester,
                 requester_id,
-                duration: None,
-                thumbnail_url: None,
+                duration,
+                thumbnail_url,
             };
             self.queue.push_back(item.clone());
             // Restart the GIF loop so it posts to the new text channel.
@@ -1077,5 +1118,54 @@ mod tests {
             updated_track.thumbnail_url,
             Some("http://thumb.url".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn test_metadata_caching() {
+        let mut manager = setup();
+
+        // Play first track (starts with Loading...)
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+
+        let track = manager.get_current_track().unwrap();
+        let track_id = track.id;
+
+        // Update the metadata (simulating resolution)
+        manager.update_track_metadata(
+            track_id,
+            "Real Song Title".to_string(),
+            Some(Duration::from_secs(120)),
+            Some("http://image.url".to_string()),
+        );
+
+        // Play the same song again
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+
+        // Verify that it immediately reuses the resolved metadata
+        let queue = manager.get_queue();
+        assert_eq!(queue.len(), 1);
+        assert_eq!(queue[0].title, "Real Song Title");
+        assert_eq!(queue[0].duration, Some(Duration::from_secs(120)));
+        assert_eq!(queue[0].thumbnail_url, Some("http://image.url".to_string()));
     }
 }
