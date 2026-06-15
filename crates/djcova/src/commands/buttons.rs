@@ -1,5 +1,5 @@
 use crate::manager::{spawn_idle_timer, GuildAudioManager};
-use serenity::all::{ComponentInteraction, Context, EditInteractionResponse, GuildId};
+use serenity::all::{ComponentInteraction, Context, EditInteractionResponse};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -8,7 +8,9 @@ pub async fn handle(
     comp: &ComponentInteraction,
     mgr: Arc<Mutex<GuildAudioManager>>,
 ) -> anyhow::Result<()> {
-    let guild_id = comp.guild_id.unwrap_or_else(|| GuildId::new(0));
+    let guild_id = comp
+        .guild_id
+        .ok_or_else(|| anyhow::anyhow!("no guild_id on button interaction"))?;
 
     match comp.data.custom_id.as_str() {
         "djcova_stop" => {

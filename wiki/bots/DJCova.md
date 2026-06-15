@@ -108,7 +108,7 @@ pub struct GuildAudioManager {
 
 DJCova integrates with the OpenTelemetry and tracing pipeline. Logs and metrics are fully structured:
 
-- **Logs**: Delineated by process with `bot = "djcova"`, `guild = %guild_id`, `user = %username`, and other relevant fields. Major lifecycle actions, command invocations, playback transitions (play, pause, skip, queue, timers), and Tenor gif tasks are logged at the `INFO` level.
+- **Logs**: Delineated by process with `bot = "djcova"`, `guild = %guild_id`, `username = %username`, `user_id = %user_id`, and other relevant fields. Major lifecycle actions, command invocations, playback transitions (play, pause, skip, queue, timers), and Tenor gif tasks are logged at the `INFO` level.
 - **Metrics**: Standard `bot.errors` (counter) is tracked with `bot = "djcova"` and `kind = "<error_type>"` labels to monitor the bot's reliability.
 
 ## Ownership & Permission Model

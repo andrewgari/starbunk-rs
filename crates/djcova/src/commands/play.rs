@@ -225,6 +225,7 @@ pub async fn handle(
                                 err = %e,
                                 "Failed to resolve metadata in background"
                             );
+                            crate::record_error("play_metadata_resolution_failed");
                             m.update_track_metadata(
                                 id,
                                 format!("Unknown: {}", input_str),

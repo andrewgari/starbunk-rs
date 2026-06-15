@@ -82,7 +82,7 @@ impl GuildAudioManager {
             voice_channel = %voice_channel,
             track = %input,
             requester = %requester,
-            requester_id = %requester_id.to_string(),
+            requester_id = %requester_id,
             "Audio play request received"
         );
 
