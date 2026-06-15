@@ -75,6 +75,17 @@ impl GuildAudioManager {
         requester: String,
         requester_id: UserId,
     ) -> anyhow::Result<String> {
+        tracing::info!(
+            bot = "djcova",
+            guild = %self.guild_id,
+            text_channel = %text_channel,
+            voice_channel = %voice_channel,
+            track = %input,
+            requester = %requester,
+            requester_id = %requester_id,
+            "Audio play request received"
+        );
+
         self.text_channel_id = Some(text_channel);
         self.voice_channel_id = Some(voice_channel);
         self.next_item_id += 1;
@@ -117,17 +128,46 @@ impl GuildAudioManager {
         }
 
         let (title, duration, thumbnail_url) = match existing_metadata {
-            Some((t, d, th)) => (t, d, th),
+            Some((t, d, th)) => {
+                tracing::info!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    track = %input,
+                    title = %t,
+                    "Reusing cached track metadata"
+                );
+                (t, d, th)
+            }
             None => ("Loading...".to_string(), None, None),
         };
 
         if self.current_track.is_none() {
-            self.voice.join(self.guild_id, voice_channel).await?;
-            self.voice.play(self.guild_id, &input).await?;
+            if let Err(e) = self.voice.join(self.guild_id, voice_channel).await {
+                tracing::error!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    voice_channel = %voice_channel,
+                    err = %e,
+                    "Failed to join voice channel"
+                );
+                crate::record_error("voice_join_failed");
+                return Err(e);
+            }
+            if let Err(e) = self.voice.play(self.guild_id, &input).await {
+                tracing::error!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    track = %input,
+                    err = %e,
+                    "Failed to start track playback"
+                );
+                crate::record_error("voice_play_failed");
+                return Err(e);
+            }
             let item = QueueItem {
                 id: item_id,
                 title,
-                url: input,
+                url: input.clone(),
                 requester,
                 requester_id,
                 duration,
@@ -142,6 +182,12 @@ impl GuildAudioManager {
             if let Some(h) = http {
                 self.start_gif_loop(h, text_channel);
             }
+            tracing::info!(
+                bot = "djcova",
+                guild = %self.guild_id,
+                track = %input,
+                "Playback started successfully"
+            );
             Ok(format!(
                 "Now playing: {} requested by {}",
                 item.title, item.requester
@@ -150,7 +196,7 @@ impl GuildAudioManager {
             let item = QueueItem {
                 id: item_id,
                 title,
-                url: input,
+                url: input.clone(),
                 requester,
                 requester_id,
                 duration,
@@ -162,6 +208,12 @@ impl GuildAudioManager {
                 self.stop_gif_loop();
                 self.start_gif_loop(h, text_channel);
             }
+            tracing::info!(
+                bot = "djcova",
+                guild = %self.guild_id,
+                track = %input,
+                "Track queued successfully"
+            );
             Ok(format!(
                 "Queued: {} requested by {}",
                 item.title, item.requester
@@ -173,6 +225,13 @@ impl GuildAudioManager {
         let Some(old_track) = self.current_track.clone() else {
             anyhow::bail!("Nothing is currently playing.");
         };
+
+        tracing::info!(
+            bot = "djcova",
+            guild = %self.guild_id,
+            track = %old_track.title,
+            "Skipping current track"
+        );
 
         self.history.push(old_track.clone());
 
@@ -188,7 +247,17 @@ impl GuildAudioManager {
         self.current_track = next_track;
 
         if let Some(track) = self.current_track.clone() {
-            self.voice.play(self.guild_id, &track.url).await?; // metadata return ignored; track info already known
+            if let Err(e) = self.voice.play(self.guild_id, &track.url).await {
+                tracing::error!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    track = %track.title,
+                    err = %e,
+                    "Failed to play next track after skip"
+                );
+                crate::record_error("voice_play_failed");
+                return Err(e);
+            }
             let _ = self
                 .voice
                 .set_volume(self.guild_id, self.volume as f32 / 100.0)
@@ -198,17 +267,47 @@ impl GuildAudioManager {
                     self.start_gif_loop(h, tc);
                 }
             }
+            tracing::info!(
+                bot = "djcova",
+                guild = %self.guild_id,
+                track = %track.title,
+                "Skipped to next track successfully"
+            );
             Ok(format!("Skipped to: {}", track.title))
         } else {
-            self.voice.stop(self.guild_id).await?;
+            if let Err(e) = self.voice.stop(self.guild_id).await {
+                tracing::warn!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    err = %e,
+                    "Failed to stop voice service during skip-to-empty"
+                );
+            }
             self.stop_gif_loop();
             self.idle_timer_active = true;
+            tracing::info!(
+                bot = "djcova",
+                guild = %self.guild_id,
+                "Playback stopped, queue is empty"
+            );
             Ok("Playback stopped, queue is empty.".to_string())
         }
     }
 
     pub async fn stop(&mut self) -> anyhow::Result<()> {
-        self.voice.leave(self.guild_id).await?;
+        tracing::info!(
+            bot = "djcova",
+            guild = %self.guild_id,
+            "Stopping playback and leaving voice channel"
+        );
+        if let Err(e) = self.voice.leave(self.guild_id).await {
+            tracing::warn!(
+                bot = "djcova",
+                guild = %self.guild_id,
+                err = %e,
+                "Error leaving voice channel"
+            );
+        }
         self.queue.clear();
         self.current_track = None;
         self.voice_channel_id = None;
@@ -232,6 +331,7 @@ impl GuildAudioManager {
     }
 
     pub fn shuffle(&mut self) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Shuffling remaining queue");
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         let mut vec: Vec<QueueItem> = self.queue.drain(..).collect();
@@ -240,12 +340,15 @@ impl GuildAudioManager {
     }
 
     pub fn set_volume(&mut self, volume: u8) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, volume = %volume, "Setting volume");
         self.volume = volume;
         let vol_float = volume as f32 / 100.0;
         let voice = self.voice.clone();
         let guild_id = self.guild_id;
         tokio::spawn(async move {
-            let _ = voice.set_volume(guild_id, vol_float).await;
+            if let Err(e) = voice.set_volume(guild_id, vol_float).await {
+                tracing::error!(bot = "djcova", guild = %guild_id, err = %e, "Failed to set volume in voice handler");
+            }
         });
     }
 
@@ -254,10 +357,12 @@ impl GuildAudioManager {
     }
 
     pub fn clear(&mut self) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Clearing queue");
         self.queue.clear();
     }
 
     pub fn set_repeat_mode(&mut self, mode: RepeatMode) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, repeat_mode = ?mode, "Setting repeat mode");
         self.repeat_mode = mode;
     }
 
@@ -274,8 +379,13 @@ impl GuildAudioManager {
         if self.current_track.is_none() {
             anyhow::bail!("Nothing is currently playing.");
         }
-        self.voice.pause(self.guild_id).await?;
+        if let Err(e) = self.voice.pause(self.guild_id).await {
+            tracing::error!(bot = "djcova", guild = %self.guild_id, err = %e, "Failed to pause voice playback");
+            crate::record_error("pause_failed");
+            return Err(e);
+        }
         self.is_paused = true;
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Playback paused successfully");
         Ok(())
     }
 
@@ -289,8 +399,13 @@ impl GuildAudioManager {
             self.is_paused = false;
             anyhow::bail!("No active track to resume.");
         }
-        self.voice.resume(self.guild_id).await?;
+        if let Err(e) = self.voice.resume(self.guild_id).await {
+            tracing::error!(bot = "djcova", guild = %self.guild_id, err = %e, "Failed to resume voice playback");
+            crate::record_error("resume_failed");
+            return Err(e);
+        }
         self.is_paused = false;
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Playback resumed successfully");
         Ok(())
     }
 
@@ -321,6 +436,7 @@ impl GuildAudioManager {
 
     pub fn tick_idle_timer(&mut self) -> bool {
         if self.idle_timer_active {
+            tracing::info!(bot = "djcova", guild = %self.guild_id, "Idle disconnect timer expired, leaving voice channel");
             self.current_track = None;
             self.queue.clear();
             self.idle_timer_active = false;
@@ -340,6 +456,7 @@ impl GuildAudioManager {
 
     pub fn tick_leave_timer(&mut self) -> bool {
         if self.leave_timer_active {
+            tracing::info!(bot = "djcova", guild = %self.guild_id, "Empty channel disconnect timer expired, leaving voice channel");
             self.current_track = None;
             self.queue.clear();
             self.leave_timer_active = false;
@@ -358,10 +475,12 @@ impl GuildAudioManager {
     }
 
     pub fn user_left_voice_channel(&mut self) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Voice channel empty of non-bot members, activating leave timer");
         self.leave_timer_active = true;
     }
 
     pub fn user_returned_to_voice_channel(&mut self) {
+        tracing::info!(bot = "djcova", guild = %self.guild_id, "Non-bot member returned to voice channel, deactivating leave timer");
         self.leave_timer_active = false;
     }
 
@@ -370,8 +489,10 @@ impl GuildAudioManager {
             return;
         }
 
+        tracing::info!(bot = "djcova", guild = %self.guild_id, channel = %text_channel, "Starting Tenor gif reaction loop");
         let gif = self.gif.clone();
         let mut last_msg_id: Option<MessageId> = None;
+        let guild_id = self.guild_id;
 
         let handle = tokio::spawn(async move {
             use rand::Rng;
@@ -385,7 +506,7 @@ impl GuildAudioManager {
                 let gif_url = match gif.fetch_dancing_gif().await {
                     Ok(url) => url,
                     Err(e) => {
-                        tracing::warn!("Failed to fetch dancing gif: {}", e);
+                        tracing::warn!(bot = "djcova", guild = %guild_id, err = %e, "Failed to fetch dancing gif");
                         continue;
                     }
                 };
@@ -396,7 +517,7 @@ impl GuildAudioManager {
                 {
                     Ok(msgs) => msgs,
                     Err(e) => {
-                        tracing::warn!("Failed to retrieve channel messages for gif check: {}", e);
+                        tracing::warn!(bot = "djcova", guild = %guild_id, channel = %text_channel, err = %e, "Failed to retrieve messages for gif check");
                         continue;
                     }
                 };
@@ -418,8 +539,11 @@ impl GuildAudioManager {
                         .await;
                     if let Err(e) = edit_res {
                         tracing::warn!(
-                            "Failed to edit gif message in place: {}, posting new one",
-                            e
+                            bot = "djcova",
+                            guild = %guild_id,
+                            channel = %text_channel,
+                            err = %e,
+                            "Failed to edit gif message in place, posting new one"
                         );
                         if let Ok(new_msg) = text_channel.say(&http, &gif_url).await {
                             last_msg_id = Some(new_msg.id);
@@ -437,7 +561,18 @@ impl GuildAudioManager {
     pub async fn restart(&self) -> anyhow::Result<String> {
         match &self.current_track {
             Some(track) => {
-                self.voice.play(self.guild_id, &track.url).await?;
+                tracing::info!(bot = "djcova", guild = %self.guild_id, track = %track.title, "Restarting current track");
+                if let Err(e) = self.voice.play(self.guild_id, &track.url).await {
+                    tracing::error!(
+                        bot = "djcova",
+                        guild = %self.guild_id,
+                        track = %track.title,
+                        err = %e,
+                        "Failed to restart track"
+                    );
+                    crate::record_error("voice_play_failed");
+                    return Err(e);
+                }
                 let _ = self
                     .voice
                     .set_volume(self.guild_id, self.volume as f32 / 100.0)
@@ -458,6 +593,13 @@ impl GuildAudioManager {
         let mut updated = false;
         if let Some(track) = &mut self.current_track {
             if track.id == id {
+                tracing::info!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    track_id = id,
+                    title = %title,
+                    "Resolved metadata for current playing track"
+                );
                 track.title = title.clone();
                 track.duration = duration;
                 track.thumbnail_url = thumbnail_url.clone();
@@ -466,6 +608,13 @@ impl GuildAudioManager {
         }
         for track in &mut self.queue {
             if track.id == id {
+                tracing::info!(
+                    bot = "djcova",
+                    guild = %self.guild_id,
+                    track_id = id,
+                    title = %title,
+                    "Resolved metadata for queued track"
+                );
                 track.title = title.clone();
                 track.duration = duration;
                 track.thumbnail_url = thumbnail_url.clone();
@@ -477,6 +626,7 @@ impl GuildAudioManager {
 
     fn stop_gif_loop(&mut self) {
         if let Some(handle) = self.gif_task.take() {
+            tracing::info!(bot = "djcova", guild = %self.guild_id, "Stopping gif loop");
             handle.abort();
         }
     }

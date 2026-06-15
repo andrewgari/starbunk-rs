@@ -3,6 +3,19 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-15 — Logging and Observability Improvements for DJCova
+
+### Added
+- Added `opentelemetry` dependency in `crates/djcova/Cargo.toml`.
+- Implemented `record_error` metric helper function in `crates/djcova/src/lib.rs` to report bot errors to Prometheus via OpenTelemetry's global meter.
+
+### Changed
+- Refactored `ready`, `interaction_create`, and `voice_state_update` in `crates/djcova/src/lib.rs` to use structured logging with standard fields (`bot = "djcova"`, `guild`, `user_id`, etc.) and log failures at the appropriate levels.
+- Improved logging throughout `GuildAudioManager` in `crates/djcova/src/manager.rs` to trace healthy playback events (play, queue, skip, stop, pause, resume, volume adjustment, shuffle, repeat mode, timer expiration, gif loop activity) and failures.
+- Updated button interaction handling in `crates/djcova/src/commands/buttons.rs` and the play command in `crates/djcova/src/commands/play.rs` to capture and log errors, incrementing the error metrics appropriately.
+
+---
+
 ## 2026-06-15 — Asynchronous YouTube Metadata Resolution for DJCova
 
 ### Changed

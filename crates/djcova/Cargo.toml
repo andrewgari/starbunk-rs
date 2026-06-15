@@ -23,6 +23,7 @@ tokio.workspace              = true
 async-trait.workspace        = true
 anyhow.workspace             = true
 tracing.workspace            = true
+opentelemetry.workspace      = true
 
 [dev-dependencies]
 symphonia.workspace          = true

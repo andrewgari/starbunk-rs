@@ -870,6 +870,7 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "opentelemetry",
  "rand 0.8.6",
  "reqwest",
  "serde",
