@@ -66,6 +66,9 @@ impl VoiceService for DiscordVoiceService {
         };
 
         let mut ytdl = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
+        if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
+            ytdl = ytdl.user_args(vec!["--cookies".to_string(), cookies_path]);
+        }
         let metadata = ytdl.aux_metadata().await?;
 
         let title = metadata
@@ -91,6 +94,9 @@ impl VoiceService for DiscordVoiceService {
         // Resolve metadata before acquiring the handler lock — yt-dlp can take seconds
         // and holding the per-guild lock across that await would block all other voice ops.
         let mut source = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
+        if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
+            source = source.user_args(vec!["--cookies".to_string(), cookies_path]);
+        }
         let metadata = source.aux_metadata().await?;
         let title = metadata
             .title
@@ -206,6 +212,118 @@ mod tests {
             title_lower.contains("rick astley") || title_lower.contains("never gonna give you up"),
             "Title did not contain expected terms: {}",
             info.title
+        );
+    }
+
+    #[tokio::test]
+    async fn test_symphonia_probe_youtube_dl() {
+        let yt_dlp_exists = std::process::Command::new("yt-dlp")
+            .arg("--version")
+            .output()
+            .is_ok();
+        if !yt_dlp_exists {
+            return;
+        }
+
+        let client = reqwest::Client::new();
+        let mut source =
+            songbird::input::YoutubeDl::new(client, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        let audio_stream = source.create_async().await;
+        assert!(
+            audio_stream.is_ok(),
+            "create_async failed: {:?}",
+            audio_stream.err()
+        );
+        let stream = audio_stream.unwrap();
+
+        // Run symphonia probe in spawn_blocking to prevent deadlocking the tokio runtime thread
+        let probed = tokio::task::spawn_blocking(move || {
+            use symphonia::core::io::MediaSourceStream;
+            use symphonia::core::probe::Hint;
+
+            let mss = MediaSourceStream::new(stream.input, Default::default());
+            let mut hint = Hint::new();
+            hint.with_extension("webm");
+
+            symphonia::default::get_probe().format(
+                &hint,
+                mss,
+                &Default::default(),
+                &Default::default(),
+            )
+        })
+        .await
+        .unwrap();
+
+        assert!(probed.is_ok(), "Symphonia probe failed: {:?}", probed.err());
+    }
+
+    #[tokio::test]
+    async fn test_youtube_cookies_path_env_var() {
+        use std::fs::File;
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        // Create a temporary directory in target (inside workspace)
+        let temp_dir = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("test_temp_ytdl");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let mock_ytdl_path = temp_dir.join("yt-dlp");
+        let arg_log_path = temp_dir.join("args.txt");
+
+        // Write a mock yt-dlp script that logs its arguments
+        let script_content = format!(
+            "#!/bin/sh\necho \"$@\" > \"{}\"\nexit 1\n",
+            arg_log_path.to_str().unwrap()
+        );
+        {
+            let mut file = File::create(&mock_ytdl_path).unwrap();
+            file.write_all(script_content.as_bytes()).unwrap();
+        }
+
+        // Make the script executable
+        let mut perms = std::fs::metadata(&mock_ytdl_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&mock_ytdl_path, perms).unwrap();
+
+        // Backup current PATH and YOUTUBE_COOKIES_PATH
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        let original_cookies = std::env::var("YOUTUBE_COOKIES_PATH").ok();
+
+        // Update PATH to put our mock yt-dlp first
+        let new_path = format!("{}:{}", temp_dir.to_str().unwrap(), original_path);
+        std::env::set_var("PATH", new_path);
+        std::env::set_var("YOUTUBE_COOKIES_PATH", "mock_cookies.txt");
+
+        // Construct service
+        let songbird = songbird::Songbird::serenity();
+        let service = DiscordVoiceService::new(songbird);
+
+        // Run resolve_metadata, which will call our mock yt-dlp
+        let _ = service.resolve_metadata("test_query").await;
+
+        // Restore environment
+        std::env::set_var("PATH", original_path);
+        if let Some(val) = original_cookies {
+            std::env::set_var("YOUTUBE_COOKIES_PATH", val);
+        } else {
+            std::env::remove_var("YOUTUBE_COOKIES_PATH");
+        }
+
+        // Read the logged arguments
+        let logged_args =
+            std::fs::read_to_string(&arg_log_path).expect("Mock yt-dlp was not executed");
+
+        // Clean up temp dir
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        assert!(
+            logged_args.contains("--cookies mock_cookies.txt"),
+            "yt-dlp was not called with cookies option. Args: {}",
+            logged_args
         );
     }
 }

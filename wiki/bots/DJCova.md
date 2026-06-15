@@ -99,6 +99,7 @@ pub struct GuildAudioManager {
 | `DISCORD_TOKEN` | — | Required |
 | `TENOR_API_KEY` | — | Tenor GIF reactions (gracefully disabled if absent) |
 | `DEV_GUILD_ID` | — | Register commands as guild commands (instant); omit for global |
+| `YOUTUBE_COOKIES_PATH` | — | Path to a Netscape format YouTube cookies file (used to bypass rate limits in cloud environments) |
 
 ## Ownership & Permission Model
 
