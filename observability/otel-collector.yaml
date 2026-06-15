@@ -15,6 +15,14 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+  # GKE Cloud Logging pulled from GCP Pub/Sub.
+  # Requires GOOGLE_APPLICATION_CREDENTIALS to point to a service account key
+  # with roles/pubsub.subscriber. See wiki/development/Observability.md.
+  googlecloudpubsub:
+    project: starbunk-bot
+    subscription: projects/starbunk-bot/subscriptions/grafana-logs-sub
+    encoding: cloud_logging
+
 processors:
   # Prevent OOM spikes under high cardinality load.
   memory_limiter:
@@ -26,6 +34,15 @@ processors:
   batch:
     timeout: 5s
     send_batch_size: 8192
+
+  # For GKE logs arriving via googlecloudpubsub, promote gcp.container_name
+  # to service.name so they appear under their bot name in Loki/Grafana rather
+  # than as "unknown_service".
+  transform/gcp_service_name:
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["gcp.container_name"]) where attributes["service.name"] == "unknown_service" and attributes["gcp.container_name"] != nil
 
   # Promote resource attributes to Loki labels so Grafana can filter by bot.
   resource:
@@ -90,6 +107,6 @@ service:
       exporters: [prometheusremotewrite]
 
     logs:
-      receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
+      receivers: [otlp, googlecloudpubsub]
+      processors: [memory_limiter, transform/gcp_service_name, resource, batch]
       exporters: [loki]
