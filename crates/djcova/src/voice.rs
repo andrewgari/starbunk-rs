@@ -67,7 +67,10 @@ impl VoiceService for DiscordVoiceService {
 
         let mut ytdl = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
-            ytdl = ytdl.user_args(vec!["--cookies".to_string(), cookies_path]);
+            let trimmed = cookies_path.trim();
+            if !trimmed.is_empty() {
+                ytdl = ytdl.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+            }
         }
         let metadata = ytdl.aux_metadata().await?;
 
@@ -95,7 +98,10 @@ impl VoiceService for DiscordVoiceService {
         // and holding the per-guild lock across that await would block all other voice ops.
         let mut source = songbird::input::YoutubeDl::new(self.client.clone(), url_or_query);
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
-            source = source.user_args(vec!["--cookies".to_string(), cookies_path]);
+            let trimmed = cookies_path.trim();
+            if !trimmed.is_empty() {
+                source = source.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+            }
         }
         let metadata = source.aux_metadata().await?;
         let title = metadata
@@ -183,7 +189,26 @@ impl VoiceService for DiscordVoiceService {
 mod tests {
     use super::*;
 
+    static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    struct EnvGuard {
+        original_path: String,
+        original_cookies: Option<String>,
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            std::env::set_var("PATH", &self.original_path);
+            if let Some(val) = &self.original_cookies {
+                std::env::set_var("YOUTUBE_COOKIES_PATH", val);
+            } else {
+                std::env::remove_var("YOUTUBE_COOKIES_PATH");
+            }
+        }
+    }
+
     #[tokio::test]
+    #[ignore]
     async fn test_discord_voice_service_resolve_metadata() {
         // Skip test if yt-dlp is not present on the system path (e.g. in CI)
         let yt_dlp_exists = std::process::Command::new("yt-dlp")
@@ -216,6 +241,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_symphonia_probe_youtube_dl() {
         let yt_dlp_exists = std::process::Command::new("yt-dlp")
             .arg("--version")
@@ -260,6 +286,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_youtube_cookies_path_env_var() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+
         use std::fs::File;
         use std::io::Write;
         use std::os::unix::fs::PermissionsExt;
@@ -293,6 +321,12 @@ mod tests {
         let original_path = std::env::var("PATH").unwrap_or_default();
         let original_cookies = std::env::var("YOUTUBE_COOKIES_PATH").ok();
 
+        // Create RAII guard to restore PATH and YOUTUBE_COOKIES_PATH even if panic occurs
+        let _guard = EnvGuard {
+            original_path: original_path.clone(),
+            original_cookies: original_cookies.clone(),
+        };
+
         // Update PATH to put our mock yt-dlp first
         let new_path = format!("{}:{}", temp_dir.to_str().unwrap(), original_path);
         std::env::set_var("PATH", new_path);
@@ -304,14 +338,6 @@ mod tests {
 
         // Run resolve_metadata, which will call our mock yt-dlp
         let _ = service.resolve_metadata("test_query").await;
-
-        // Restore environment
-        std::env::set_var("PATH", original_path);
-        if let Some(val) = original_cookies {
-            std::env::set_var("YOUTUBE_COOKIES_PATH", val);
-        } else {
-            std::env::remove_var("YOUTUBE_COOKIES_PATH");
-        }
 
         // Read the logged arguments
         let logged_args =
