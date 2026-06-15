@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use serenity::all::{ChannelId, GuildId};
 use songbird::input::Compose;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -43,6 +44,28 @@ impl DiscordVoiceService {
     }
 }
 
+static COOKIE_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Copies the cookies file to a unique writable temp path and returns that path.
+///
+/// Kubernetes secret volumes are always read-only (projected tmpfs). yt-dlp tries to save
+/// updated session cookies back to the `--cookies` file on teardown; passing the K8s secret
+/// path directly causes an EROFS crash. Copying to /tmp gives yt-dlp a writable location.
+///
+/// A per-call counter ensures concurrent invocations don't share a file, avoiding racy
+/// overwrites when multiple yt-dlp processes exit and write back at the same time.
+fn writable_cookies_path(source_path: &str) -> String {
+    let id = COOKIE_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp_path = format!("/tmp/yt-dlp-cookies-{id}.txt");
+    match std::fs::copy(source_path, &tmp_path) {
+        Ok(_) => tmp_path,
+        Err(e) => {
+            tracing::warn!(source = source_path, err = %e, "failed to copy cookies to /tmp, falling back to source path");
+            source_path.to_string()
+        }
+    }
+}
+
 #[async_trait]
 impl VoiceService for DiscordVoiceService {
     async fn join(&self, guild_id: GuildId, channel_id: ChannelId) -> anyhow::Result<()> {
@@ -69,7 +92,10 @@ impl VoiceService for DiscordVoiceService {
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
             let trimmed = cookies_path.trim();
             if !trimmed.is_empty() {
-                ytdl = ytdl.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+                ytdl = ytdl.user_args(vec![
+                    "--cookies".to_string(),
+                    writable_cookies_path(trimmed),
+                ]);
             }
         }
         let metadata = ytdl.aux_metadata().await?;
@@ -100,7 +126,10 @@ impl VoiceService for DiscordVoiceService {
         if let Ok(cookies_path) = std::env::var("YOUTUBE_COOKIES_PATH") {
             let trimmed = cookies_path.trim();
             if !trimmed.is_empty() {
-                source = source.user_args(vec!["--cookies".to_string(), trimmed.to_string()]);
+                source = source.user_args(vec![
+                    "--cookies".to_string(),
+                    writable_cookies_path(trimmed),
+                ]);
             }
         }
         let metadata = source.aux_metadata().await?;
@@ -350,6 +379,75 @@ mod tests {
         assert!(
             logged_args.contains("--cookies mock_cookies.txt"),
             "yt-dlp was not called with cookies option. Args: {}",
+            logged_args
+        );
+    }
+
+    /// Verifies that when the source cookies file *exists*, yt-dlp receives a writable
+    /// /tmp path rather than the original (potentially read-only) source path.
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn test_cookies_copied_to_writable_path() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        use std::fs::File;
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("test_temp_ytdl_copy");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let mock_ytdl_path = temp_dir.join("yt-dlp");
+        let arg_log_path = temp_dir.join("args.txt");
+        let cookies_file = temp_dir.join("cookies.txt");
+
+        // A real, readable cookies file — writable_cookies_path() will successfully copy it.
+        std::fs::write(&cookies_file, "# Netscape HTTP Cookie File\n").unwrap();
+
+        let script_content = format!(
+            "#!/bin/sh\necho \"$@\" > \"{}\"\nexit 1\n",
+            arg_log_path.to_str().unwrap()
+        );
+        {
+            let mut file = File::create(&mock_ytdl_path).unwrap();
+            file.write_all(script_content.as_bytes()).unwrap();
+        }
+        let mut perms = std::fs::metadata(&mock_ytdl_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&mock_ytdl_path, perms).unwrap();
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        let original_cookies = std::env::var("YOUTUBE_COOKIES_PATH").ok();
+        let _guard = EnvGuard {
+            original_path: original_path.clone(),
+            original_cookies: original_cookies.clone(),
+        };
+
+        std::env::set_var(
+            "PATH",
+            format!("{}:{}", temp_dir.to_str().unwrap(), original_path),
+        );
+        std::env::set_var("YOUTUBE_COOKIES_PATH", cookies_file.to_str().unwrap());
+
+        let songbird = songbird::Songbird::serenity();
+        let service = DiscordVoiceService::new(songbird);
+        let _ = service.resolve_metadata("test_query").await;
+
+        let logged_args =
+            std::fs::read_to_string(&arg_log_path).expect("Mock yt-dlp was not executed");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        assert!(
+            logged_args.contains("--cookies /tmp/yt-dlp-cookies-"),
+            "yt-dlp was not passed a writable /tmp cookies path. Args: {}",
+            logged_args
+        );
+        assert!(
+            !logged_args.contains(cookies_file.to_str().unwrap()),
+            "yt-dlp was passed the original source path instead of a /tmp copy. Args: {}",
             logged_args
         );
     }

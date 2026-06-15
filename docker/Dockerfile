@@ -60,7 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     && if [ "${BOT_NAME}" = "djcova" ]; then \
-         apt-get install -y --no-install-recommends ffmpeg python3 curl \
+         apt-get install -y --no-install-recommends ffmpeg python3 nodejs curl \
          && curl -L https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp -o /usr/local/bin/yt-dlp \
          && echo "e5d57466682cfa9d61e9cf7c8a4f09b00f4a62af37d3bbdc4bcffdf63615feac  /usr/local/bin/yt-dlp" | sha256sum -c - \
          && chmod a+rx /usr/local/bin/yt-dlp \
