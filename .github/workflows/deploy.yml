@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://github.com/${{ github.repository }}/releases
+      url: https://console.cloud.google.com/kubernetes/workload/overview?project=starbunk-bot
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
     timeout-minutes: 15
     steps:
