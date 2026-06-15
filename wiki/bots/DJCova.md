@@ -104,6 +104,13 @@ pub struct GuildAudioManager {
 | `DEV_GUILD_ID` | — | Register commands as guild commands (instant); omit for global |
 | `YOUTUBE_COOKIES_PATH` | — | Path to a Netscape format YouTube cookies file (used to bypass rate limits in cloud environments) |
 
+## Observability & Metrics
+
+DJCova integrates with the OpenTelemetry and tracing pipeline. Logs and metrics are fully structured:
+
+- **Logs**: Delineated by process with `bot = "djcova"`, `guild = %guild_id`, `user = %username`, and other relevant fields. Major lifecycle actions, command invocations, playback transitions (play, pause, skip, queue, timers), and Tenor gif tasks are logged at the `INFO` level.
+- **Metrics**: Standard `bot.errors` (counter) is tracked with `bot = "djcova"` and `kind = "<error_type>"` labels to monitor the bot's reliability.
+
 ## Ownership & Permission Model
 
 - `/skip` — non-admins may only skip their own tracks. Users with `MANAGE_MESSAGES` may skip any track.

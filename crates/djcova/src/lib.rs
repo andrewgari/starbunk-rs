@@ -16,6 +16,23 @@ use std::time::Duration;
 
 use tokio::sync::Mutex;
 
+pub fn record_error(kind: &'static str) {
+    static ERROR_COUNTER: OnceLock<opentelemetry::metrics::Counter<u64>> = OnceLock::new();
+    let counter = ERROR_COUNTER.get_or_init(|| {
+        opentelemetry::global::meter("djcova")
+            .u64_counter("bot.errors")
+            .with_description("Total errors encountered by the bot")
+            .build()
+    });
+    counter.add(
+        1,
+        &[
+            opentelemetry::KeyValue::new("bot", "djcova"),
+            opentelemetry::KeyValue::new("kind", kind),
+        ],
+    );
+}
+
 #[derive(Debug)]
 struct Handler {
     managers: Arc<Mutex<HashMap<GuildId, Arc<Mutex<manager::GuildAudioManager>>>>>,
@@ -62,7 +79,13 @@ impl Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
-        tracing::info!("DJCova connected as {}", ready.user.name);
+        tracing::info!(
+            bot = "djcova",
+            username = %ready.user.name,
+            user_id = %ready.user.id,
+            "DJCova connected as {} and ready",
+            ready.user.name
+        );
 
         let songbird = songbird::get(&ctx)
             .await
@@ -81,18 +104,33 @@ impl EventHandler for Handler {
             if let Ok(guild_id_num) = guild_id_str.parse::<u64>() {
                 let guild_id = GuildId::new(guild_id_num);
                 if let Err(e) = guild_id.set_commands(&ctx.http, commands).await {
-                    tracing::error!("Failed to register guild commands: {:?}", e);
+                    tracing::error!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        err = %e,
+                        "Failed to register guild commands"
+                    );
+                    record_error("register_guild_commands_failed");
                 } else {
-                    tracing::info!("Registered guild commands for guild {}", guild_id);
+                    tracing::info!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        "Registered guild commands"
+                    );
                 }
                 return;
             }
         }
 
         if let Err(e) = serenity::all::Command::set_global_commands(&ctx.http, commands).await {
-            tracing::error!("Failed to register global commands: {:?}", e);
+            tracing::error!(
+                bot = "djcova",
+                err = %e,
+                "Failed to register global commands"
+            );
+            record_error("register_global_commands_failed");
         } else {
-            tracing::info!("Registered global commands");
+            tracing::info!(bot = "djcova", "Registered global commands");
         }
     }
 
@@ -118,7 +156,14 @@ impl EventHandler for Handler {
 
                 let mgr = match self.get_or_create_manager(guild_id).await {
                     Ok(m) => m,
-                    Err(_) => {
+                    Err(e) => {
+                        tracing::error!(
+                            bot = "djcova",
+                            guild = %guild_id,
+                            err = %e,
+                            "Failed to get/create GuildAudioManager"
+                        );
+                        record_error("get_or_create_manager_failed");
                         let _ = cmd
                             .create_response(
                                 &ctx.http,
@@ -135,7 +180,17 @@ impl EventHandler for Handler {
                     }
                 };
 
-                let _ = match cmd.data.name.as_str() {
+                tracing::info!(
+                    bot = "djcova",
+                    guild = %guild_id,
+                    command = %cmd.data.name,
+                    user_id = %cmd.user.id,
+                    username = %cmd.user.name,
+                    channel_id = %cmd.channel_id,
+                    "Command interaction received"
+                );
+
+                let res = match cmd.data.name.as_str() {
                     "play" => commands::handle_play(&ctx, &cmd, mgr).await,
                     "skip" => commands::handle_skip(&ctx, &cmd, mgr).await,
                     "skipnext" => commands::handle_skipnext(&ctx, &cmd, mgr).await,
@@ -152,6 +207,24 @@ impl EventHandler for Handler {
                     "help" => commands::handle_help(&ctx, &cmd).await,
                     _ => Ok(()),
                 };
+
+                if let Err(e) = res {
+                    tracing::error!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        command = %cmd.data.name,
+                        err = %e,
+                        "Command execution failed"
+                    );
+                    record_error("command_execution_failed");
+                } else {
+                    tracing::info!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        command = %cmd.data.name,
+                        "Command execution completed successfully"
+                    );
+                }
             }
             Interaction::Component(comp) => {
                 let _ = comp.defer(&ctx.http).await;
@@ -161,9 +234,36 @@ impl EventHandler for Handler {
                 };
                 let mgr = match self.get_or_create_manager(guild_id).await {
                     Ok(m) => m,
-                    Err(_) => return,
+                    Err(e) => {
+                        tracing::error!(
+                            bot = "djcova",
+                            guild = %guild_id,
+                            err = %e,
+                            "Failed to get/create GuildAudioManager for button interaction"
+                        );
+                        record_error("get_or_create_manager_failed");
+                        return;
+                    }
                 };
-                let _ = commands::buttons::handle(&ctx, &comp, mgr).await;
+                tracing::info!(
+                    bot = "djcova",
+                    guild = %guild_id,
+                    component_id = %comp.data.custom_id,
+                    user_id = %comp.user.id,
+                    username = %comp.user.name,
+                    channel_id = %comp.channel_id,
+                    "Button component interaction received"
+                );
+                if let Err(e) = commands::buttons::handle(&ctx, &comp, mgr).await {
+                    tracing::error!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        component_id = %comp.data.custom_id,
+                        err = %e,
+                        "Failed to handle button component interaction"
+                    );
+                    record_error("button_handling_failed");
+                }
             }
             _ => {}
         }
@@ -176,8 +276,18 @@ impl EventHandler for Handler {
         };
 
         let bot_user_id = ctx.cache.current_user().id;
-        let Ok(mgr) = self.get_or_create_manager(guild_id).await else {
-            return;
+        let mgr = match self.get_or_create_manager(guild_id).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::error!(
+                    bot = "djcova",
+                    guild = %guild_id,
+                    err = %e,
+                    "Failed to get/create GuildAudioManager in voice state update"
+                );
+                record_error("get_or_create_manager_failed");
+                return;
+            }
         };
 
         let start_leave_timer = {
@@ -194,6 +304,15 @@ impl EventHandler for Handler {
                             ctx.cache.user(vs.user_id).map(|u| !u.bot).unwrap_or(true)
                         })
                         .count();
+
+                    tracing::info!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        channel = %voice_channel,
+                        non_bot_users = %non_bot_count,
+                        "Voice channel user count update"
+                    );
+
                     if non_bot_count == 0 {
                         m.user_left_voice_channel();
                         true
@@ -215,6 +334,11 @@ impl EventHandler for Handler {
                 tokio::time::sleep(Duration::from_secs(60)).await;
                 let mut locked = mgr_clone.lock().await;
                 if locked.leave_timer_active {
+                    tracing::info!(
+                        bot = "djcova",
+                        guild = %guild_id,
+                        "Voice channel still empty after 60s, leaving channel"
+                    );
                     let _ = locked.stop().await;
                 }
             });
@@ -231,16 +355,22 @@ pub async fn run() -> anyhow::Result<()> {
         | GatewayIntents::GUILD_VOICE_STATES
         | GatewayIntents::GUILDS;
 
+    tracing::info!(bot = "djcova", "Building Serenity client...");
     let mut client = serenity::Client::builder(&token, intents)
         .event_handler(Handler::new())
         .register_songbird()
         .await
-        .map_err(|e| anyhow::anyhow!("error creating client: {}", e))?;
+        .map_err(|e| {
+            tracing::error!(bot = "djcova", err = %e, "Failed to build client");
+            record_error("client_creation_failed");
+            anyhow::anyhow!("error creating client: {}", e)
+        })?;
 
-    tracing::info!(bot = "DJCova", "starting");
-    client
-        .start()
-        .await
-        .map_err(|e| anyhow::anyhow!("client error: {}", e))?;
+    tracing::info!(bot = "djcova", "Starting Serenity client Gateway loop...");
+    client.start().await.map_err(|e| {
+        tracing::error!(bot = "djcova", err = %e, "Client connection error");
+        record_error("client_run_failed");
+        anyhow::anyhow!("client error: {}", e)
+    })?;
     Ok(())
 }

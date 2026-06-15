@@ -218,7 +218,13 @@ pub async fn handle(
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to resolve metadata in background: {:?}", e);
+                            tracing::warn!(
+                                bot = "djcova",
+                                guild = %guild_id,
+                                input = %input_str,
+                                err = %e,
+                                "Failed to resolve metadata in background"
+                            );
                             m.update_track_metadata(
                                 id,
                                 format!("Unknown: {}", input_str),
