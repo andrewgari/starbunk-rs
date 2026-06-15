@@ -61,9 +61,11 @@ Key types:
 
 ```rust
 pub struct QueueItem {
+    pub id: u64,
     pub title: String,
     pub url: String,
     pub requester: String,
+    pub requester_id: UserId,
     pub duration: Option<Duration>,
     pub thumbnail_url: Option<String>,
 }
@@ -79,6 +81,7 @@ pub struct GuildAudioManager {
     is_paused: bool,
     idle_timer_active: bool,
     leave_timer_active: bool,
+    next_item_id: u64,
     // injected deps
     voice: Arc<dyn VoiceService>,
     gif: Arc<dyn GifService>,

@@ -17,8 +17,8 @@ pub trait VoiceService: Send + Sync + std::fmt::Debug {
     async fn join(&self, guild_id: GuildId, channel_id: ChannelId) -> anyhow::Result<()>;
     async fn leave(&self, guild_id: GuildId) -> anyhow::Result<()>;
     async fn resolve_metadata(&self, input: &str) -> anyhow::Result<TrackInfo>;
-    /// Resolves metadata and starts playback in a single yt-dlp invocation.
-    async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<TrackInfo>;
+    /// Starts playback in the voice channel immediately.
+    async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<()>;
     async fn stop(&self, guild_id: GuildId) -> anyhow::Result<()>;
     async fn pause(&self, guild_id: GuildId) -> anyhow::Result<()>;
     async fn resume(&self, guild_id: GuildId) -> anyhow::Result<()>;
@@ -112,7 +112,7 @@ impl VoiceService for DiscordVoiceService {
         })
     }
 
-    async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<TrackInfo> {
+    async fn play(&self, guild_id: GuildId, track_url: &str) -> anyhow::Result<()> {
         let url_or_query = if track_url.starts_with("http://") || track_url.starts_with("https://")
         {
             track_url.to_string()
@@ -132,22 +132,12 @@ impl VoiceService for DiscordVoiceService {
                 ]);
             }
         }
-        let metadata = source.aux_metadata().await?;
-        let title = metadata
-            .title
-            .or(metadata.track)
-            .unwrap_or_else(|| "Unknown Title".to_string());
-
         if let Some(handler_lock) = self.songbird.get(guild_id) {
             let mut handler = handler_lock.lock().await;
             let queue = handler.queue().clone();
             queue.stop();
             queue.add_source(source.into(), &mut handler).await;
-            Ok(TrackInfo {
-                title,
-                duration: metadata.duration,
-                thumbnail_url: metadata.thumbnail,
-            })
+            Ok(())
         } else {
             anyhow::bail!("Bot is not connected to a voice channel in this guild.")
         }

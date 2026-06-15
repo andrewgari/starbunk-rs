@@ -15,6 +15,7 @@ pub enum RepeatMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueueItem {
+    pub id: u64,
     pub title: String,
     pub url: String,
     /// Display name of the requester (may change; use `requester_id` for identity checks).
@@ -41,6 +42,7 @@ pub struct GuildAudioManager {
     pub idle_timer_active: bool,
     pub leave_timer_active: bool,
     gif_task: Option<tokio::task::JoinHandle<()>>,
+    next_item_id: u64,
 }
 
 impl GuildAudioManager {
@@ -60,6 +62,7 @@ impl GuildAudioManager {
             idle_timer_active: false,
             leave_timer_active: false,
             gif_task: None,
+            next_item_id: 0,
         }
     }
 
@@ -74,18 +77,20 @@ impl GuildAudioManager {
     ) -> anyhow::Result<String> {
         self.text_channel_id = Some(text_channel);
         self.voice_channel_id = Some(voice_channel);
+        self.next_item_id += 1;
+        let item_id = self.next_item_id;
 
         if self.current_track.is_none() {
-            // Join voice then resolve metadata + start playback in a single yt-dlp invocation.
             self.voice.join(self.guild_id, voice_channel).await?;
-            let info = self.voice.play(self.guild_id, &input).await?;
+            self.voice.play(self.guild_id, &input).await?;
             let item = QueueItem {
-                title: info.title,
+                id: item_id,
+                title: "Loading...".to_string(),
                 url: input,
                 requester,
                 requester_id,
-                duration: info.duration,
-                thumbnail_url: info.thumbnail_url,
+                duration: None,
+                thumbnail_url: None,
             };
             self.current_track = Some(item.clone());
             let _ = self
@@ -101,15 +106,14 @@ impl GuildAudioManager {
                 item.title, item.requester
             ))
         } else {
-            // Resolve metadata only — playback starts when this item reaches the front of the queue.
-            let resolved = self.voice.resolve_metadata(&input).await?;
             let item = QueueItem {
-                title: resolved.title,
+                id: item_id,
+                title: "Loading...".to_string(),
                 url: input,
                 requester,
                 requester_id,
-                duration: resolved.duration,
-                thumbnail_url: resolved.thumbnail_url,
+                duration: None,
+                thumbnail_url: None,
             };
             self.queue.push_back(item.clone());
             // Restart the GIF loop so it posts to the new text channel.
@@ -172,6 +176,10 @@ impl GuildAudioManager {
         self.leave_timer_active = false;
         self.stop_gif_loop();
         Ok(())
+    }
+
+    pub fn get_voice_service(&self) -> Arc<dyn VoiceService> {
+        self.voice.clone()
     }
 
     pub fn get_queue(&self) -> Vec<QueueItem> {
@@ -399,6 +407,33 @@ impl GuildAudioManager {
         }
     }
 
+    pub fn update_track_metadata(
+        &mut self,
+        id: u64,
+        title: String,
+        duration: Option<Duration>,
+        thumbnail_url: Option<String>,
+    ) -> bool {
+        let mut updated = false;
+        if let Some(track) = &mut self.current_track {
+            if track.id == id {
+                track.title = title.clone();
+                track.duration = duration;
+                track.thumbnail_url = thumbnail_url.clone();
+                updated = true;
+            }
+        }
+        for track in &mut self.queue {
+            if track.id == id {
+                track.title = title.clone();
+                track.duration = duration;
+                track.thumbnail_url = thumbnail_url.clone();
+                updated = true;
+            }
+        }
+        updated
+    }
+
     fn stop_gif_loop(&mut self) {
         if let Some(handle) = self.gif_task.take() {
             handle.abort();
@@ -446,12 +481,8 @@ mod tests {
                 thumbnail_url: None,
             })
         }
-        async fn play(&self, _guild_id: GuildId, _track_url: &str) -> anyhow::Result<TrackInfo> {
-            Ok(TrackInfo {
-                title: "Stub Track".to_string(),
-                duration: Some(Duration::from_secs(180)),
-                thumbnail_url: None,
-            })
+        async fn play(&self, _guild_id: GuildId, _track_url: &str) -> anyhow::Result<()> {
+            Ok(())
         }
         async fn stop(&self, _guild_id: GuildId) -> anyhow::Result<()> {
             Ok(())
@@ -539,7 +570,7 @@ mod tests {
             .unwrap();
 
         assert!(resp.contains("Queued") || resp.contains("Added"));
-        assert_eq!(manager.get_current_track().unwrap().title, "Stub Track"); // resolved from MockVoiceService stub
+        assert_eq!(manager.get_current_track().unwrap().title, "Loading...");
         assert_eq!(manager.get_queue().len(), 1);
         assert_eq!(manager.get_queue()[0].requester, "UserB");
     }
@@ -1004,6 +1035,47 @@ mod tests {
         assert!(
             !manager.is_paused(),
             "manager should not report paused after resume()"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_track_metadata() {
+        let mut manager = setup();
+        manager
+            .play(
+                None,
+                ChannelId::new(1),
+                ChannelId::new(2),
+                "song1".to_string(),
+                "User".to_string(),
+                USER,
+            )
+            .await
+            .unwrap();
+
+        let track = manager.get_current_track().unwrap();
+        assert_eq!(track.title, "Loading...");
+        let track_id = track.id;
+        assert!(track_id > 0);
+
+        // Update the metadata
+        let updated = manager.update_track_metadata(
+            track_id,
+            "Updated Title".to_string(),
+            Some(Duration::from_secs(200)),
+            Some("http://thumb.url".to_string()),
+        );
+
+        assert!(
+            updated,
+            "update_track_metadata should return true for valid id"
+        );
+        let updated_track = manager.get_current_track().unwrap();
+        assert_eq!(updated_track.title, "Updated Title");
+        assert_eq!(updated_track.duration, Some(Duration::from_secs(200)));
+        assert_eq!(
+            updated_track.thumbnail_url,
+            Some("http://thumb.url".to_string())
         );
     }
 }

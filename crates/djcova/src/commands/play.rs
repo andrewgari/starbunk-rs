@@ -107,15 +107,25 @@ pub async fn handle(
             Some(ctx.http.clone()),
             cmd.channel_id,
             voice_channel,
-            input_str,
+            input_str.clone(),
             cmd.user.name.clone(),
             cmd.user.id,
         )
         .await;
 
-    match play_res {
+    let mut track_id = None;
+    if let Ok(msg) = &play_res {
+        let m = mgr.lock().await;
+        if msg.contains("Now playing") {
+            track_id = m.get_current_track().map(|t| t.id);
+        } else {
+            track_id = m.get_queue().last().map(|t| t.id);
+        }
+    }
+
+    match &play_res {
         Ok(msg) => {
-            let mut edit = EditInteractionResponse::new().content(&msg);
+            let mut edit = EditInteractionResponse::new().content(msg);
             if msg.contains("Now playing") {
                 if let Some(track) = mgr.lock().await.get_current_track() {
                     edit = edit
@@ -133,6 +143,91 @@ pub async fn handle(
                 )
                 .await;
         }
+    }
+
+    if let (Ok(msg), Some(id)) = (play_res, track_id) {
+        let http = ctx.http.clone();
+        let cmd = cmd.clone();
+        let mgr = mgr.clone();
+
+        tokio::spawn(async move {
+            let voice = {
+                let m = mgr.lock().await;
+                m.get_voice_service()
+            };
+
+            let resolved = voice.resolve_metadata(&input_str).await;
+
+            let mut m = mgr.lock().await;
+            match resolved {
+                Ok(info) => {
+                    m.update_track_metadata(
+                        id,
+                        info.title.clone(),
+                        info.duration,
+                        info.thumbnail_url.clone(),
+                    );
+
+                    let mut edit = EditInteractionResponse::new();
+                    if msg.contains("Now playing") {
+                        if let Some(track) = m.get_current_track() {
+                            if track.id == id {
+                                let embed = super::shared::create_now_playing_embed(&track);
+                                edit = edit
+                                    .content(format!(
+                                        "Now playing: {} requested by {}",
+                                        track.title, track.requester
+                                    ))
+                                    .embed(embed)
+                                    .components(vec![super::shared::create_buttons()]);
+                            }
+                        }
+                    } else {
+                        let title = info.title;
+                        let requester = m
+                            .get_queue()
+                            .iter()
+                            .find(|t| t.id == id)
+                            .map(|t| t.requester.clone())
+                            .or_else(|| {
+                                m.get_current_track()
+                                    .filter(|t| t.id == id)
+                                    .map(|t| t.requester.clone())
+                            })
+                            .unwrap_or_else(|| cmd.user.name.clone());
+
+                        edit =
+                            edit.content(format!("Queued: {} requested by {}", title, requester));
+                    }
+                    let _ = cmd.edit_response(&http, edit).await;
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to resolve metadata in background: {:?}", e);
+                    m.update_track_metadata(id, format!("Unknown: {}", input_str), None, None);
+                    let mut edit = EditInteractionResponse::new();
+                    if msg.contains("Now playing") {
+                        if let Some(track) = m.get_current_track() {
+                            if track.id == id {
+                                let embed = super::shared::create_now_playing_embed(&track);
+                                edit = edit
+                                    .content(format!(
+                                        "Now playing: {} requested by {}",
+                                        track.title, track.requester
+                                    ))
+                                    .embed(embed)
+                                    .components(vec![super::shared::create_buttons()]);
+                            }
+                        }
+                    } else {
+                        edit = edit.content(format!(
+                            "Queued: Unknown: {} requested by {}",
+                            input_str, cmd.user.name
+                        ));
+                    }
+                    let _ = cmd.edit_response(&http, edit).await;
+                }
+            }
+        });
     }
 
     Ok(())
