@@ -245,7 +245,7 @@ jobs:
 
       - name: Publish GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.APP_RELEASE_TOKEN }}
         run: |
           VERSION=${{ needs.version.outputs.version }}
           gh release create "$VERSION" \
