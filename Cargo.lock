@@ -260,6 +260,8 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "rand 0.8.6",
+ "regex",
  "serde",
  "serde_yaml",
  "serenity",
