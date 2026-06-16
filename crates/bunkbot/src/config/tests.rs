@@ -1119,3 +1119,226 @@ fn empty_reply_bots_list_parses_to_empty_vec() {
     let bots = parse_bots(yaml).expect("empty list must parse");
     assert!(bots.is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Snowflake trait implementations
+// ---------------------------------------------------------------------------
+
+#[test]
+fn snowflake_display_formats_as_inner_string() {
+    let s = Snowflake("123456789012345678".into());
+    assert_eq!(format!("{s}"), "123456789012345678");
+}
+
+#[test]
+fn snowflake_as_ref_returns_inner_str() {
+    let s = Snowflake("987654321098765432".into());
+    let r: &str = s.as_ref();
+    assert_eq!(r, "987654321098765432");
+}
+
+#[test]
+fn snowflake_clones_independently() {
+    let a = Snowflake("111".into());
+    let b = a.clone();
+    assert_eq!(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Additional condition node edge cases
+// ---------------------------------------------------------------------------
+
+#[test]
+fn always_false_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { always: false }
+"#,
+    ));
+    assert_eq!(bot.triggers[0].conditions, ConditionNode::Always(false));
+}
+
+#[test]
+fn unknown_condition_key_causes_parse_error() {
+    let yaml = wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { not_a_real_key: "foo" }
+"#,
+    );
+    assert!(
+        parse_bots(&yaml).is_err(),
+        "unknown condition key must cause a parse error"
+    );
+}
+
+#[test]
+fn with_chance_256_causes_parse_error() {
+    // u8 max is 255 — serde must reject 256
+    let yaml = wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { with_chance: 256 }
+"#,
+    );
+    assert!(
+        parse_bots(&yaml).is_err(),
+        "with_chance: 256 must fail to parse (exceeds u8::MAX)"
+    );
+}
+
+#[test]
+fn empty_triggers_array_parses_as_empty_vec() {
+    // An explicit empty list is valid YAML — distinct from a missing field
+    let yaml = wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers: []
+"#,
+    );
+    let bot = parse_one(&yaml);
+    assert!(
+        bot.triggers.is_empty(),
+        "triggers: [] must produce an empty trigger vec"
+    );
+}
+
+#[test]
+fn none_of_single_child_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions:
+          none_of:
+            - contains_phrase: "spam"
+"#,
+    ));
+    assert_eq!(
+        bot.triggers[0].conditions,
+        ConditionNode::NoneOf(vec![ConditionNode::ContainsPhrase("spam".into())])
+    );
+}
+
+#[test]
+fn deeply_nested_three_level_condition_parses() {
+    // all_of → any_of → none_of → leaf
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions:
+          all_of:
+            - any_of:
+                - none_of:
+                    - contains_phrase: "bad"
+            - with_chance: 50
+"#,
+    ));
+    assert_eq!(
+        bot.triggers[0].conditions,
+        ConditionNode::AllOf(vec![
+            ConditionNode::AnyOf(vec![ConditionNode::NoneOf(vec![
+                ConditionNode::ContainsPhrase("bad".into()),
+            ])]),
+            ConditionNode::WithChance(50),
+        ])
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Per-bot production verification (remaining bots)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn banana_bot_has_two_responses() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "banana-bot").unwrap();
+
+    assert_eq!(bot.triggers[0].responses.len(), 2);
+    assert!(
+        bot.triggers[0]
+            .responses
+            .iter()
+            .all(|r| r.contains("banana")),
+        "all banana-bot responses must mention banana"
+    );
+}
+
+#[test]
+fn pickle_bot_response_mentions_gremlin() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "pickle-bot").unwrap();
+
+    assert_eq!(bot.triggers[0].responses.len(), 1);
+    assert!(bot.triggers[0].responses[0]
+        .to_lowercase()
+        .contains("gremlin"));
+}
+
+#[test]
+fn baby_bot_response_is_gif_url() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "baby-bot").unwrap();
+
+    assert_eq!(bot.triggers[0].responses.len(), 1);
+    assert!(
+        bot.triggers[0].responses[0].starts_with("https://"),
+        "baby-bot response must be a URL"
+    );
+}
+
+#[test]
+fn chaos_bot_response_mentions_chaos() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "chaos-bot").unwrap();
+
+    assert!(bot.triggers[0].responses[0].contains("Chaos"));
+}
+
+#[test]
+fn clanker_bot_has_two_responses() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "clanker-bot").unwrap();
+
+    assert_eq!(bot.triggers[0].responses.len(), 2);
+}
+
+#[test]
+fn attitude_bot_trigger_uses_cannot_contraction_variant() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "attitude-bot").unwrap();
+
+    // Regex must accept both "can't" and "cant" (the `'?` makes apostrophe optional)
+    if let ConditionNode::MatchesRegex(r) = &bot.triggers[0].conditions {
+        assert!(r.contains("can'?t"), "regex must have optional apostrophe");
+    } else {
+        panic!("attitude-bot must have a regex condition");
+    }
+}
+
+#[test]
+fn ezio_bot_full_bot_name_is_long_form() {
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "ezio-bot").unwrap();
+
+    if let IdentityConfig::Static { bot_name, .. } = &bot.identity {
+        assert!(bot_name.contains("Ezio"), "bot_name must contain Ezio");
+        assert!(
+            bot_name.contains("Firenze"),
+            "bot_name must include full surname"
+        );
+    } else {
+        panic!("ezio-bot must have a static identity");
+    }
+}

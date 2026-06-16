@@ -207,4 +207,70 @@ mod tests {
         assert!(result.starts_with("***Hello world thi"));
         assert!(result.contains("sh") && result.ends_with("sh"));
     }
+
+    // -----------------------------------------------------------------------
+    // Unknown / unrecognised placeholders — passthrough
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn unknown_placeholder_returned_verbatim() {
+        // A placeholder we don't recognise must not be stripped or expanded
+        let template = "Hello {unknown_thing} world";
+        assert_eq!(
+            resolve_template(template, "anything"),
+            "Hello {unknown_thing} world"
+        );
+    }
+
+    #[test]
+    fn partial_placeholder_not_expanded() {
+        // A brace that is never closed is not a placeholder
+        let template = "Hello {unclosed world";
+        assert_eq!(resolve_template(template, "msg"), "Hello {unclosed world");
+    }
+
+    // -----------------------------------------------------------------------
+    // {start} — Unicode-aware truncation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn start_unicode_message_truncates_at_character_not_byte_boundary() {
+        // Each emoji is 4 bytes but 1 char — truncation must not split a code point.
+        // 15 emoji chars = definitely truncated, but the cut must be at char 15.
+        let msg = "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"; // 16 emoji
+        let result = resolve_template("{start}", msg);
+        // First 15 emoji + "..." all wrapped in ***...***
+        assert!(result.starts_with("***"));
+        assert!(result.contains("...***"));
+        // Must not contain the 16th emoji (index 15)
+        let inner = result.trim_start_matches("***").trim_end_matches("***");
+        let excerpt = inner.trim_end_matches("...");
+        assert_eq!(excerpt.chars().count(), 15);
+    }
+
+    #[test]
+    fn start_multiple_in_template_each_replaced() {
+        // Two {start} in one template — both expand to the same excerpt
+        let result = resolve_template("{start} and {start}", "Hi");
+        assert_eq!(result, "***Hi*** and ***Hi***");
+    }
+
+    // -----------------------------------------------------------------------
+    // {swap_message} — word-boundary behaviour
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn swap_message_does_not_match_partial_word() {
+        // "checkout" contains "check" as a prefix, but a word-boundary swap must
+        // not fire because "check" is not a standalone word here.
+        let result = resolve_template("{swap_message:check:czech}", "checkout the list");
+        assert_eq!(result, "checkout the list");
+    }
+
+    #[test]
+    fn swap_message_matches_word_followed_by_punctuation() {
+        // "check," — the comma follows "check" but word-boundary still holds
+        let result = resolve_template("{swap_message:check:czech}", "check, mate");
+        assert_eq!(result, "czech, mate");
+    }
 }

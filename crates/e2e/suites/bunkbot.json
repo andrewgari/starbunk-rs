@@ -1,0 +1,277 @@
+{
+  "tests": [
+    {
+      "name": "banana-bot triggers on 'banana'",
+      "sender": "human",
+      "message": "I love eating banana bread",
+      "expect": "banana",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "banana-bot silent on unrelated message",
+      "sender": "human",
+      "message": "I love eating apple bread",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "clanker-bot triggers on 'clanker'",
+      "sender": "human",
+      "message": "you clanker!",
+      "expect": "meatbag",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "clanker-bot silent on 'droid'",
+      "sender": "human",
+      "message": "these droids are no match for me",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "spider-bot triggers on 'spiderman' (no hyphen)",
+      "sender": "human",
+      "message": "spiderman is my favourite hero",
+      "expect": "Spider-Man",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "spider-bot silent when hyphen is present",
+      "sender": "human",
+      "message": "Spider-Man is my favourite hero",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "nice-bot triggers on 69",
+      "sender": "human",
+      "message": "I scored 69 points",
+      "expect": "Nice",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "nice-bot triggers on 'sixty-nine'",
+      "sender": "human",
+      "message": "I'm sixty-nine years old",
+      "expect": "Nice",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "nice-bot silent on 68",
+      "sender": "human",
+      "message": "I scored 68 points",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "sheesh-bot triggers on 'sheeeesh'",
+      "sender": "human",
+      "message": "sheeeesh that was amazing",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "sheesh-bot triggers on minimal 'sheesh'",
+      "sender": "human",
+      "message": "sheesh",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "sheesh-bot silent on 'shesh' (only one e)",
+      "sender": "human",
+      "message": "shesh that was odd",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "pickle-bot triggers on 'gremlin'",
+      "sender": "human",
+      "message": "stop acting like a gremlin",
+      "expect": "gremlin",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "pickle-bot silent on 'goblin'",
+      "sender": "human",
+      "message": "stop acting like a goblin",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "hold-bot triggers on exact 'Hold'",
+      "sender": "human",
+      "message": "Hold",
+      "expect": "Hold.",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "hold-bot triggers on 'Hold.' with period",
+      "sender": "human",
+      "message": "Hold.",
+      "expect": "Hold.",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "hold-bot silent on 'Hold on' (not full message)",
+      "sender": "human",
+      "message": "Hold on a second",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "attitude-bot triggers on \"you can't\"",
+      "sender": "human",
+      "message": "you can't do that",
+      "expect": "attitude",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "attitude-bot triggers on \"I can't\"",
+      "sender": "human",
+      "message": "I can't believe it",
+      "expect": "attitude",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "attitude-bot silent on 'you can do that'",
+      "sender": "human",
+      "message": "you can do anything",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "baby-bot triggers on 'baby'",
+      "sender": "human",
+      "message": "look at this cute baby",
+      "expect": "https://",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "baby-bot silent on 'infant'",
+      "sender": "human",
+      "message": "look at this cute infant",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "chaos-bot triggers on 'chaos'",
+      "sender": "human",
+      "message": "total chaos out there",
+      "expect": "Chaos",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "chaos-bot silent on 'order'",
+      "sender": "human",
+      "message": "total order out there",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "gundam-bot triggers on 'gundam'",
+      "sender": "human",
+      "message": "I love building gundam models",
+      "expect": "Gandum",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "gundam-bot triggers on alternate spelling 'gandam'",
+      "sender": "human",
+      "message": "is it gundam or gandam",
+      "expect": "Gandum",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "gundam-bot silent on 'robot'",
+      "sender": "human",
+      "message": "I love building robot models",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "venn-bot triggers on 'cringe'",
+      "sender": "human",
+      "message": "that was so cringe",
+      "expect": "cringe",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "venn-bot silent on 'based'",
+      "sender": "human",
+      "message": "that was so based",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "check-bot triggers on 'check' and responds with czech",
+      "sender": "human",
+      "message": "check your email",
+      "expect": "czech",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "check-bot triggers on 'czech' and responds with check",
+      "sender": "human",
+      "message": "the czech republic is lovely",
+      "expect": "check",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "check-bot silent on 'checkout' (partial word)",
+      "sender": "human",
+      "message": "go to the checkout counter",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "ezio-bot triggers on 'assassin'",
+      "sender": "human",
+      "message": "he is an assassin",
+      "expect": "Nothing is true",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "ezio-bot triggers on 'ezio'",
+      "sender": "human",
+      "message": "my favourite character is ezio",
+      "expect": "Everything is permitted",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "ezio-bot silent on 'hitman'",
+      "sender": "human",
+      "message": "he is a hitman",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "guy-bot triggers on 'guy' in message",
+      "sender": "human",
+      "message": "that guy is hilarious",
+      "expect_any_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "guy-bot silent on unrelated message",
+      "sender": "human",
+      "message": "that person is hilarious",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "botbot responds only to bots (not humans)",
+      "sender": "human",
+      "message": "hello fellow bot",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "interrupt-bot does not trigger on empty message",
+      "sender": "human",
+      "message": "   ",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}
