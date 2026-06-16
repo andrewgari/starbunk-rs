@@ -38,7 +38,7 @@ impl EventHandler for Handler {
             Arc::new(DiscordMessageService::new(ctx.http.clone(), ws));
         let identity_provider = Arc::new(DiscordIdentityProvider::new(ctx.http.clone()));
 
-        let bots = match std::fs::read_to_string(&self.bots_config_path) {
+        let bots = match tokio::fs::read_to_string(&self.bots_config_path).await {
             Ok(yaml) => config::parse_bots(&yaml).unwrap_or_else(|e| {
                 tracing::error!(path = %self.bots_config_path, "failed to parse bots config: {}", e);
                 vec![]
