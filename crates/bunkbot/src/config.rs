@@ -21,11 +21,22 @@ pub struct BotConfig {
     /// When true, the bot ignores messages from human users.
     #[serde(default)]
     pub ignore_humans: bool,
+    /// When true (default), the bot ignores messages that came from itself.
+    #[serde(default = "default_true")]
+    pub ignore_self: bool,
+    /// Probability (0–100) that the bot fires on any given trigger match.
+    /// 100 = always fire (default), 0 = never fire.
+    #[serde(default = "default_frequency")]
+    pub frequency: u8,
     pub triggers: Vec<TriggerConfig>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_frequency() -> u8 {
+    100
 }
 
 /// The persona a bot assumes when posting a response via webhook.
@@ -37,10 +48,12 @@ pub enum IdentityConfig {
         bot_name: String,
         avatar_url: String,
     },
-    /// Mirrors a specific Discord member's display name and avatar.
-    Mimic { as_member: String },
+    /// Mirrors a specific Discord member by their user ID.
+    Mimic { user_id: Snowflake },
     /// Picks a random guild member each time the bot fires.
     Random,
+    /// Adopts the identity of whoever sent the triggering message.
+    MimicPoster,
 }
 
 /// A single named trigger within a bot definition.

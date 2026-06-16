@@ -38,7 +38,7 @@ reply-bots:
   - name: guy-bot
     identity:
       type: mimic
-      as_member: "100000000000000001"
+      user_id: "100000000000000001"
     responses:
       - "Response one"
       - "Response two"
@@ -188,7 +188,7 @@ reply-bots:
   - name: venn-bot
     identity:
       type: mimic
-      as_member: "100000000000000002"
+      user_id: "100000000000000002"
     triggers:
       - name: venn-cringe-trigger
         conditions: { contains_phrase: "cringe" }
@@ -214,7 +214,7 @@ reply-bots:
   - name: chad-bot
     identity:
       type: mimic
-      as_member: "100000000000000003"
+      user_id: "100000000000000003"
     triggers:
       - name: chad-random-trigger
         conditions:
@@ -318,13 +318,13 @@ fn static_identity_parses_name_and_avatar() {
 }
 
 #[test]
-fn mimic_identity_parses_as_member_string() {
+fn mimic_identity_parses_user_id() {
     let bot = parse_one(&wrap(
         r#"
   - name: test
     identity:
       type: mimic
-      as_member: "999999999999999999"
+      user_id: "999999999999999999"
     triggers:
       - conditions: { always: true }
 "#,
@@ -332,7 +332,7 @@ fn mimic_identity_parses_as_member_string() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "999999999999999999".into()
+            user_id: Snowflake("999999999999999999".into())
         }
     );
 }
@@ -821,7 +821,7 @@ fn guy_bot_config_is_correct() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "100000000000000001".into()
+            user_id: Snowflake("100000000000000001".into())
         }
     );
     assert!(
@@ -924,7 +924,7 @@ fn venn_bot_is_mimic_of_correct_user() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "100000000000000002".into()
+            user_id: Snowflake("100000000000000002".into())
         }
     );
 }
@@ -937,7 +937,7 @@ fn chad_bot_is_mimic_of_correct_user() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "100000000000000003".into()
+            user_id: Snowflake("100000000000000003".into())
         }
     );
     assert_eq!(
@@ -1341,4 +1341,112 @@ fn ezio_bot_full_bot_name_is_long_form() {
     } else {
         panic!("ezio-bot must have a static identity");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Defaults: ignore_self / frequency
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ignore_self_defaults_to_true() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert!(bot.ignore_self, "ignore_self should default to true");
+}
+
+#[test]
+fn ignore_self_explicit_false_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    ignore_self: false
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert!(!bot.ignore_self, "ignore_self: false must parse correctly");
+}
+
+#[test]
+fn frequency_defaults_to_100() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(bot.frequency, 100, "frequency should default to 100");
+}
+
+#[test]
+fn frequency_explicit_value_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    frequency: 75
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(bot.frequency, 75);
+}
+
+#[test]
+fn frequency_zero_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    frequency: 0
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(bot.frequency, 0);
+}
+
+#[test]
+fn frequency_256_causes_parse_error() {
+    // u8 max is 255 — serde must reject 256
+    let yaml = wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    frequency: 256
+    triggers:
+      - conditions: { always: true }
+"#,
+    );
+    assert!(
+        parse_bots(&yaml).is_err(),
+        "frequency: 256 must fail to parse (exceeds u8::MAX)"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Identity: MimicPoster variant
+// ---------------------------------------------------------------------------
+
+#[test]
+fn mimic_poster_identity_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity:
+      type: mimic_poster
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(bot.identity, IdentityConfig::MimicPoster);
 }
