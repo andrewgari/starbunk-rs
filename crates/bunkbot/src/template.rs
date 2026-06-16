@@ -36,29 +36,43 @@ fn resolve_start(template: &str, msg: &str) -> String {
 fn resolve_random(template: &str) -> String {
     let mut result = template.to_string();
     const MARKER: &str = "{random:";
-    while let Some(start) = result.find(MARKER) {
+    let mut offset = 0;
+    while let Some(rel) = result[offset..].find(MARKER) {
+        let start = offset + rel;
         let content_start = start + MARKER.len();
+
         let Some(close_offset) = result[content_start..].find('}') else {
-            break;
+            // No closing brace — leave as-is, skip past this marker
+            offset = content_start;
+            continue;
         };
+        let placeholder_end = content_start + close_offset + 1;
         let content = result[content_start..content_start + close_offset].to_string();
 
         let Some(colon) = content.find(':') else {
-            break;
+            offset = placeholder_end;
+            continue;
         };
         let range_str = &content[..colon];
-        let chars_str = &content[colon + 1..];
+        let chars_str = content[colon + 1..].to_string();
 
         let Some(dash) = range_str.find('-') else {
-            break;
+            offset = placeholder_end;
+            continue;
         };
         let min = match range_str[..dash].parse::<usize>() {
             Ok(v) => v,
-            Err(_) => break,
+            Err(_) => {
+                offset = placeholder_end;
+                continue;
+            }
         };
         let max = match range_str[dash + 1..].parse::<usize>() {
             Ok(v) => v,
-            Err(_) => break,
+            Err(_) => {
+                offset = placeholder_end;
+                continue;
+            }
         };
 
         let effective_max = max.min(1000);
@@ -70,41 +84,54 @@ fn resolve_random(template: &str) -> String {
         };
 
         let replacement = chars_str.repeat(count);
-        let placeholder_end = content_start + close_offset + 1;
         result = format!(
             "{}{}{}",
             &result[..start],
             replacement,
             &result[placeholder_end..]
         );
+        offset = start + replacement.len();
     }
     result
 }
 
 fn resolve_swap_message(template: &str, msg: &str) -> String {
+    let mut result = template.to_string();
     const MARKER: &str = "{swap_message:";
-    let Some(start) = template.find(MARKER) else {
-        return template.to_string();
-    };
-    let content_start = start + MARKER.len();
-    let Some(close_offset) = template[content_start..].find('}') else {
-        return template.to_string();
-    };
-    let content = &template[content_start..content_start + close_offset];
-    let Some(colon) = content.find(':') else {
-        return template.to_string();
-    };
-    let word1 = &content[..colon];
-    let word2 = &content[colon + 1..];
+    let mut offset = 0;
+    while let Some(rel) = result[offset..].find(MARKER) {
+        let start = offset + rel;
+        let content_start = start + MARKER.len();
 
-    let swapped = swap_words(msg, word1, word2);
-    let placeholder_end = content_start + close_offset + 1;
-    format!(
-        "{}{}{}",
-        &template[..start],
-        swapped,
-        &template[placeholder_end..]
-    )
+        let Some(close_offset) = result[content_start..].find('}') else {
+            offset = content_start;
+            continue;
+        };
+        let placeholder_end = content_start + close_offset + 1;
+        let content = result[content_start..content_start + close_offset].to_string();
+
+        let Some(colon) = content.find(':') else {
+            offset = placeholder_end;
+            continue;
+        };
+        let word1 = content[..colon].to_string();
+        let word2 = content[colon + 1..].to_string();
+
+        if word1.is_empty() || word2.is_empty() {
+            offset = placeholder_end;
+            continue;
+        }
+
+        let swapped = swap_words(msg, &word1, &word2);
+        result = format!(
+            "{}{}{}",
+            &result[..start],
+            swapped,
+            &result[placeholder_end..]
+        );
+        offset = start + swapped.len();
+    }
+    result
 }
 
 /// Swaps all whole-word occurrences of word1↔word2 in `msg` (case-insensitive detection,
@@ -152,7 +179,7 @@ fn apply_case(source: &str, replacement: &str) -> String {
             None => String::new(),
             Some(first) => {
                 let upper: String = first.to_uppercase().collect();
-                upper + chars.as_str()
+                upper + &chars.as_str().to_lowercase()
             }
         }
     } else {
@@ -165,7 +192,7 @@ mod tests {
     use super::resolve_template;
 
     // -----------------------------------------------------------------------
-    // {start} — excerpt of the triggering message (TODO(human): implement resolve_start)
+    // {start} — excerpt of the triggering message
     // -----------------------------------------------------------------------
 
     #[test]
