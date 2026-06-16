@@ -1,11 +1,15 @@
 /// Resolves response template placeholders against the triggering message content.
 ///
 /// Supported placeholders:
-/// - `{start}` — first ~15 chars of the message, wrapped in `***...***`
-/// - `{random:min-max:chars}` — repeat `chars` a random N times, N ∈ [min, max]
-/// - `{swap_message:word1:word2}` — swap occurrences of the two words (case-preserving)
+/// - `{start}` — first **15 characters** (Unicode char-boundary safe) of the message, wrapped in
+///   `***...***`. A `...` suffix is added when the message exceeds 15 chars; shorter messages are
+///   not truncated. This is the authoritative spec; the original Go port described a word-based
+///   excerpt, but character-based truncation is what the tests define and what PR 2 must implement.
+/// - `{random:min-max:chars}` — repeat `chars` a random N times, N ∈ [min, max], capped at 1000
+/// - `{swap_message:word1:word2}` — swap occurrences of word1↔word2 (word-boundary, case-preserving)
 ///
 /// If the template contains no placeholders it is returned unchanged.
+/// Unknown or malformed placeholders are passed through verbatim.
 pub fn resolve_template(_template: &str, _msg_content: &str) -> String {
     todo!("Response template resolution not yet implemented (T-4)")
 }
@@ -19,6 +23,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_short_message_no_truncation() {
         // "Hi" is 2 chars — well under 15, no ellipsis
         assert_eq!(
@@ -28,6 +33,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_message_exactly_15_chars_no_truncation() {
         // "Hello world goo" is exactly 15 chars
         assert_eq!(
@@ -37,6 +43,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_message_over_15_chars_truncated_with_ellipsis() {
         // "Hello world this is a test" — first 15 chars = "Hello world thi"
         assert_eq!(
@@ -46,6 +53,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_message_under_15_chars() {
         assert_eq!(
             resolve_template("{start}-- sorry", "Hey there"),
@@ -54,6 +62,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_replaces_within_longer_response_string() {
         // Production: "{start}-- Oh, sorry... go ahead"
         let result = resolve_template("{start}-- Oh, sorry... go ahead", "What are you doing");
@@ -62,6 +71,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_empty_message_produces_empty_excerpt() {
         let result = resolve_template("{start} said something", "");
         assert_eq!(result, "****** said something");
@@ -72,6 +82,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_single_char_length_in_range() {
         for _ in 0..50 {
             let result = resolve_template("sh{random:2-5:e}sh", "");
@@ -88,6 +99,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_min_equals_max_is_deterministic() {
         // {random:3-3:e} must always produce exactly "eee"
         for _ in 0..20 {
@@ -96,16 +108,19 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_zero_to_zero_produces_empty_string() {
         assert_eq!(resolve_template("{random:0-0:e}", ""), "");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_one_to_one_produces_single_char() {
         assert_eq!(resolve_template("{random:1-1:x}", ""), "x");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_multi_char_string_repeated() {
         // Production: "{random:2-20:Mister } Beeeeeeeeeast"
         for _ in 0..20 {
@@ -118,6 +133,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_capped_at_1000_repetitions() {
         // Even if range says 0-9999, output must not exceed 1000 repetitions
         let result = resolve_template("{random:0-9999:e}", "");
@@ -125,6 +141,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn random_with_emoji_in_surrounding_text() {
         // Production: "sh{random:2-20:e}sh 😤"
         for _ in 0..20 {
@@ -139,42 +156,49 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_basic_word_swap() {
         let result = resolve_template("{swap_message:check:czech}", "check the list");
         assert_eq!(result, "czech the list");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_reverse_direction() {
         let result = resolve_template("{swap_message:check:czech}", "czech republic");
         assert_eq!(result, "check republic");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_both_words_present_swaps_both() {
         let result = resolve_template("{swap_message:check:czech}", "check czech check");
         assert_eq!(result, "czech check czech");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_preserves_capitalisation() {
         let result = resolve_template("{swap_message:check:czech}", "Check the list");
         assert_eq!(result, "Czech the list");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_all_caps_preserved() {
         let result = resolve_template("{swap_message:check:czech}", "CHECK IT OUT");
         assert_eq!(result, "CZECH IT OUT");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_no_match_returns_original() {
         let result = resolve_template("{swap_message:check:czech}", "nothing to swap here");
         assert_eq!(result, "nothing to swap here");
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_is_case_insensitive_detection() {
         // Should find "Check" even though the pattern is "check"
         let result = resolve_template("{swap_message:check:czech}", "Check this out");
@@ -186,12 +210,14 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn no_placeholder_returns_template_unchanged() {
         let template = "Always bring a :banana: to a party!";
         assert_eq!(resolve_template(template, "I like banana"), template);
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn empty_template_returns_empty_string() {
         assert_eq!(resolve_template("", "hello"), "");
     }
@@ -201,6 +227,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn multiple_placeholders_both_resolved() {
         // Hypothetical: "{start} sh{random:2-5:e}sh"
         let result = resolve_template("{start} sh{random:2-5:e}sh", "Hello world this");
@@ -213,6 +240,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn unknown_placeholder_returned_verbatim() {
         // A placeholder we don't recognise must not be stripped or expanded
         let template = "Hello {unknown_thing} world";
@@ -223,6 +251,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn partial_placeholder_not_expanded() {
         // A brace that is never closed is not a placeholder
         let template = "Hello {unclosed world";
@@ -234,6 +263,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_unicode_message_truncates_at_character_not_byte_boundary() {
         // Each emoji is 4 bytes but 1 char — truncation must not split a code point.
         // 15 emoji chars = definitely truncated, but the cut must be at char 15.
@@ -249,6 +279,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn start_multiple_in_template_each_replaced() {
         // Two {start} in one template — both expand to the same excerpt
         let result = resolve_template("{start} and {start}", "Hi");
@@ -260,6 +291,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_does_not_match_partial_word() {
         // "checkout" contains "check" as a prefix, but a word-boundary swap must
         // not fire because "check" is not a standalone word here.
@@ -268,6 +300,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "T-4: resolve_template is todo!(); will pass after PR 2 implements it"]
     fn swap_message_matches_word_followed_by_punctuation() {
         // "check," — the comma follows "check" but word-boundary still holds
         let result = resolve_template("{swap_message:check:czech}", "check, mate");

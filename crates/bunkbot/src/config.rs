@@ -146,6 +146,12 @@ impl<'de> Deserialize<'de> for ConditionNode {
                     }
                 };
 
+                if map.next_key::<String>()?.is_some() {
+                    return Err(serde::de::Error::custom(
+                        "condition mapping must have exactly one key",
+                    ));
+                }
+
                 Ok(node)
             }
         }
@@ -177,6 +183,11 @@ impl<'de> Deserialize<'de> for Snowflake {
             }
 
             fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Snowflake, E> {
+                if v < 0 {
+                    return Err(E::custom(format!(
+                        "Discord snowflake must be non-negative, got {v}"
+                    )));
+                }
                 Ok(Snowflake(v.to_string()))
             }
 
