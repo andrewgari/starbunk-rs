@@ -34,6 +34,7 @@ opentelemetry_sdk              = { version = "0.27", features = ["rt-tokio", "lo
 opentelemetry-otlp             = { version = "0.27", features = ["grpc-tonic", "logs", "metrics"] }
 opentelemetry-appender-tracing = { version = "0.27" }
 rand                           = "0.8"
+serde_yaml                     = "0.9"
 anyhow             = "1"
 chrono             = "0.4"
 sqlx               = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"] }
