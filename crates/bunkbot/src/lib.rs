@@ -1,3 +1,6 @@
+pub mod config;
+pub mod template;
+
 use async_trait::async_trait;
 use serenity::all::{Context, EventHandler, Message, Ready};
 use starbunk::discord::{DiscordMessageService, MessageService, WebhookService};
