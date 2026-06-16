@@ -38,46 +38,18 @@ reply-bots:
   - name: guy-bot
     identity:
       type: mimic
-      as_member: "113035990725066752"
+      as_member: "100000000000000001"
     responses:
-      - "What!? What did you say?"
-      - "Geeeeeet ready for Shriek Week!"
-      - "Try and keep up mate...."
-      - "But Who really died that day....and who came back?"
-      - "Sheeeeeeeeeeeesh"
-      - "That's what they called me in high school."
-      - "Rats! Rats! Weeeeeeee're the Rats!"
-      - "The One Piece is REEEEEEEEEEEEEEEEEAL"
-      - "Psh, I dunno about that, Chief..."
-      - "Come to me my noble EINHERJAHR"
-      - "If you can't beat em, EAT em!"
-      - "Have you ever been so sick you sluiced your pants?"
-      - "Welcome back to ... Melon be Smellin'"
-      - ":brucewaynejumpscare"
-      - "Chaotic Evil: Don't Respond. :unamused:"
-      - ":NODDERS: Big Boys... :NODDERS:"
-      - "Snow. We need more snow."
-      - "Fun Fact: That was actually in XI as well."
-      - "The same could be said of all religions"
-      - "I love Bugsnax:tm:"
-      - "Aaah...the classics."
-      - "Oh my-lanta!"
-      - "Perchance..."
-      - "That was a discord message you could read."
-      - "Whatsa matter? Scared of *beans*!"
-      - "{random:2-20:Mister } Beeeeeeeeeast"
-      - "Her name is Okami"
-      - "Freaknick"
-      - "Bird Up"
-      - "Schlorp"
-      - "Blimbo"
+      - "Response one"
+      - "Response two"
+      - "{random:2-20:Mister } Test"
     triggers:
       - name: guy-mentioned
         conditions: { contains_phrase: "guy" }
       - name: guy-self-trigger
         conditions:
           all_of:
-            - from_user: 113035990725066752
+            - from_user: 100000000000000001
             - with_chance: 10
 
   - name: clanker-bot
@@ -216,7 +188,7 @@ reply-bots:
   - name: venn-bot
     identity:
       type: mimic
-      as_member: "151120340343455744"
+      as_member: "100000000000000002"
     triggers:
       - name: venn-cringe-trigger
         conditions: { contains_phrase: "cringe" }
@@ -242,7 +214,7 @@ reply-bots:
   - name: chad-bot
     identity:
       type: mimic
-      as_member: "85184539906809856"
+      as_member: "100000000000000003"
     triggers:
       - name: chad-random-trigger
         conditions:
@@ -352,7 +324,7 @@ fn mimic_identity_parses_as_member_string() {
   - name: test
     identity:
       type: mimic
-      as_member: "113035990725066752"
+      as_member: "999999999999999999"
     triggers:
       - conditions: { always: true }
 "#,
@@ -360,7 +332,7 @@ fn mimic_identity_parses_as_member_string() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "113035990725066752".into()
+            as_member: "999999999999999999".into()
         }
     );
 }
@@ -455,29 +427,29 @@ fn condition_from_user_parses_quoted_string() {
   - name: test
     identity: { type: random }
     triggers:
-      - conditions: { from_user: "113035990725066752" }
+      - conditions: { from_user: "999999999999999999" }
 "#,
     ));
     assert_eq!(
         bot.triggers[0].conditions,
-        ConditionNode::FromUser(Snowflake("113035990725066752".into()))
+        ConditionNode::FromUser(Snowflake("999999999999999999".into()))
     );
 }
 
 #[test]
 fn condition_from_user_parses_bare_integer() {
-    // Production bots.yml has: from_user: 113035990725066752 (unquoted)
+    // Production bots use unquoted integers for from_user — both forms must work
     let bot = parse_one(&wrap(
         r#"
   - name: test
     identity: { type: random }
     triggers:
-      - conditions: { from_user: 113035990725066752 }
+      - conditions: { from_user: 999999999999999999 }
 "#,
     ));
     assert_eq!(
         bot.triggers[0].conditions,
-        ConditionNode::FromUser(Snowflake("113035990725066752".into()))
+        ConditionNode::FromUser(Snowflake("999999999999999999".into()))
     );
 }
 
@@ -849,7 +821,7 @@ fn guy_bot_config_is_correct() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "113035990725066752".into()
+            as_member: "100000000000000001".into()
         }
     );
     assert!(
@@ -869,7 +841,7 @@ fn guy_bot_config_is_correct() {
     assert_eq!(
         bot.triggers[1].conditions,
         ConditionNode::AllOf(vec![
-            ConditionNode::FromUser(Snowflake("113035990725066752".into())),
+            ConditionNode::FromUser(Snowflake("100000000000000001".into())),
             ConditionNode::WithChance(10),
         ])
     );
@@ -952,7 +924,7 @@ fn venn_bot_is_mimic_of_correct_user() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "151120340343455744".into()
+            as_member: "100000000000000002".into()
         }
     );
 }
@@ -965,7 +937,7 @@ fn chad_bot_is_mimic_of_correct_user() {
     assert_eq!(
         bot.identity,
         IdentityConfig::Mimic {
-            as_member: "85184539906809856".into()
+            as_member: "100000000000000003".into()
         }
     );
     assert_eq!(
@@ -1053,7 +1025,7 @@ fn snowflake_from_bare_integer_matches_snowflake_from_quoted_string() {
   - name: test
     identity: { type: random }
     triggers:
-      - conditions: { from_user: 113035990725066752 }
+      - conditions: { from_user: 999999999999999999 }
 "#,
     );
     let yaml_str = wrap(
@@ -1061,7 +1033,7 @@ fn snowflake_from_bare_integer_matches_snowflake_from_quoted_string() {
   - name: test
     identity: { type: random }
     triggers:
-      - conditions: { from_user: "113035990725066752" }
+      - conditions: { from_user: "999999999999999999" }
 "#,
     );
 
