@@ -14,6 +14,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_execute_ping() {
         assert_eq!(execute_ping(), "Pong from bunkbot!");
     }

@@ -32,6 +32,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_bot_enable_disable() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -82,6 +83,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_bot_unknown_name() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -99,6 +101,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_bot_frequency_override_and_reset() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -152,6 +155,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_bot_list() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();

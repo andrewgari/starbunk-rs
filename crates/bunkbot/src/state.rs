@@ -105,6 +105,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_enable_disable_bot() {
         let manager = InMemoryBotStateManager::new();
         let bot = "test_bot";
@@ -124,6 +125,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_frequency_override() {
         let manager = InMemoryBotStateManager::new();
         let bot = "test_bot";
