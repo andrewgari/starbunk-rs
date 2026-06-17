@@ -11,7 +11,11 @@ identities using `src/shared/discord::MessageService`.
 ## Major Features
 
 - General reply bot handlers using the Strategy pattern.
-- Admin slash commands.
+- Admin slash commands:
+  - `/bot` (subcommands: `enable`, `disable`, `override`, `reset`, `list`) to toggle individual bots and override trigger frequencies.
+  - `/clearwebhooks` to fetch and clear active Starbunk webhooks.
+  - `/ping` to verify bot responsiveness.
+- Dynamic bot state manager (`BotStateService` / `InMemoryBotStateManager`) to enable/disable bots and apply frequency overrides at runtime.
 - Webhook-based responses using `send_message_with_identity`.
 
 ## Dependencies & Architecture
