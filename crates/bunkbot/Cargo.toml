@@ -22,6 +22,7 @@ serde.workspace              = true
 serde_yaml.workspace         = true
 rand.workspace               = true
 regex.workspace              = true
+chrono.workspace             = true
 
 [dev-dependencies]
 serde_json.workspace         = true

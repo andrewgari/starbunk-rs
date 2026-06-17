@@ -1,6 +1,7 @@
 mod compiled;
 
 use crate::config::{BotConfig, IdentityConfig};
+use crate::state::BotStateService;
 use crate::template::resolve_template;
 use compiled::{eval, CompiledBot};
 use rand::Rng;
@@ -20,6 +21,7 @@ pub struct BunkBotEngine {
     bots: Vec<CompiledBot>,
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
+    state_service: Arc<dyn BotStateService>,
 }
 
 impl BunkBotEngine {
@@ -27,6 +29,7 @@ impl BunkBotEngine {
         bots: Vec<BotConfig>,
         sender: Arc<dyn MessageService>,
         identity_provider: Arc<dyn IdentityProvider>,
+        state_service: Arc<dyn BotStateService>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -49,13 +52,14 @@ impl BunkBotEngine {
             bots: compiled,
             sender,
             identity_provider,
+            state_service,
         }
     }
 
     #[tracing::instrument(skip(self, ctx, msg), fields(channel = %msg.channel_id))]
     pub async fn handle(&self, ctx: &Context, msg: &Message, self_id: UserId) {
         for bot in &self.bots {
-            if !should_process(bot, msg, self_id) {
+            if !should_process(bot, msg, self_id, &*self.state_service) {
                 continue;
             }
             self.dispatch_bot(ctx, msg, bot).await;
@@ -123,7 +127,15 @@ impl BunkBotEngine {
 /// responses. When `ignore_bots: true` (the default), this is moot — webhook
 /// messages have `author.bot = true` and are caught by `ignore_bots`. Only
 /// bots that set `ignore_bots: false` are exposed to this edge case.
-fn should_process(bot: &CompiledBot, msg: &Message, self_id: UserId) -> bool {
+fn should_process(
+    bot: &CompiledBot,
+    msg: &Message,
+    self_id: UserId,
+    state_service: &dyn BotStateService,
+) -> bool {
+    if !state_service.is_bot_enabled(&bot.name) {
+        return false;
+    }
     if bot.ignore_self && msg.author.id == self_id {
         return false;
     }
@@ -134,7 +146,10 @@ fn should_process(bot: &CompiledBot, msg: &Message, self_id: UserId) -> bool {
         return false;
     }
     // Clamp frequency so values like 200 don't silently bypass the gate.
-    let frequency = bot.frequency.min(100);
+    let frequency = state_service
+        .get_frequency(&bot.name)
+        .unwrap_or(bot.frequency)
+        .min(100);
     if frequency < 100 {
         let roll: u8 = rand::thread_rng().gen_range(0..100);
         if roll >= frequency {
@@ -252,6 +267,8 @@ mod tests {
         }
     }
 
+    use crate::state::InMemoryBotStateManager;
+
     const SELF_ID: UserId = UserId::new(99);
 
     // --- should_process ---
@@ -260,43 +277,49 @@ mod tests {
     fn ignore_self_drops_own_message() {
         let bot = bot_cfg(true, false, false, 100);
         let msg = build_msg("hi", false, "99"); // author.id == SELF_ID
-        assert!(!should_process(&bot, &msg, SELF_ID));
+        let state = InMemoryBotStateManager::new();
+        assert!(!should_process(&bot, &msg, SELF_ID, &state));
     }
 
     #[test]
     fn ignore_self_allows_other_message() {
         let bot = bot_cfg(true, false, false, 100);
         let msg = build_msg("hi", false, "1"); // author.id != SELF_ID
-        assert!(should_process(&bot, &msg, SELF_ID));
+        let state = InMemoryBotStateManager::new();
+        assert!(should_process(&bot, &msg, SELF_ID, &state));
     }
 
     #[test]
     fn ignore_bots_drops_bot_message() {
         let bot = bot_cfg(false, true, false, 100);
         let msg = build_msg("hi", true, "2"); // is_bot = true
-        assert!(!should_process(&bot, &msg, SELF_ID));
+        let state = InMemoryBotStateManager::new();
+        assert!(!should_process(&bot, &msg, SELF_ID, &state));
     }
 
     #[test]
     fn ignore_bots_false_allows_bot_message() {
         let bot = bot_cfg(false, false, false, 100);
         let msg = build_msg("hi", true, "2");
-        assert!(should_process(&bot, &msg, SELF_ID));
+        let state = InMemoryBotStateManager::new();
+        assert!(should_process(&bot, &msg, SELF_ID, &state));
     }
 
     #[test]
     fn ignore_humans_drops_human_message() {
         let bot = bot_cfg(false, false, true, 100);
         let msg = build_msg("hi", false, "1"); // is_bot = false
-        assert!(!should_process(&bot, &msg, SELF_ID));
+        let state = InMemoryBotStateManager::new();
+        assert!(!should_process(&bot, &msg, SELF_ID, &state));
     }
 
     #[test]
     fn frequency_0_never_fires() {
         let bot = bot_cfg(false, false, false, 0);
         let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
         for _ in 0..50 {
-            assert!(!should_process(&bot, &msg, SELF_ID));
+            assert!(!should_process(&bot, &msg, SELF_ID, &state));
         }
     }
 
@@ -304,8 +327,9 @@ mod tests {
     fn frequency_100_always_fires() {
         let bot = bot_cfg(false, false, false, 100);
         let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
         for _ in 0..50 {
-            assert!(should_process(&bot, &msg, SELF_ID));
+            assert!(should_process(&bot, &msg, SELF_ID, &state));
         }
     }
 
@@ -315,9 +339,36 @@ mod tests {
         // not skip the gate entirely due to `200 < 100` being false.
         let bot = bot_cfg(false, false, false, 200);
         let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
         for _ in 0..50 {
-            assert!(should_process(&bot, &msg, SELF_ID));
+            assert!(should_process(&bot, &msg, SELF_ID, &state));
         }
+    }
+
+    #[test]
+    fn test_should_process_bot_disabled() {
+        let bot = bot_cfg(false, false, false, 100);
+        let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
+        state.disable_bot(&bot.name);
+
+        // Under stub, state.is_bot_enabled always returns true, but the test demands false.
+        // Once implemented properly, this should evaluate to false.
+        assert!(!should_process(&bot, &msg, SELF_ID, &state));
+    }
+
+    #[test]
+    fn test_should_process_frequency_override() {
+        // Bot defaults to 0% (never fires)
+        let bot = bot_cfg(false, false, false, 0);
+        let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
+
+        // Override to 100% (always fires)
+        state.set_frequency(&bot.name, 100, "admin", 0);
+
+        // Under stub, state.get_frequency returns None, so it will fall back to bot's 0% frequency and fail.
+        assert!(should_process(&bot, &msg, SELF_ID, &state));
     }
 
     // --- strip_urls ---

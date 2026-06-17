@@ -1,10 +1,12 @@
+pub mod commands;
 pub mod config;
 pub mod engine;
+pub mod state;
 pub mod template;
 
 use async_trait::async_trait;
 use engine::BunkBotEngine;
-use serenity::all::{Context, EventHandler, Message, Ready};
+use serenity::all::{Context, EventHandler, Interaction, Message, Ready};
 use starbunk::discord::{
     DiscordIdentityProvider, DiscordMessageService, MessageService, WebhookService,
 };
@@ -14,6 +16,7 @@ use std::sync::{Arc, OnceLock};
 struct Handler {
     filter: Arc<dyn MessageFilter>,
     engine: OnceLock<BunkBotEngine>,
+    state_service: Arc<state::InMemoryBotStateManager>,
     bots_config_path: String,
 }
 
@@ -23,6 +26,7 @@ impl Handler {
         Self {
             filter: HAS_CONTENT.clone(),
             engine: OnceLock::new(),
+            state_service: Arc::new(state::InMemoryBotStateManager::new()),
             bots_config_path: path,
         }
     }
@@ -51,8 +55,36 @@ impl EventHandler for Handler {
 
         tracing::info!(count = bots.len(), "loaded reply bots from YAML");
 
-        let new_engine = BunkBotEngine::new(bots, sender, identity_provider);
+        let new_engine =
+            BunkBotEngine::new(bots, sender, identity_provider, self.state_service.clone());
         let _ = self.engine.set(new_engine);
+
+        // Register slash commands
+        let commands = commands::all_commands();
+        if let Ok(guild_id_str) = std::env::var("DEV_GUILD_ID") {
+            if let Ok(guild_id_num) = guild_id_str.parse::<u64>() {
+                let guild_id = serenity::all::GuildId::new(guild_id_num);
+                if let Err(e) = guild_id.set_commands(&ctx.http, commands).await {
+                    tracing::error!("failed to register guild commands: {}", e);
+                } else {
+                    tracing::info!("registered guild-specific slash commands");
+                }
+            }
+        } else {
+            if let Err(e) = serenity::all::Command::set_global_commands(&ctx.http, commands).await {
+                tracing::error!("failed to register global slash commands: {}", e);
+            } else {
+                tracing::info!("registered global slash commands");
+            }
+        }
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Err(e) =
+            commands::handle_interaction(&ctx, &interaction, self.state_service.clone()).await
+        {
+            tracing::error!("error handling interaction: {}", e);
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
