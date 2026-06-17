@@ -59,8 +59,7 @@ impl EventHandler for Handler {
             BunkBotEngine::new(bots, sender, identity_provider, self.state_service.clone());
         let _ = self.engine.set(new_engine);
 
-        // Register slash commands (disabled for TDD Phase 1 to avoid prod side effects)
-        /*
+        // Register slash commands
         let commands = commands::all_commands();
         if let Ok(guild_id_str) = std::env::var("DEV_GUILD_ID") {
             if let Ok(guild_id_num) = guild_id_str.parse::<u64>() {
@@ -78,7 +77,6 @@ impl EventHandler for Handler {
                 tracing::info!("registered global slash commands");
             }
         }
-        */
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {

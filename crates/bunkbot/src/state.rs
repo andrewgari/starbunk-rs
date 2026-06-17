@@ -51,52 +51,62 @@ impl InMemoryBotStateManager {
 }
 
 impl BotStateService for InMemoryBotStateManager {
-    fn enable_bot(&self, _bot_name: &str) {
-        // Stub for TDD PR 1
+    fn enable_bot(&self, bot_name: &str) {
+        let mut states = self.states.write().unwrap();
+        states.insert(bot_name.to_string(), true);
     }
 
-    fn disable_bot(&self, _bot_name: &str) {
-        // Stub for TDD PR 1
+    fn disable_bot(&self, bot_name: &str) {
+        let mut states = self.states.write().unwrap();
+        states.insert(bot_name.to_string(), false);
     }
 
-    fn is_bot_enabled(&self, _bot_name: &str) -> bool {
-        // Stub for TDD PR 1: always defaults to true
-        true
+    fn is_bot_enabled(&self, bot_name: &str) -> bool {
+        let states = self.states.read().unwrap();
+        *states.get(bot_name).unwrap_or(&true)
     }
 
     fn set_frequency(
         &self,
-        _bot_name: &str,
-        _frequency: u8,
-        _admin_user_id: &str,
-        _original_frequency: u8,
+        bot_name: &str,
+        frequency: u8,
+        admin_user_id: &str,
+        original_frequency: u8,
     ) {
-        // Stub for TDD PR 1
+        let mut frequencies = self.frequencies.write().unwrap();
+        frequencies.insert(
+            bot_name.to_string(),
+            FrequencyOverride {
+                bot_name: bot_name.to_string(),
+                original_frequency,
+                current_frequency: frequency,
+                set_at: Utc::now(),
+                set_by: admin_user_id.to_string(),
+            },
+        );
     }
 
-    fn get_frequency(&self, _bot_name: &str) -> Option<u8> {
-        // Stub for TDD PR 1
-        None
+    fn get_frequency(&self, bot_name: &str) -> Option<u8> {
+        let frequencies = self.frequencies.read().unwrap();
+        frequencies.get(bot_name).map(|f| f.current_frequency)
     }
 
-    fn get_original_frequency(&self, _bot_name: &str) -> Option<u8> {
-        // Stub for TDD PR 1
-        None
+    fn get_original_frequency(&self, bot_name: &str) -> Option<u8> {
+        let frequencies = self.frequencies.read().unwrap();
+        frequencies.get(bot_name).map(|f| f.original_frequency)
     }
 
-    fn reset_frequency(&self, _bot_name: &str) -> Option<u8> {
-        // Stub for TDD PR 1
-        None
+    fn reset_frequency(&self, bot_name: &str) -> Option<u8> {
+        let mut frequencies = self.frequencies.write().unwrap();
+        frequencies.remove(bot_name).map(|f| f.original_frequency)
     }
 
     fn get_all_states(&self) -> HashMap<String, bool> {
-        // Stub for TDD PR 1
-        HashMap::new()
+        self.states.read().unwrap().clone()
     }
 
     fn get_all_frequencies(&self) -> HashMap<String, FrequencyOverride> {
-        // Stub for TDD PR 1
-        HashMap::new()
+        self.frequencies.read().unwrap().clone()
     }
 }
 
@@ -105,7 +115,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn test_enable_disable_bot() {
         let manager = InMemoryBotStateManager::new();
         let bot = "test_bot";
@@ -125,7 +134,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_frequency_override() {
         let manager = InMemoryBotStateManager::new();
         let bot = "test_bot";

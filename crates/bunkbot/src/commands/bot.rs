@@ -9,17 +9,87 @@ pub fn bot_command() -> CreateCommand {
 
 #[allow(clippy::too_many_arguments)]
 pub fn execute_bot_command(
-    _subcommand: &str,
-    _bot_name: Option<&str>,
-    _setting: Option<&str>,
-    _percent: Option<u8>,
-    _user_id: &str,
-    _is_admin: bool,
-    _state_service: &dyn BotStateService,
-    _available_bots: &[String],
+    subcommand: &str,
+    bot_name: Option<&str>,
+    setting: Option<&str>,
+    percent: Option<u8>,
+    user_id: &str,
+    is_admin: bool,
+    state_service: &dyn BotStateService,
+    available_bots: &[String],
 ) -> Result<String, String> {
-    // Stub for TDD phase 1
-    Err("Not implemented".to_string())
+    if !is_admin && subcommand != "list" {
+        return Err("You need administrator permissions to use this command.".to_string());
+    }
+
+    if subcommand == "list" {
+        let mut response = format!("📊 Bot Status ({} total)\n\n", available_bots.len());
+        for bot in available_bots {
+            let enabled = state_service.is_bot_enabled(bot);
+            let status = if enabled { "✅" } else { "❌" };
+            let state_str = if enabled { "[ENABLED]" } else { "[DISABLED]" };
+
+            let mut freq_str = String::new();
+            if enabled {
+                if let Some(current) = state_service.get_frequency(bot) {
+                    let orig = state_service.get_original_frequency(bot).unwrap_or(100);
+                    freq_str = format!(" [FREQ: {}% ← {}%]", current, orig);
+                }
+            }
+
+            response.push_str(&format!(
+                "{} {:<21}{}{}\n",
+                status, bot, state_str, freq_str
+            ));
+        }
+        return Ok(response);
+    }
+
+    let bot_name = bot_name.ok_or_else(|| "Bot name is required".to_string())?;
+
+    if !available_bots.contains(&bot_name.to_string()) {
+        return Err(format!("Unknown bot: {}", bot_name));
+    }
+
+    match subcommand {
+        "enable" => {
+            state_service.enable_bot(bot_name);
+            Ok(format!("Bot {} has been enabled.", bot_name))
+        }
+        "disable" => {
+            state_service.disable_bot(bot_name);
+            Ok(format!("Bot {} has been disabled.", bot_name))
+        }
+        "override" => {
+            let setting = setting.ok_or_else(|| "Setting is required".to_string())?;
+            if setting != "frequency" {
+                return Err(format!("Unknown setting: {}", setting));
+            }
+            let percent = percent.ok_or_else(|| "Percent is required".to_string())?;
+            let orig = state_service
+                .get_original_frequency(bot_name)
+                .unwrap_or(100);
+            state_service.set_frequency(bot_name, percent, user_id, orig);
+            Ok(format!(
+                "✅ {} frequency set to {}% (was {}%)",
+                bot_name, percent, orig
+            ))
+        }
+        "reset" => {
+            let setting = setting.ok_or_else(|| "Setting is required".to_string())?;
+            if setting != "frequency" {
+                return Err(format!("Unknown setting: {}", setting));
+            }
+            match state_service.reset_frequency(bot_name) {
+                Some(orig) => Ok(format!("✅ {} frequency reset to {}%", bot_name, orig)),
+                None => Ok(format!(
+                    "ℹ️ {} has no frequency override to reset",
+                    bot_name
+                )),
+            }
+        }
+        _ => Err(format!("Unknown subcommand: {}", subcommand)),
+    }
 }
 
 #[cfg(test)]
@@ -32,7 +102,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_bot_enable_disable() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -83,7 +152,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_bot_unknown_name() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -101,7 +169,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_bot_frequency_override_and_reset() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
@@ -155,7 +222,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_bot_list() {
         let state = InMemoryBotStateManager::new();
         let bots = test_bots();
