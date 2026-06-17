@@ -7,8 +7,8 @@
 Triggered on all PRs to `main`. The pipeline runs in two sequential steps:
 
 #### Step 1: Compilation & Verification
-- **1a. Cargo Build (Release)** — Compiles the workspace in production/release mode (`cargo build --release`).
-- **1b. Unit Tests** — Runs unit tests for all bots in the workspace (`cargo test --all`).
+- **1a. Cargo Build (Release)** — Compiles the changed bots/packages in production/release mode (`cargo build --release -p <package>`).
+- **1b. Unit Tests** — Runs unit tests only for the changed bots/packages (`cargo test -p <package>`).
 - **1c. Lint & DevOps** — Verifies formatting (`cargo fmt`), runs Clippy (`cargo clippy`), and runs DevOps consistency validation (`bash scripts/devops-validate.sh`).
 - **1d. Build E2E Container** — Builds the E2E test runner docker image (`starbunk-e2e:ci-test`).
 
