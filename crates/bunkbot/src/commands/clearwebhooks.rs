@@ -3,7 +3,7 @@ use serenity::all::{CreateCommand, Permissions};
 pub fn clearwebhooks_command() -> CreateCommand {
     CreateCommand::new("clearwebhooks")
         .description("Clear all webhooks made by the bot")
-        .default_member_permissions(Permissions::MANAGE_WEBHOOKS)
+        .default_member_permissions(Permissions::ADMINISTRATOR)
 }
 
 pub fn execute_clearwebhooks<F>(

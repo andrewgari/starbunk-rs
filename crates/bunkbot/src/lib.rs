@@ -16,7 +16,7 @@ use std::sync::{Arc, OnceLock};
 struct Handler {
     filter: Arc<dyn MessageFilter>,
     engine: OnceLock<BunkBotEngine>,
-    state_service: Arc<state::InMemoryBotStateManager>,
+    state_service: Arc<dyn state::BotStateService>,
     bots_config_path: String,
 }
 
@@ -59,7 +59,8 @@ impl EventHandler for Handler {
             BunkBotEngine::new(bots, sender, identity_provider, self.state_service.clone());
         let _ = self.engine.set(new_engine);
 
-        // Register slash commands
+        // Register slash commands (disabled for TDD Phase 1 to avoid prod side effects)
+        /*
         let commands = commands::all_commands();
         if let Ok(guild_id_str) = std::env::var("DEV_GUILD_ID") {
             if let Ok(guild_id_num) = guild_id_str.parse::<u64>() {
@@ -77,6 +78,7 @@ impl EventHandler for Handler {
                 tracing::info!("registered global slash commands");
             }
         }
+        */
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {

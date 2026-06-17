@@ -4,7 +4,7 @@ use serenity::all::{CreateCommand, Permissions};
 pub fn bot_command() -> CreateCommand {
     CreateCommand::new("bot")
         .description("Manage bot settings")
-        .default_member_permissions(Permissions::MANAGE_MESSAGES)
+        .default_member_permissions(Permissions::ADMINISTRATOR)
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -31,6 +31,11 @@ pub trait BotStateService: Send + Sync + std::fmt::Debug {
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
+/// In-memory state manager for reply bot toggle statuses and frequency overrides.
+///
+/// NOTE: Uses `std::sync::RwLock` because all operations are simple in-memory
+/// synchronous map lookups/writes with tiny lock hold times that never block
+/// Tokio worker threads or span `.await` boundaries.
 pub struct InMemoryBotStateManager {
     states: RwLock<HashMap<String, bool>>,
     frequencies: RwLock<HashMap<String, FrequencyOverride>>,
