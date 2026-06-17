@@ -4,16 +4,20 @@
 
 ### `ci.yml` — Pull Request Checks
 
-Triggered on all PRs to `main`. Jobs:
+Triggered on all PRs to `main`. The pipeline runs in two sequential steps:
 
-1. **Lint** — runs `cargo fmt --check` and `cargo clippy -- -D warnings`; skipped if no Rust files or Rust config files changed.
-2. **Test** — runs `cargo test` for all affected packages; skipped if no bot code changed.
-3. **Validation Success** — gate job that succeeds only if all builds (compilation), tests, and lints succeed. It waits for those and also runs the DevOps validation checks (`scripts/devops-validate.sh`), but does not wait for the docker/E2E test jobs.
-4. **Docker Test** — matrix build; builds and smoke-tests each affected bot Docker image; skipped if no bot code changed.
-5. **E2E Tests** — builds and runs end-to-end integration tests using the live Discord test suite; skipped if no bot code changed.
-6. **Validation Complete** — final check that waits for all jobs, including docker/E2E test jobs.
+#### Step 1: Compilation & Verification
+- **1a. Cargo Build (Release)** — Compiles the workspace in production/release mode (`cargo build --release`).
+- **1b. Unit Tests** — Runs unit tests for all bots in the workspace (`cargo test --all`).
+- **1c. Lint & DevOps** — Verifies formatting (`cargo fmt`), runs Clippy (`cargo clippy`), and runs DevOps consistency validation (`bash scripts/devops-validate.sh`).
+- **1d. Build E2E Container** — Builds the E2E test runner docker image (`starbunk-e2e:ci-test`).
 
-The `Validation Success` job serves as the primary required status check for PR merging, ensuring builds, tests, and lints pass quickly without waiting for container builds and E2E runs.
+#### Step 2: Integration & E2E Validation (Only runs if Step 1 succeeds)
+- **2a. E2E Tests** — Runs the end-to-end integration test suites against live Discord.
+- **2b. Health Checks** — Verifies that all spawned bots successfully bind and respond to the `/health` endpoints.
+
+#### Final Gate
+- **Validation Success** — Replaces the old two-check gate. It runs at the very end of the pipeline. If both Step 1 and Step 2 pass, the `Validation Success` status check is green, serving as the required check for merging.
 
 #### Selective Validation (Change Detection)
 

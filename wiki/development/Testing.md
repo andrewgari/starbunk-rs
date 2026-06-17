@@ -103,7 +103,9 @@ Starbunk includes an E2E testing framework in the `starbunk-e2e` crate. It allow
 1. **Single-Token Webhook Driver**: Since all bots share a single token in debugging, a bot cannot trigger itself because of `NOT_SELF` filters. To bypass this cleanly, the E2E runner posts test messages to the whitelisted channel via a **Discord Webhook** (automatically created by the runner).
 2. **Simulating Bot vs. Human Senders**: To test if the bots correctly filter out other bots (`NOT_BOT` rule), the runner prefixes messages with `[E2E_HUMAN]` or `[E2E_BOT]`.
 3. **E2E Gate Wrapper**: In E2E mode (`E2E_MODE=true`), the shared `E2eDebugHandler` intercepts gateway events, automatically strips these prefixes, and overrides `msg.author.bot` before passing the event to the bot's actual handler. It also drops any message that is not in the whitelisted `E2E_GUILD_ID`.
-4. **Listener & Assertions**: The runner listens to the channel and asserts that the bot responds (or doesn't respond) within a given timeout.
+4. **Liveness & Health Verification**: After spawning the bots, the runner queries their HTTP `/health` endpoints (e.g. port 8081-8085) to verify they are healthy and connection stubs return `200 OK` and `{"status":"ok"}`.
+5. **Listener & Assertions**: The runner listens to the channel and asserts that the bot responds (or doesn't respond) within a given timeout.
+
 
 ### Required Environment Variables
 - `DISCORD_TOKEN`: The Discord bot token.

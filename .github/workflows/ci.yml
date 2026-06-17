@@ -189,37 +189,9 @@ jobs:
           fi
           echo "run_e2e=${RUN_E2E}" >> $GITHUB_OUTPUT
 
-  # ─── Validation Success Gate ─────────────────────────────────────────────────
-  validation_success:
-    name: Validation Success
-    runs-on: ubuntu-latest
-    needs: [detect_changes, lint, test]
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check all DevOps files are in sync
-        if: needs.detect_changes.outputs.run_devops == 'true'
-        run: bash scripts/devops-validate.sh
-      - name: Verify Lint and Test results
-        env:
-          DETECT_RESULT: ${{ needs.detect_changes.result }}
-          LINT_RESULT: ${{ needs.lint.result }}
-          TEST_RESULT: ${{ needs.test.result }}
-        run: |
-          echo "Detect changes result: $DETECT_RESULT"
-          echo "Lint result: $LINT_RESULT"
-          echo "Test result: $TEST_RESULT"
-          for res in "$DETECT_RESULT" "$LINT_RESULT" "$TEST_RESULT"; do
-            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
-              echo "Required check failed or was cancelled: $res"
-              exit 1
-            fi
-          done
-          echo "All builds, tests, and lints succeeded (or skipped)."
-
-  # ─── Lint ────────────────────────────────────────────────────────────────────
-  lint:
-    name: Lint
+  # ─── Cargo Build (Production Mode) ──────────────────────────────────────────
+  cargo_build:
+    name: Cargo Build (Release)
     runs-on: ubuntu-latest
     needs: detect_changes
     if: needs.detect_changes.outputs.run_lint == 'true'
@@ -228,8 +200,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -238,29 +208,25 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-release-
 
-      - name: cargo fmt check
-        run: cargo fmt --all -- --check
+      - name: Install system dependencies
+        run: sudo apt-get install -y pkg-config libssl-dev
 
-      - name: cargo clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Download dependencies
+        run: cargo fetch
 
-  # ─── Unit Tests (per-package) ────────────────────────────────────────────────
-  #
-  # Runs only for packages affected by the PR. Each test job targets exactly the
-  # changed crate(s), so a bluebot-only change never runs covabot or shared tests.
+      - name: Build in production mode
+        run: cargo build --release
+
+  # ─── Unit Tests ─────────────────────────────────────────────────────────────
   test:
-    name: Test / ${{ matrix.package }}
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: detect_changes
-    if: needs.detect_changes.outputs.has_changes == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJson(needs.detect_changes.outputs.packages) }}
+    if: needs.detect_changes.outputs.run_lint == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -284,8 +250,45 @@ jobs:
       - name: Download dependencies
         run: cargo fetch
 
-      - name: Run tests for ${{ matrix.package }}
-        run: cargo test -p ${{ matrix.package }}
+      - name: Run unit tests
+        run: cargo test --all
+
+  # ─── Lint & DevOps Validation ────────────────────────────────────────────────
+  lint:
+    name: Lint & DevOps
+    runs-on: ubuntu-latest
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_lint == 'true' || needs.detect_changes.outputs.run_devops == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check DevOps consistency
+        if: needs.detect_changes.outputs.run_devops == 'true'
+        run: bash scripts/devops-validate.sh
+
+      - name: cargo fmt check
+        if: needs.detect_changes.outputs.run_lint == 'true'
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        if: needs.detect_changes.outputs.run_lint == 'true'
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   # ─── Build E2E Test Runner Container ─────────────────────────────────────────
   build_e2e_container:
@@ -325,11 +328,11 @@ jobs:
           path: /tmp/images/starbunk-e2e.tar
           retention-days: 1
 
-  # ─── E2E Integration Tests (Live Discord) ───────────────────────────────────
+  # ─── E2E Integration & Health Check Tests ────────────────────────────────────
   e2e_test:
-    name: E2E Tests
+    name: E2E & Health Tests
     runs-on: ubuntu-latest
-    needs: [detect_changes, build_e2e_container]
+    needs: [detect_changes, cargo_build, test, lint, build_e2e_container]
     if: needs.detect_changes.outputs.run_e2e == 'true' && needs.detect_changes.outputs.run_docker == 'true'
     env:
       DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
@@ -394,31 +397,33 @@ jobs:
           docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
           EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
 
-  # ─── Validation Gate ─────────────────────────────────────────────────────────
-  validation_complete:
-    name: Validation Complete
+  # ─── Validation Success Gate ─────────────────────────────────────────────────
+  validation_success:
+    name: Validation Success
     runs-on: ubuntu-latest
-    needs: [validation_success, lint, test, build_e2e_container, e2e_test]
+    needs: [detect_changes, cargo_build, test, lint, build_e2e_container, e2e_test]
     if: always()
     steps:
       - name: Check overall status
         env:
-          VALIDATION_SUCCESS_RESULT: ${{ needs.validation_success.result }}
-          LINT_RESULT: ${{ needs.lint.result }}
+          DETECT_RESULT: ${{ needs.detect_changes.result }}
+          BUILD_RESULT: ${{ needs.cargo_build.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
           BUILD_E2E_RESULT: ${{ needs.build_e2e_container.result }}
           E2E_TEST_RESULT: ${{ needs.e2e_test.result }}
         run: |
-          echo "Validation Success result: $VALIDATION_SUCCESS_RESULT"
-          echo "Lint result: $LINT_RESULT"
+          echo "Detect changes result: $DETECT_RESULT"
+          echo "Cargo build result: $BUILD_RESULT"
           echo "Test result: $TEST_RESULT"
+          echo "Lint result: $LINT_RESULT"
           echo "Build E2E result: $BUILD_E2E_RESULT"
           echo "E2E test result: $E2E_TEST_RESULT"
 
-          for res in "$VALIDATION_SUCCESS_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$BUILD_E2E_RESULT" "$E2E_TEST_RESULT"; do
+          for res in "$DETECT_RESULT" "$BUILD_RESULT" "$TEST_RESULT" "$LINT_RESULT" "$BUILD_E2E_RESULT" "$E2E_TEST_RESULT"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "One or more required checks failed or were cancelled."
               exit 1
             fi
           done
-          echo "All checks passed successfully (or were skipped appropriately)."
+          echo "Validation Success: All checks passed successfully (or were skipped appropriately)."

@@ -12,6 +12,50 @@ pub async fn run_bot(
     intents: GatewayIntents,
     handler: impl EventHandler + 'static,
 ) -> anyhow::Result<()> {
+    run_bot_inner(bot_name, intents, handler, None).await
+}
+
+/// Standard intents used by most reply bots.
+pub fn default_intents() -> GatewayIntents {
+    GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT
+}
+
+/// Like [`run_bot`], but also installs a startup watchdog that logs a
+/// structured `health.status = "startup_timeout"` error if the Discord
+/// `ready` event has not fired within 30 seconds.
+///
+/// Bots that opt in pass their [`HealthMonitor`] here and call
+/// [`HealthMonitor::on_connected`] from their `EventHandler::ready` impl.
+pub async fn run_bot_with_health(
+    bot_name: &'static str,
+    intents: GatewayIntents,
+    health: Arc<HealthMonitor>,
+    handler: impl EventHandler + 'static,
+) -> anyhow::Result<()> {
+    let watchdog = Arc::clone(&health);
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        if !watchdog.is_connected() {
+            tracing::error!(
+                bot = bot_name,
+                health.status = "startup_timeout",
+                "health: startup timeout — bot did not connect within 30s; \
+                 check DISCORD_TOKEN and network connectivity"
+            );
+        }
+    });
+
+    run_bot_inner(bot_name, intents, handler, Some(health)).await
+}
+
+async fn run_bot_inner(
+    bot_name: &str,
+    intents: GatewayIntents,
+    handler: impl EventHandler + 'static,
+    health: Option<Arc<HealthMonitor>>,
+) -> anyhow::Result<()> {
+    crate::health::start_health_server(bot_name, health);
+
     let token = std::env::var("DISCORD_TOKEN")
         .map_err(|_| anyhow::anyhow!("{}: DISCORD_TOKEN not set", bot_name))?;
 
@@ -52,37 +96,4 @@ pub async fn run_bot(
         .await
         .map_err(|e| anyhow::anyhow!("client error: {}", e))?;
     Ok(())
-}
-
-/// Standard intents used by most reply bots.
-pub fn default_intents() -> GatewayIntents {
-    GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT
-}
-
-/// Like [`run_bot`], but also installs a startup watchdog that logs a
-/// structured `health.status = "startup_timeout"` error if the Discord
-/// `ready` event has not fired within 30 seconds.
-///
-/// Bots that opt in pass their [`HealthMonitor`] here and call
-/// [`HealthMonitor::on_connected`] from their `EventHandler::ready` impl.
-pub async fn run_bot_with_health(
-    bot_name: &'static str,
-    intents: GatewayIntents,
-    health: Arc<HealthMonitor>,
-    handler: impl EventHandler + 'static,
-) -> anyhow::Result<()> {
-    let watchdog = Arc::clone(&health);
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-        if !watchdog.is_connected() {
-            tracing::error!(
-                bot = bot_name,
-                health.status = "startup_timeout",
-                "health: startup timeout — bot did not connect within 30s; \
-                 check DISCORD_TOKEN and network connectivity"
-            );
-        }
-    });
-
-    run_bot(bot_name, intents, handler).await
 }
