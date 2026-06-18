@@ -9,6 +9,8 @@ Add an entry under today's date for every PR or significant change.
 - Configured standard secret volume in `kubernetes/bunkbot.yaml` to mount `bots.yml` from `starbunk-secrets` under key `BOTS_CONFIG_YAML` at `/app/config/bots.yml`.
 - Updated `.gitignore` to prevent committing local `config/bots.yml` configurations to GitHub.
 - Updated `kube_secrets.sh` to package and upload `config/bots.yml` to GKE's `starbunk-secrets` dynamically from the local workspace.
+- Added `deploy_config.sh` script to automate base64 encoding of `bots.yml`, GKE secret patching, and zero-downtime rolling restart of BunkBot.
+- Added `deploy_k8s.sh` script to automate GKE Kubernetes manifest deployment, including optional image tag pinning and rollout status monitoring.
 
 ### Changed
 - Updated `wiki/infrastructure/Configuration.md` and `wiki/bots/BunkBot.md` to document the secret-based deployment strategy.
