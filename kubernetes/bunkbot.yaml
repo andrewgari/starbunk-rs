@@ -38,3 +38,15 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: config-volume
+          secret:
+            secretName: starbunk-secrets
+            items:
+              - key: BOTS_CONFIG_YAML
+                path: bots.yml
+
