@@ -48,8 +48,10 @@ docker run --rm \
   -v "$REPO_ROOT":/app \
   -w /app \
   google/cloud-sdk:latest bash -c "
-echo 'Fetching GKE cluster credentials...' && \
-gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $PROJECT_ID && \
+set -euo pipefail
+
+echo 'Fetching GKE cluster credentials...'
+gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $PROJECT_ID
 
 if [ \"$TARGET\" == \"all\" ]; then
   for BOT in ${ALL_BOTS[@]}; do
@@ -67,7 +69,7 @@ else
     TYPE=\"statefulset\"
   fi
   echo \"Restarting \$TYPE/$TARGET...\"
-  kubectl rollout restart \$TYPE/$TARGET -n $NAMESPACE && \
+  kubectl rollout restart \$TYPE/$TARGET -n $NAMESPACE
   echo \"Waiting for \$TYPE/$TARGET rollout to complete...\"
   kubectl rollout status \$TYPE/$TARGET -n $NAMESPACE --timeout=3m
 fi

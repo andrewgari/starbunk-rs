@@ -24,11 +24,16 @@ docker run --rm \
   -v "$REPO_ROOT":/app \
   -w /app \
   google/cloud-sdk:latest bash -c "
-gcloud container clusters get-credentials starbunk-gke-cluster --region us-central1 --project starbunk-bot && \
-echo 'Patching starbunk-secrets with new BOTS_CONFIG_YAML...' && \
-kubectl patch secret starbunk-secrets -n starbunk -p '{\"data\":{\"BOTS_CONFIG_YAML\":\"$B64_CONFIG\"}}' && \
-echo 'Triggering rollout restart for BunkBot...' && \
-kubectl rollout restart deployment/bunkbot -n starbunk && \
+set -euo pipefail
+
+gcloud container clusters get-credentials starbunk-gke-cluster --region us-central1 --project starbunk-bot
+
+echo 'Patching starbunk-secrets with new BOTS_CONFIG_YAML...'
+kubectl patch secret starbunk-secrets -n starbunk -p '{\"data\":{\"BOTS_CONFIG_YAML\":\"$B64_CONFIG\"}}'
+
+echo 'Triggering rollout restart for BunkBot...'
+kubectl rollout restart deployment/bunkbot -n starbunk
+
 kubectl rollout status deployment/bunkbot -n starbunk --timeout=3m
 "
 
