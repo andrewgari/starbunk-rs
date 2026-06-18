@@ -230,6 +230,79 @@ async fn main() -> anyhow::Result<()> {
         }
         // Give spawned bots a moment to connect to Gateway and log in
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        // 6b. Run health checks against the /health endpoints of spawned bots
+        let bots_env =
+            std::env::var("E2E_TEST_BOTS").unwrap_or_else(|_| "bunkbot,bluebot".to_string());
+        let bots: Vec<&str> = bots_env.split(',').map(|s| s.trim()).collect();
+        tracing::info!(
+            "E2E Runner: Querying /health endpoints for spawned bots: {:?}",
+            bots
+        );
+
+        let reqwest_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        for bot in &bots {
+            let port = match *bot {
+                "bluebot" => 8081,
+                "bunkbot" => 8082,
+                "covabot" => 8083,
+                "djcova" => 8084,
+                "ratbot" => 8085,
+                _ => {
+                    tracing::warn!("E2E Runner: Unknown bot '{}', skipping health check", bot);
+                    continue;
+                }
+            };
+            let url = format!("http://localhost:{}/health", port);
+            tracing::info!("E2E Runner: Checking health of {} at {}", bot, url);
+            match reqwest_client.get(&url).send().await {
+                Ok(resp) => {
+                    if resp.status().is_success() {
+                        match resp.text().await {
+                            Ok(body) => {
+                                if body.trim() == "{\"status\":\"ok\"}" {
+                                    tracing::info!(
+                                        "E2E Runner: Health check for {} succeeded: {}",
+                                        bot,
+                                        body
+                                    );
+                                } else {
+                                    anyhow::bail!(
+                                        "E2E Runner: Health check for {} succeeded but returned unexpected body: {:?}",
+                                        bot,
+                                        body
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                anyhow::bail!(
+                                    "E2E Runner: Health check for {} succeeded but body could not be read: {}",
+                                    bot,
+                                    e
+                                );
+                            }
+                        }
+                    } else {
+                        anyhow::bail!(
+                            "E2E Runner: Health check for {} returned failure status: {}",
+                            bot,
+                            resp.status()
+                        );
+                    }
+                }
+                Err(e) => {
+                    anyhow::bail!(
+                        "E2E Runner: Health check for {} failed to connect: {}",
+                        bot,
+                        e
+                    );
+                }
+            }
+        }
+        tracing::info!("E2E Runner: All spawned bots' health checks passed.");
     }
 
     // 7. Parse test suite configuration

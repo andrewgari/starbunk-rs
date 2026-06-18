@@ -347,6 +347,8 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    starbunk::health::start_health_server("djcova", None);
+
     let token = std::env::var("DISCORD_TOKEN")
         .map_err(|_| anyhow::anyhow!("DJCova: DISCORD_TOKEN not set"))?;
 
