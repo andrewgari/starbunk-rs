@@ -52,17 +52,17 @@ impl InMemoryBotStateManager {
 
 impl BotStateService for InMemoryBotStateManager {
     fn enable_bot(&self, bot_name: &str) {
-        let mut states = self.states.write().unwrap();
+        let mut states = self.states.write().unwrap_or_else(|e| e.into_inner());
         states.insert(bot_name.to_string(), true);
     }
 
     fn disable_bot(&self, bot_name: &str) {
-        let mut states = self.states.write().unwrap();
+        let mut states = self.states.write().unwrap_or_else(|e| e.into_inner());
         states.insert(bot_name.to_string(), false);
     }
 
     fn is_bot_enabled(&self, bot_name: &str) -> bool {
-        let states = self.states.read().unwrap();
+        let states = self.states.read().unwrap_or_else(|e| e.into_inner());
         *states.get(bot_name).unwrap_or(&true)
     }
 
@@ -73,7 +73,7 @@ impl BotStateService for InMemoryBotStateManager {
         admin_user_id: &str,
         original_frequency: u8,
     ) {
-        let mut frequencies = self.frequencies.write().unwrap();
+        let mut frequencies = self.frequencies.write().unwrap_or_else(|e| e.into_inner());
         frequencies.insert(
             bot_name.to_string(),
             FrequencyOverride {
@@ -87,26 +87,32 @@ impl BotStateService for InMemoryBotStateManager {
     }
 
     fn get_frequency(&self, bot_name: &str) -> Option<u8> {
-        let frequencies = self.frequencies.read().unwrap();
+        let frequencies = self.frequencies.read().unwrap_or_else(|e| e.into_inner());
         frequencies.get(bot_name).map(|f| f.current_frequency)
     }
 
     fn get_original_frequency(&self, bot_name: &str) -> Option<u8> {
-        let frequencies = self.frequencies.read().unwrap();
+        let frequencies = self.frequencies.read().unwrap_or_else(|e| e.into_inner());
         frequencies.get(bot_name).map(|f| f.original_frequency)
     }
 
     fn reset_frequency(&self, bot_name: &str) -> Option<u8> {
-        let mut frequencies = self.frequencies.write().unwrap();
+        let mut frequencies = self.frequencies.write().unwrap_or_else(|e| e.into_inner());
         frequencies.remove(bot_name).map(|f| f.original_frequency)
     }
 
     fn get_all_states(&self) -> HashMap<String, bool> {
-        self.states.read().unwrap().clone()
+        self.states
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     fn get_all_frequencies(&self) -> HashMap<String, FrequencyOverride> {
-        self.frequencies.read().unwrap().clone()
+        self.frequencies
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 

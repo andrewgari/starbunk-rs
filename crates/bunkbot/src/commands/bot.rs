@@ -1,10 +1,103 @@
 use crate::state::BotStateService;
-use serenity::all::{CreateCommand, Permissions};
+use serenity::all::{CommandOptionType, CreateCommand, CreateCommandOption, Permissions};
 
 pub fn bot_command() -> CreateCommand {
     CreateCommand::new("bot")
         .description("Manage bot settings")
         .default_member_permissions(Permissions::ADMINISTRATOR)
+        .add_option(CreateCommandOption::new(
+            CommandOptionType::SubCommand,
+            "list",
+            "List all reply bots and their statuses",
+        ))
+        .add_option(
+            CreateCommandOption::new(
+                CommandOptionType::SubCommand,
+                "enable",
+                "Enable a reply bot",
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "bot_name",
+                    "The name of the bot",
+                )
+                .required(true),
+            ),
+        )
+        .add_option(
+            CreateCommandOption::new(
+                CommandOptionType::SubCommand,
+                "disable",
+                "Disable a reply bot",
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "bot_name",
+                    "The name of the bot",
+                )
+                .required(true),
+            ),
+        )
+        .add_option(
+            CreateCommandOption::new(
+                CommandOptionType::SubCommand,
+                "override",
+                "Override a bot setting",
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "bot_name",
+                    "The name of the bot",
+                )
+                .required(true),
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "setting",
+                    "The setting to override",
+                )
+                .required(true)
+                .add_string_choice("frequency", "frequency"),
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::Integer,
+                    "percent",
+                    "Percentage (0-100)",
+                )
+                .required(true)
+                .min_int_value(0)
+                .max_int_value(100),
+            ),
+        )
+        .add_option(
+            CreateCommandOption::new(
+                CommandOptionType::SubCommand,
+                "reset",
+                "Reset a bot setting",
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "bot_name",
+                    "The name of the bot",
+                )
+                .required(true),
+            )
+            .add_sub_option(
+                CreateCommandOption::new(
+                    CommandOptionType::String,
+                    "setting",
+                    "The setting to reset",
+                )
+                .required(true)
+                .add_string_choice("frequency", "frequency"),
+            ),
+        )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -16,7 +109,7 @@ pub fn execute_bot_command(
     user_id: &str,
     is_admin: bool,
     state_service: &dyn BotStateService,
-    available_bots: &[String],
+    available_bots: &[(String, u8)],
 ) -> Result<String, String> {
     if !is_admin && subcommand != "list" {
         return Err("You need administrator permissions to use this command.".to_string());
@@ -24,7 +117,7 @@ pub fn execute_bot_command(
 
     if subcommand == "list" {
         let mut response = format!("📊 Bot Status ({} total)\n\n", available_bots.len());
-        for bot in available_bots {
+        for (bot, _default_freq) in available_bots {
             let enabled = state_service.is_bot_enabled(bot);
             let status = if enabled { "✅" } else { "❌" };
             let state_str = if enabled { "[ENABLED]" } else { "[DISABLED]" };
@@ -47,7 +140,7 @@ pub fn execute_bot_command(
 
     let bot_name = bot_name.ok_or_else(|| "Bot name is required".to_string())?;
 
-    if !available_bots.contains(&bot_name.to_string()) {
+    if !available_bots.iter().any(|(name, _)| name == bot_name) {
         return Err(format!("Unknown bot: {}", bot_name));
     }
 
@@ -65,10 +158,17 @@ pub fn execute_bot_command(
             if setting != "frequency" {
                 return Err(format!("Unknown setting: {}", setting));
             }
-            let percent = percent.ok_or_else(|| "Percent is required".to_string())?;
+            let percent = percent
+                .ok_or_else(|| "Percent is required".to_string())?
+                .clamp(0, 100);
+            let default_freq = available_bots
+                .iter()
+                .find(|(name, _)| name == bot_name)
+                .map(|(_, freq)| *freq)
+                .unwrap_or(100);
             let orig = state_service
                 .get_original_frequency(bot_name)
-                .unwrap_or(100);
+                .unwrap_or(default_freq);
             state_service.set_frequency(bot_name, percent, user_id, orig);
             Ok(format!(
                 "✅ {} frequency set to {}% (was {}%)",
@@ -97,8 +197,8 @@ mod tests {
     use super::*;
     use crate::state::InMemoryBotStateManager;
 
-    fn test_bots() -> Vec<String> {
-        vec!["bluebot".to_string(), "bunkbot".to_string()]
+    fn test_bots() -> Vec<(String, u8)> {
+        vec![("bluebot".to_string(), 100), ("bunkbot".to_string(), 100)]
     }
 
     #[test]
