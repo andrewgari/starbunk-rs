@@ -1,5 +1,6 @@
 pub mod conversation;
 pub mod engagement;
+pub mod personality;
 pub mod tagger;
 
 pub use conversation::{LlmTracker, Tracker};
@@ -143,6 +144,7 @@ impl EventHandler for Handler {
             is_mentioned,
             is_reply_to_me: is_reply,
             is_addressee_self: is_addressee,
+            topical_tags: tag_result.topical_tags.clone(),
         });
 
         if !eng.respond {

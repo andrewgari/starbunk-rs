@@ -13,6 +13,13 @@
       "message": "Did you see the game last night?",
       "expect_no_response": true,
       "timeout_ms": 3000
+    },
+    {
+      "name": "CovaBot chimes in when topic affinity is mentioned (Cheeseburgers)",
+      "sender": "human",
+      "message": "I really want some Cheeseburgers right now.",
+      "expect_response_contains": [""],
+      "timeout_ms": 5000
     }
   ]
 }

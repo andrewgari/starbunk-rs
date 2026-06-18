@@ -11,6 +11,7 @@ pub struct MessageInput {
     pub is_mentioned: bool,
     pub is_reply_to_me: bool,
     pub is_addressee_self: bool,
+    pub topical_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,6 +162,7 @@ mod tests {
             is_mentioned: false,
             is_reply_to_me: false,
             is_addressee_self: false,
+            topical_tags: vec![],
         }
     }
 
@@ -271,5 +273,35 @@ mod tests {
         // ch2 has no activity — should not respond
         let result = mgr.should_respond(&input("ch2"));
         assert!(!result.respond);
+    }
+
+    #[test]
+    fn topic_affinity_pulls_response() {
+        let _mgr = Manager::new();
+        // Add a topic affinity test
+        // Let's assume we can configure Manager with affinities
+        // This test will fail until we implement the logic
+        // We simulate a message with a matching tag
+        let mut i = input("ch1");
+        i.topical_tags = vec!["Cheeseburgers".to_string()];
+
+        // This needs an updated `should_respond` that takes `topic_affinities`,
+        // but for now, we'll just test that we get a response if we set up the manager.
+        // For the sake of the TDD stub, we'll call a hypothetical method
+        // mgr.set_affinities(vec!["Cheeseburgers".to_string()]);
+        // let result = mgr.should_respond(&i);
+        // assert!(result.respond);
+        // assert_eq!(result.reason, Some(GateReason::TopicAffinity));
+        assert!(false, "TDD phase: topic affinity pull missing");
+    }
+
+    #[test]
+    fn low_social_battery_dampens_ambient_responses() {
+        let _mgr = Manager::new();
+        // mgr.deplete_battery(100);
+        // let i = input("ch1"); // ambient
+        // let result = mgr.should_respond(&i);
+        // assert!(!result.respond);
+        assert!(false, "TDD phase: social battery restraint missing");
     }
 }
