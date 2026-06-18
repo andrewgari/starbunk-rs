@@ -19,6 +19,8 @@ Gemini, and OpenAI as fallbacks.
 
 - **Entry point:** `src/bin/covabot.rs` → `src/bots/covabot::run()`
 - **Framework:** `starbunk::run_bot` + `src/shared/discord::MessageService`
+- **Personality Config:** Loads `config/bots/covabot.yml` which defines behavior (`social_battery_config`, `topic_affinities`, etc.) via `personality::Profile`.
+- **Engagement Manager:** Controls whether CovaBot responds. It uses `GateReason` checks (Direct Mention, Direct Reply) and evaluates `topic_affinities` alongside the `social_battery`. If the battery is depleted (<= 20%), ambient engagement is dampened.
 - **LLM:** `src/shared/llm::Registry` provides High/Medium/Low tier routing.
 - **Memory:** `src/shared/memory::MemoryService` handles async pgvector-based fact extraction (Low tier) and similarity search for context injection.
 - All LLM calls must be fully async and timeout-resistant.
