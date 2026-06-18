@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Dynamically locate repository root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 # Configuration
 CLUSTER_NAME="starbunk-gke-cluster"
 REGION="us-central1"
@@ -22,7 +26,7 @@ echo "----------------------------------------"
 docker run --rm \
   -v ~/.config/gcloud:/root/.config/gcloud \
   -v ~/.kube:/root/.kube \
-  -v "$(pwd)":/app \
+  -v "$REPO_ROOT":/app \
   -w /app \
   google/cloud-sdk:latest bash -c "
 echo 'Fetching GKE cluster credentials...' && \
