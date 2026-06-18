@@ -3,6 +3,19 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-18 — CovaBot Personality and Engagement System
+
+### Added
+- Created `personality.rs` to load and parse CovaBot's personality profile (YAML) which includes `topic_affinities` and `social_battery_config`.
+- Implemented `GateReason::TopicAffinity` in `engagement.rs` to pull CovaBot into conversations involving topics he cares about (e.g., "Cheeseburgers").
+- Implemented Social Battery logic in `engagement.rs` to suppress ambient conversational engagement when the battery drops below 20%.
+
+### Changed
+- Updated `crates/covabot/src/lib.rs` to dynamically load `config/bots/covabot.yml` on startup and pass topic affinities to the `EngagementManager`.
+- Updated `engagement.rs` unit tests to ensure that direct mentions and direct replies override battery constraints, while ambient responses respect dampening.
+
+---
+
 ## 2026-06-18 — Secure BunkBot Configuration Deployment
 
 ### Added
