@@ -36,15 +36,18 @@ pub async fn handle_interaction(
 
                 match clearwebhooks::execute_clearwebhooks(is_admin, || async {
                     let mut count = 0;
-                    if let Ok(webhooks) = ctx.http.get_channel_webhooks(cmd.channel_id).await {
-                        for webhook in webhooks {
-                            if webhook
-                                .user
-                                .is_some_and(|u| u.id == ctx.cache.current_user().id)
-                                && ctx.http.delete_webhook(webhook.id, None).await.is_ok()
-                            {
-                                count += 1;
-                            }
+                    let webhooks = ctx
+                        .http
+                        .get_channel_webhooks(cmd.channel_id)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch webhooks: {}", e))?;
+                    for webhook in webhooks {
+                        if webhook
+                            .user
+                            .is_some_and(|u| u.id == ctx.cache.current_user().id)
+                            && ctx.http.delete_webhook(webhook.id, None).await.is_ok()
+                        {
+                            count += 1;
                         }
                     }
                     Ok(count)
