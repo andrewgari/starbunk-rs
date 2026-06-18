@@ -33,7 +33,7 @@ ${BOTNAME_TOKEN:-${STARBUNK_TOKEN}}
 BunkBot reads its reply bot routing and triggers configuration from a `bots.yml` file:
 
 - **Local Development**: Looks for `config/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
-- **Production (GKE)**: Projected from the `starbunk-secrets` Kubernetes Secret (under the key `BOTS_CONFIG_YAML`) and mounted into the pod at `/app/config/bots.yml`.
+- **Production (GKE)**: Mounted from a standard `starbunk-secrets` Kubernetes secret volume (under the key `BOTS_CONFIG_YAML`) into the pod at `/app/config/bots.yml`.
   - To update this configuration in production, edit your local `config/bots.yml`, run `kube_secrets.sh` to update the GKE secret, and trigger a deployment rollout.
 
 ## Docker Compose Files
