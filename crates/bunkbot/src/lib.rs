@@ -59,33 +59,45 @@ impl EventHandler for Handler {
             BunkBotEngine::new(bots, sender, identity_provider, self.state_service.clone());
         let _ = self.engine.set(new_engine);
 
-        // Register slash commands (disabled for TDD Phase 1 to avoid prod side effects)
-        /*
+        // Register slash commands
         let commands = commands::all_commands();
+        let mut is_dev = false;
         if let Ok(guild_id_str) = std::env::var("DEV_GUILD_ID") {
-            if let Ok(guild_id_num) = guild_id_str.parse::<u64>() {
-                let guild_id = serenity::all::GuildId::new(guild_id_num);
-                if let Err(e) = guild_id.set_commands(&ctx.http, commands).await {
-                    tracing::error!("failed to register guild commands: {}", e);
-                } else {
-                    tracing::info!("registered guild-specific slash commands");
+            match guild_id_str.parse::<u64>() {
+                Ok(guild_id_num) => {
+                    let guild_id = serenity::all::GuildId::new(guild_id_num);
+                    if let Err(e) = guild_id.set_commands(&ctx.http, commands.clone()).await {
+                        tracing::error!("failed to register guild commands: {}", e);
+                    } else {
+                        tracing::info!("registered guild-specific slash commands");
+                    }
+                    is_dev = true;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "DEV_GUILD_ID is set but invalid ({}). Falling back to global commands.",
+                        e
+                    );
                 }
             }
-        } else {
+        }
+
+        if !is_dev {
             if let Err(e) = serenity::all::Command::set_global_commands(&ctx.http, commands).await {
                 tracing::error!("failed to register global slash commands: {}", e);
             } else {
                 tracing::info!("registered global slash commands");
             }
         }
-        */
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Err(e) =
-            commands::handle_interaction(&ctx, &interaction, self.state_service.clone()).await
-        {
-            tracing::error!("error handling interaction: {}", e);
+        if let Some(engine) = self.engine.get() {
+            if let Err(e) = commands::handle_interaction(&ctx, &interaction, engine).await {
+                tracing::error!("error handling interaction: {}", e);
+            }
+        } else {
+            tracing::warn!("received interaction before engine was initialized");
         }
     }
 

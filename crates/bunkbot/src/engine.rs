@@ -56,6 +56,17 @@ impl BunkBotEngine {
         }
     }
 
+    pub fn bot_configs(&self) -> Vec<(String, u8)> {
+        self.bots
+            .iter()
+            .map(|b| (b.name.clone(), b.frequency))
+            .collect()
+    }
+
+    pub fn state_service(&self) -> Arc<dyn BotStateService> {
+        self.state_service.clone()
+    }
+
     #[tracing::instrument(skip(self, ctx, msg), fields(channel = %msg.channel_id))]
     pub async fn handle(&self, ctx: &Context, msg: &Message, self_id: UserId) {
         for bot in &self.bots {
@@ -346,7 +357,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_should_process_bot_disabled() {
         let bot = bot_cfg(false, false, false, 100);
         let msg = build_msg("hi", false, "1");
@@ -359,7 +369,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_should_process_frequency_override() {
         // Bot defaults to 0% (never fires)
         let bot = bot_cfg(false, false, false, 0);
