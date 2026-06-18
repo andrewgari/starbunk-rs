@@ -1450,3 +1450,23 @@ fn mimic_poster_identity_parses() {
     ));
     assert_eq!(bot.identity, IdentityConfig::MimicPoster);
 }
+
+// ---------------------------------------------------------------------------
+// Local config validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_local_bots_yml_if_exists() {
+    // Looks for local gitignored config/bots.yml relative to crates/bunkbot
+    if let Ok(yaml) = std::fs::read_to_string("../../config/bots.yml") {
+        let bots = parse_bots(&yaml).expect("local config/bots.yml failed to parse");
+        assert!(
+            !bots.is_empty(),
+            "local config/bots.yml should not be empty"
+        );
+        tracing::info!(
+            "successfully parsed local config/bots.yml with {} bots",
+            bots.len()
+        );
+    }
+}

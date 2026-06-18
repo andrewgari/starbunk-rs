@@ -17,3 +17,7 @@ secrets/
 .claude/worktrees/
 .claude/scheduled_tasks.json
 .claude/scheduled_tasks.lock
+
+# Bot Configuration (never commit)
+/config/bots.yml
+

@@ -3,6 +3,18 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-18 — Secure BunkBot Configuration Deployment
+
+### Added
+- Configured secret volume projection in `kubernetes/bunkbot.yaml` to mount `bots.yml` from `starbunk-secrets` under key `BOTS_CONFIG_YAML` at `/app/config/bots.yml`.
+- Updated `.gitignore` to prevent committing local `config/bots.yml` configurations to GitHub.
+- Updated `kube_secrets.sh` to package and upload `config/bots.yml` to GKE's `starbunk-secrets` dynamically from the local workspace.
+
+### Changed
+- Updated `wiki/infrastructure/Configuration.md` and `wiki/bots/BunkBot.md` to document the secret-based deployment strategy.
+
+---
+
 ## 2026-06-18 — BunkBot State Manager and Slash Commands Implementation
 
 ### Added

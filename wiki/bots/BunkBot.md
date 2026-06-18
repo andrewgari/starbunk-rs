@@ -25,6 +25,10 @@ identities using `src/shared/discord::MessageService`.
 - **Identity/webhook:** `src/shared/discord::Identity` + `DiscordIdentityProvider`
 - Scaled for high message volume — handlers must remain lightweight and non-blocking.
 
+## Configuration
+
+BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup. See the [[../infrastructure/Configuration|Configuration]] wiki page for detailed instructions on managing this configuration file in development and production GKE environments.
+
 ## Edge Cases
 
 - Webhook permission errors or timeouts.
@@ -34,3 +38,4 @@ identities using `src/shared/discord::MessageService`.
 ## See Also
 
 - [[../infrastructure/Architecture|Architecture]]
+
