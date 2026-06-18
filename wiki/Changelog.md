@@ -3,6 +3,19 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-18 — BunkBot State Manager and Slash Commands Implementation
+
+### Added
+- Implemented `BotStateService` and `InMemoryBotStateManager` in `crates/bunkbot/src/state.rs` to allow dynamic toggling of bots and frequency overrides.
+- Added `/bot` slash command with `enable`, `disable`, `override`, `reset`, and `list` subcommands in `crates/bunkbot/src/commands/bot.rs` to control bot behavior at runtime.
+- Integrated the state manager into `Engine` (`crates/bunkbot/src/engine.rs`) to evaluate bot enablement and overrides during message processing.
+
+### Changed
+- Updated `crates/bunkbot/src/commands.rs` to route the `/bot` command to the new handlers.
+- Updated `wiki/bots/BunkBot.md` to document the new state manager and administrative slash commands.
+
+---
+
 ## 2026-06-15 — Logging and Observability Improvements for DJCova
 
 ### Added
