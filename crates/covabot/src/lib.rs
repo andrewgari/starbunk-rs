@@ -77,9 +77,18 @@ impl EventHandler for Handler {
 
                 let low_llm = llms.low().expect("no LLM tier available");
 
+                let profile_yaml = std::fs::read_to_string("config/bots/covabot.yml")
+                    .unwrap_or_else(|_| {
+                        "name_aliases: [\"CovaBot\"]\ntopic_affinities: []".to_string()
+                    });
+                let profile =
+                    personality::Profile::load(&profile_yaml).expect("failed to load profile");
+
                 Services {
                     webhooks: Arc::new(WebhookService::new(ctx.http.clone())),
-                    engagement: Arc::new(EngagementManager::new()),
+                    engagement: Arc::new(
+                        EngagementManager::new().with_affinities(profile.topic_affinities),
+                    ),
                     tagger: Arc::new(LlmTagger::new(low_llm.clone())),
                     conversation: Arc::new(LlmTracker::new(low_llm.clone())),
                     memory: Arc::new(MemoryServiceImpl::new(store, llms.clone())),

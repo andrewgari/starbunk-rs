@@ -2,7 +2,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct SocialBatteryConfig {
     pub max: i32,
     pub starting_value: i32,
@@ -11,7 +12,8 @@ pub struct SocialBatteryConfig {
     pub recharge_interval_minutes: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Profile {
     pub name_aliases: Vec<String>,
     pub system_prompt: String,
