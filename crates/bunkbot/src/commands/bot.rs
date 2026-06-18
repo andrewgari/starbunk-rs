@@ -1,10 +1,9 @@
 use crate::state::BotStateService;
-use serenity::all::{CommandOptionType, CreateCommand, CreateCommandOption, Permissions};
+use serenity::all::{CommandOptionType, CreateCommand, CreateCommandOption};
 
 pub fn bot_command() -> CreateCommand {
     CreateCommand::new("bot")
         .description("Manage bot settings")
-        .default_member_permissions(Permissions::ADMINISTRATOR)
         .add_option(CreateCommandOption::new(
             CommandOptionType::SubCommand,
             "list",

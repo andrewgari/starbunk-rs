@@ -363,8 +363,6 @@ mod tests {
         let state = InMemoryBotStateManager::new();
         state.disable_bot(&bot.name);
 
-        // Under stub, state.is_bot_enabled always returns true, but the test demands false.
-        // Once implemented properly, this should evaluate to false.
         assert!(!should_process(&bot, &msg, SELF_ID, &state));
     }
 
@@ -378,7 +376,6 @@ mod tests {
         // Override to 100% (always fires)
         state.set_frequency(&bot.name, 100, "admin", 0);
 
-        // Under stub, state.get_frequency returns None, so it will fall back to bot's 0% frequency and fail.
         assert!(should_process(&bot, &msg, SELF_ID, &state));
     }
 
