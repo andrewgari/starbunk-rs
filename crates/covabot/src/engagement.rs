@@ -11,6 +11,7 @@ pub struct MessageInput {
     pub is_mentioned: bool,
     pub is_reply_to_me: bool,
     pub is_addressee_self: bool,
+    pub topical_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +19,7 @@ pub enum GateReason {
     DirectMention,
     ReplyToCova,
     EngagementContinuity,
+    TopicAffinity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,12 +46,29 @@ struct ChannelState {
 /// Tracks engagement state per channel and decides if CovaBot should respond.
 pub struct Manager {
     states: Mutex<HashMap<String, ChannelState>>,
+    topic_affinities: Vec<String>,
+    battery: Mutex<i32>,
 }
 
 impl Manager {
     pub fn new() -> Self {
         Self {
             states: Mutex::new(HashMap::new()),
+            topic_affinities: vec![],
+            battery: Mutex::new(100),
+        }
+    }
+
+    pub fn with_affinities(mut self, affinities: Vec<String>) -> Self {
+        self.topic_affinities = affinities;
+        self
+    }
+
+    pub fn deplete_battery(&self, amount: i32) {
+        let mut b = self.battery.lock().expect("mutex poisoned");
+        *b -= amount;
+        if *b < 0 {
+            *b = 0;
         }
     }
 
@@ -63,6 +82,9 @@ impl Manager {
             .and_then(|s| s.last_spoke_at)
             .map(|t| t.elapsed() < RECENT_SPEAK_WINDOW)
             .unwrap_or(false);
+
+        let battery_level = *self.battery.lock().expect("mutex poisoned");
+        let battery_low = battery_level <= 20;
 
         // 1. Direct Mention — highest pull, clears all restraints.
         if input.is_mentioned {
@@ -82,7 +104,7 @@ impl Manager {
             };
         }
 
-        // 3. Direct Reply or Addressee==Self — high pull, clears dampener.
+        // 3. Direct Reply or Addressee==Self — high pull, clears dampener and battery limits.
         if input.is_reply_to_me || input.is_addressee_self {
             return EngagementResult {
                 respond: true,
@@ -91,8 +113,8 @@ impl Manager {
             };
         }
 
-        // 4. Dampener stops ambient/continuity responses.
-        if dampened {
+        // 4. Dampener or Low Battery stops ambient/continuity responses.
+        if dampened || battery_low {
             return EngagementResult {
                 respond: false,
                 reason: None,
@@ -100,7 +122,20 @@ impl Manager {
             };
         }
 
-        // 5. Engagement continuity — active for RECENT_SPEAK_WINDOW after Cova last spoke.
+        // 5. Topic Affinity - ambient pull if a topic matches
+        let matches_affinity = input
+            .topical_tags
+            .iter()
+            .any(|t| self.topic_affinities.contains(t));
+        if matches_affinity {
+            return EngagementResult {
+                respond: true,
+                reason: Some(GateReason::TopicAffinity),
+                energy: Some(GateEnergy::Invested),
+            };
+        }
+
+        // 6. Engagement continuity — active for RECENT_SPEAK_WINDOW after Cova last spoke.
         if recently_spoke {
             return EngagementResult {
                 respond: true,
@@ -161,6 +196,7 @@ mod tests {
             is_mentioned: false,
             is_reply_to_me: false,
             is_addressee_self: false,
+            topical_tags: vec![],
         }
     }
 
@@ -270,6 +306,26 @@ mod tests {
         mgr.record_cova_speak("ch1");
         // ch2 has no activity — should not respond
         let result = mgr.should_respond(&input("ch2"));
+        assert!(!result.respond);
+    }
+
+    #[test]
+    fn topic_affinity_pulls_response() {
+        let mgr = Manager::new().with_affinities(vec!["Cheeseburgers".to_string()]);
+        let mut i = input("ch1");
+        i.topical_tags = vec!["Cheeseburgers".to_string()];
+
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::TopicAffinity));
+    }
+
+    #[test]
+    fn low_social_battery_dampens_ambient_responses() {
+        let mgr = Manager::new();
+        mgr.deplete_battery(100);
+        let i = input("ch1"); // ambient
+        let result = mgr.should_respond(&i);
         assert!(!result.respond);
     }
 }
