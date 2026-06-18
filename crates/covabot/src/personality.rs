@@ -23,8 +23,9 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn load(_yaml_content: &str) -> Result<Self> {
-        unimplemented!("TDD phase: implementation missing")
+    pub fn load(yaml_content: &str) -> Result<Self> {
+        let profile = serde_yaml::from_str(yaml_content)?;
+        Ok(profile)
     }
 }
 

@@ -19,6 +19,7 @@ pub enum GateReason {
     DirectMention,
     ReplyToCova,
     EngagementContinuity,
+    TopicAffinity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,12 +46,29 @@ struct ChannelState {
 /// Tracks engagement state per channel and decides if CovaBot should respond.
 pub struct Manager {
     states: Mutex<HashMap<String, ChannelState>>,
+    topic_affinities: Vec<String>,
+    battery: Mutex<i32>,
 }
 
 impl Manager {
     pub fn new() -> Self {
         Self {
             states: Mutex::new(HashMap::new()),
+            topic_affinities: vec![],
+            battery: Mutex::new(100),
+        }
+    }
+
+    pub fn with_affinities(mut self, affinities: Vec<String>) -> Self {
+        self.topic_affinities = affinities;
+        self
+    }
+
+    pub fn deplete_battery(&self, amount: i32) {
+        let mut b = self.battery.lock().expect("mutex poisoned");
+        *b -= amount;
+        if *b < 0 {
+            *b = 0;
         }
     }
 
@@ -64,6 +82,9 @@ impl Manager {
             .and_then(|s| s.last_spoke_at)
             .map(|t| t.elapsed() < RECENT_SPEAK_WINDOW)
             .unwrap_or(false);
+
+        let battery_level = *self.battery.lock().expect("mutex poisoned");
+        let battery_low = battery_level <= 20;
 
         // 1. Direct Mention — highest pull, clears all restraints.
         if input.is_mentioned {
@@ -83,7 +104,7 @@ impl Manager {
             };
         }
 
-        // 3. Direct Reply or Addressee==Self — high pull, clears dampener.
+        // 3. Direct Reply or Addressee==Self — high pull, clears dampener and battery limits.
         if input.is_reply_to_me || input.is_addressee_self {
             return EngagementResult {
                 respond: true,
@@ -92,8 +113,8 @@ impl Manager {
             };
         }
 
-        // 4. Dampener stops ambient/continuity responses.
-        if dampened {
+        // 4. Dampener or Low Battery stops ambient/continuity responses.
+        if dampened || battery_low {
             return EngagementResult {
                 respond: false,
                 reason: None,
@@ -101,7 +122,20 @@ impl Manager {
             };
         }
 
-        // 5. Engagement continuity — active for RECENT_SPEAK_WINDOW after Cova last spoke.
+        // 5. Topic Affinity - ambient pull if a topic matches
+        let matches_affinity = input
+            .topical_tags
+            .iter()
+            .any(|t| self.topic_affinities.contains(t));
+        if matches_affinity {
+            return EngagementResult {
+                respond: true,
+                reason: Some(GateReason::TopicAffinity),
+                energy: Some(GateEnergy::Invested),
+            };
+        }
+
+        // 6. Engagement continuity — active for RECENT_SPEAK_WINDOW after Cova last spoke.
         if recently_spoke {
             return EngagementResult {
                 respond: true,
@@ -277,31 +311,21 @@ mod tests {
 
     #[test]
     fn topic_affinity_pulls_response() {
-        let _mgr = Manager::new();
-        // Add a topic affinity test
-        // Let's assume we can configure Manager with affinities
-        // This test will fail until we implement the logic
-        // We simulate a message with a matching tag
+        let mgr = Manager::new().with_affinities(vec!["Cheeseburgers".to_string()]);
         let mut i = input("ch1");
         i.topical_tags = vec!["Cheeseburgers".to_string()];
 
-        // This needs an updated `should_respond` that takes `topic_affinities`,
-        // but for now, we'll just test that we get a response if we set up the manager.
-        // For the sake of the TDD stub, we'll call a hypothetical method
-        // mgr.set_affinities(vec!["Cheeseburgers".to_string()]);
-        // let result = mgr.should_respond(&i);
-        // assert!(result.respond);
-        // assert_eq!(result.reason, Some(GateReason::TopicAffinity));
-        assert!(false, "TDD phase: topic affinity pull missing");
+        let result = mgr.should_respond(&i);
+        assert!(result.respond);
+        assert_eq!(result.reason, Some(GateReason::TopicAffinity));
     }
 
     #[test]
     fn low_social_battery_dampens_ambient_responses() {
-        let _mgr = Manager::new();
-        // mgr.deplete_battery(100);
-        // let i = input("ch1"); // ambient
-        // let result = mgr.should_respond(&i);
-        // assert!(!result.respond);
-        assert!(false, "TDD phase: social battery restraint missing");
+        let mgr = Manager::new();
+        mgr.deplete_battery(100);
+        let i = input("ch1"); // ambient
+        let result = mgr.should_respond(&i);
+        assert!(!result.respond);
     }
 }
