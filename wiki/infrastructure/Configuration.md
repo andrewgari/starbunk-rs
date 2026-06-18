@@ -33,8 +33,20 @@ ${BOTNAME_TOKEN:-${STARBUNK_TOKEN}}
 BunkBot reads its reply bot routing and triggers configuration from a `bots.yml` file:
 
 - **Local Development**: Looks for `config/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
-- **Production (GKE)**: Mounted from a standard `starbunk-secrets` Kubernetes secret volume (under the key `BOTS_CONFIG_YAML`) into the pod at `/app/config/bots.yml`.
-  - To update this configuration in production, edit your local `config/bots.yml`, run `kube_secrets.sh` to update the GKE secret, and trigger a deployment rollout.
+- **Production (GKE)**: Mounted from the `starbunk-secrets` Kubernetes Secret (under the key `BOTS_CONFIG_YAML`) into the pod at `/app/config/bots.yml`.
+  - To update this configuration in production, edit your local `config/bots.yml` and run `./deploy_config.sh` from the workspace root. This script base64-encodes the file, patches the `starbunk-secrets` secret on GKE, and triggers a zero-downtime rollout restart for BunkBot.
+
+## Kubernetes Manifest Deployment (deploy_k8s.sh)
+
+To simplify and automate applying all Kubernetes manifests in the `kubernetes/` directory to the GKE cluster, use the `./deploy_k8s.sh` script from the workspace root:
+
+- **Usage**:
+  ```bash
+  ./deploy_k8s.sh [image-tag]
+  ```
+- **Arguments**:
+  - `image-tag` (optional): If specified, the script automatically pins all five bot deployments (`bluebot`, `bunkbot`, `covabot`, `djcova`, and `ratbot`) to that specific Docker image tag in the GKE registry. If omitted, it defaults to using `latest` (applying the manifests as configured in the files).
+- **Execution**: The script runs all steps inside a temporary `google/cloud-sdk:latest` Docker container, fetching credentials, applying the namespace and manifests, and verifying the rollout status of all pods.
 
 ## Docker Compose Files
 
