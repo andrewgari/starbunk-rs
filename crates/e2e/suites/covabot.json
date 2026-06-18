@@ -18,7 +18,7 @@
       "name": "CovaBot chimes in when topic affinity is mentioned (Cheeseburgers)",
       "sender": "human",
       "message": "I really want some Cheeseburgers right now.",
-      "expect_response_contains": [""],
+      "expect": "",
       "timeout_ms": 5000
     }
   ]

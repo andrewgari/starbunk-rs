@@ -81,8 +81,10 @@ impl EventHandler for Handler {
                     .unwrap_or_else(|_| {
                         "name_aliases: [\"CovaBot\"]\ntopic_affinities: []".to_string()
                     });
-                let profile =
-                    personality::Profile::load(&profile_yaml).expect("failed to load profile");
+                let profile = personality::Profile::load(&profile_yaml).unwrap_or_else(|e| {
+                    tracing::warn!("failed to load profile: {}, falling back to default", e);
+                    personality::Profile::default()
+                });
 
                 Services {
                     webhooks: Arc::new(WebhookService::new(ctx.http.clone())),
