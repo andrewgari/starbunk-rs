@@ -34,19 +34,31 @@ BunkBot reads its reply bot routing and triggers configuration from a `bots.yml`
 
 - **Local Development**: Looks for `config/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
 - **Production (GKE)**: Mounted from the `starbunk-secrets` Kubernetes Secret (under the key `BOTS_CONFIG_YAML`) into the pod at `/app/config/bots.yml`.
-  - To update this configuration in production, edit your local `config/bots.yml` and run `./deploy_config.sh` from the workspace root. This script base64-encodes the file, patches the `starbunk-secrets` secret on GKE, and triggers a zero-downtime rollout restart for BunkBot.
+  - To update this configuration in production, edit your local `config/bots.yml` and run `./scripts/deploy_config.sh` from the workspace root. This script base64-encodes the file, patches the `starbunk-secrets` secret on GKE, and triggers a zero-downtime rollout restart for BunkBot.
 
 ## Kubernetes Manifest Deployment (deploy_k8s.sh)
 
-To simplify and automate applying all Kubernetes manifests in the `kubernetes/` directory to the GKE cluster, use the `./deploy_k8s.sh` script from the workspace root:
+To simplify and automate applying all Kubernetes manifests in the `kubernetes/` directory to the GKE cluster, use the `./scripts/deploy_k8s.sh` script from the workspace root:
 
 - **Usage**:
   ```bash
-  ./deploy_k8s.sh [image-tag]
+  ./scripts/deploy_k8s.sh [image-tag]
   ```
 - **Arguments**:
   - `image-tag` (optional): If specified, the script automatically pins all five bot deployments (`bluebot`, `bunkbot`, `covabot`, `djcova`, and `ratbot`) to that specific Docker image tag in the GKE registry. If omitted, it defaults to using `latest` (applying the manifests as configured in the files).
 - **Execution**: The script runs all steps inside a temporary `google/cloud-sdk:latest` Docker container, fetching credentials, applying the namespace and manifests, and verifying the rollout status of all pods.
+
+## Rolling Restart of Bots (restart_bots.sh)
+
+To perform a zero-downtime rolling restart of the bots or other infrastructure in GKE, use the `./scripts/restart_bots.sh` script:
+
+- **Usage**:
+  ```bash
+  ./scripts/restart_bots.sh [all|bot-name]
+  ```
+- **Arguments**:
+  - `all` (default): Triggers a rolling restart for all five bot deployments (`bluebot`, `bunkbot`, `covabot`, `djcova`, and `ratbot`).
+  - `bot-name`: Triggers a rolling restart for a specific deployment or statefulset (e.g. `bunkbot`, `postgres`, `otel-collector`).
 
 ## Docker Compose Files
 

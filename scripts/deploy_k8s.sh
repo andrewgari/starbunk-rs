@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Dynamically locate repository root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 # Configuration
 CLUSTER_NAME="starbunk-gke-cluster"
 REGION="us-central1"
@@ -22,17 +26,19 @@ echo "----------------------------------------"
 docker run --rm \
   -v ~/.config/gcloud:/root/.config/gcloud \
   -v ~/.kube:/root/.kube \
-  -v "$(pwd)":/app \
+  -v "$REPO_ROOT":/app \
   -w /app \
   google/cloud-sdk:latest bash -c "
-echo 'Fetching GKE cluster credentials...' && \
-gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $PROJECT_ID && \
+set -euo pipefail
 
-echo 'Applying namespace.yaml...' && \
-kubectl apply -f kubernetes/namespace.yaml && \
+echo 'Fetching GKE cluster credentials...'
+gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $PROJECT_ID
 
-echo 'Applying all Kubernetes manifests...' && \
-kubectl apply -f kubernetes/ && \
+echo 'Applying namespace.yaml...'
+kubectl apply -f kubernetes/namespace.yaml
+
+echo 'Applying all Kubernetes manifests...'
+kubectl apply -f kubernetes/
 
 # If a specific image tag (other than latest or if explicitly set) needs to be set, pin it now
 if [ \"$DEPLOY_TAG\" != \"latest\" ]; then
@@ -42,9 +48,9 @@ if [ \"$DEPLOY_TAG\" != \"latest\" ]; then
   done
 fi
 
-echo 'Verifying rollout status...' && \
-kubectl rollout status statefulset/postgres -n $NAMESPACE --timeout=3m && \
-kubectl rollout status deployment/otel-collector -n $NAMESPACE --timeout=3m && \
+echo 'Verifying rollout status...'
+kubectl rollout status statefulset/postgres -n $NAMESPACE --timeout=3m
+kubectl rollout status deployment/otel-collector -n $NAMESPACE --timeout=3m
 for BOT in ${BOTS[@]}; do
   kubectl rollout status \"deployment/\${BOT}\" -n $NAMESPACE --timeout=3m
 done
