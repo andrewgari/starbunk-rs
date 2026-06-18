@@ -123,10 +123,11 @@ impl Manager {
         }
 
         // 5. Topic Affinity - ambient pull if a topic matches
-        let matches_affinity = input
-            .topical_tags
-            .iter()
-            .any(|t| self.topic_affinities.contains(t));
+        let matches_affinity = input.topical_tags.iter().any(|t| {
+            self.topic_affinities
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(t))
+        });
         if matches_affinity {
             return EngagementResult {
                 respond: true,
