@@ -240,7 +240,10 @@ async fn main() -> anyhow::Result<()> {
             bots
         );
 
-        let reqwest_client = reqwest::Client::new();
+        let reqwest_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         for bot in &bots {
             let port = match *bot {
                 "bluebot" => 8081,
@@ -258,14 +261,29 @@ async fn main() -> anyhow::Result<()> {
             match reqwest_client.get(&url).send().await {
                 Ok(resp) => {
                     if resp.status().is_success() {
-                        if let Ok(body) = resp.text().await {
-                            tracing::info!(
-                                "E2E Runner: Health check for {} succeeded: {}",
-                                bot,
-                                body
-                            );
-                        } else {
-                            tracing::warn!("E2E Runner: Health check for {} succeeded but body could not be read", bot);
+                        match resp.text().await {
+                            Ok(body) => {
+                                if body.trim() == "{\"status\":\"ok\"}" {
+                                    tracing::info!(
+                                        "E2E Runner: Health check for {} succeeded: {}",
+                                        bot,
+                                        body
+                                    );
+                                } else {
+                                    anyhow::bail!(
+                                        "E2E Runner: Health check for {} succeeded but returned unexpected body: {:?}",
+                                        bot,
+                                        body
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                anyhow::bail!(
+                                    "E2E Runner: Health check for {} succeeded but body could not be read: {}",
+                                    bot,
+                                    e
+                                );
+                            }
                         }
                     } else {
                         anyhow::bail!(

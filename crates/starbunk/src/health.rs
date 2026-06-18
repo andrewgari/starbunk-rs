@@ -94,7 +94,7 @@ pub fn start_health_server(bot_name: &str, health_monitor: Option<Arc<HealthMoni
         });
 
     tokio::spawn(async move {
-        let addr = format!("0.0.0.0:{}", port);
+        let addr = format!("127.0.0.1:{}", port);
         let listener = match tokio::net::TcpListener::bind(&addr).await {
             Ok(l) => l,
             Err(e) => {
