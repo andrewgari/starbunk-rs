@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_imports)]
-
 pub mod blue_match;
 pub mod confirm_enemy;
 pub mod reply_confirm;

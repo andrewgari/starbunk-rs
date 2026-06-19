@@ -43,7 +43,13 @@ impl EventHandler for Handler {
                 let state = strategy::state::SharedState::new();
                 ReplyBot::new(
                     Arc::new(DiscordMessageService::new(ctx.http.clone(), ws)),
-                    vec![Box::new(strategy::BlueStrategy::new(state.clone()))],
+                    vec![
+                        Box::new(strategy::RequestEnemyStrategy::new()),
+                        Box::new(strategy::RequestConfirmStrategy::new()),
+                        Box::new(strategy::ConfirmEnemyStrategy::new(state.clone())),
+                        Box::new(strategy::ReplyConfirmStrategy::new(state.clone())),
+                        Box::new(strategy::BlueStrategy::new(state.clone())),
+                    ],
                 )
             })
             .await;

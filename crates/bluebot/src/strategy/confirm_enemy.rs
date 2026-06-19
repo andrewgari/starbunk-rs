@@ -1,12 +1,16 @@
-#![allow(dead_code)]
 use crate::strategy::state::SharedState;
 use async_trait::async_trait;
+use regex::Regex;
 use serenity::all::{Context, Message};
 use starbunk::replybot::Strategy;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
 
-#[allow(dead_code)]
+static MEAN_WORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(fuck(ing)?|hate|die|kill|worst|mom|shit|murder|bots?)\b")
+        .expect("mean words regex")
+});
+
 pub struct ConfirmEnemyStrategy {
     pub state: Arc<RwLock<SharedState>>,
 }
@@ -17,12 +21,15 @@ impl ConfirmEnemyStrategy {
     }
 
     pub fn check_trigger(
-        _is_enemy: bool,
-        _content: &str,
-        _is_within_reply_window: bool,
-        _is_within_murder_cooldown: bool,
+        is_enemy: bool,
+        content: &str,
+        is_within_reply_window: bool,
+        is_within_murder_cooldown: bool,
     ) -> bool {
-        false
+        if !is_enemy || !is_within_reply_window || is_within_murder_cooldown {
+            return false;
+        }
+        MEAN_WORDS.is_match(content)
     }
 }
 
@@ -32,13 +39,31 @@ impl Strategy for ConfirmEnemyStrategy {
         "ConfirmEnemyStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, _msg: &Message) -> bool {
-        // TODO: Implement enemy check and murder window
-        false
+    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+        let now = chrono::Utc::now();
+        let (is_reply, is_murder, enemy_id) = {
+            let state = self.state.read().await;
+            (
+                state.is_within_reply_window(now),
+                state.is_within_murder_window(now),
+                state.enemy_user_id,
+            )
+        };
+
+        let is_enemy = enemy_id != 0 && msg.author.id.get() == enemy_id;
+
+        if Self::check_trigger(is_enemy, &msg.content, is_reply, is_murder) {
+            let mut state = self.state.write().await;
+            state.clear_reply_window();
+            state.open_murder_window(now);
+            true
+        } else {
+            false
+        }
     }
 
     async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
-        "MURDER_RESPONSE".to_string()
+        "I will fucking murder you".to_string()
     }
 }
 

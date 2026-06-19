@@ -15,7 +15,6 @@ use crate::strategy::state::SharedState;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[allow(dead_code)]
 pub struct BlueStrategy {
     pub state: Arc<RwLock<SharedState>>,
 }
@@ -37,7 +36,15 @@ impl Strategy for BlueStrategy {
     }
 
     async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
-        BLUE_PATTERN.is_match(&msg.content)
+        if BLUE_PATTERN.is_match(&msg.content) {
+            self.state
+                .write()
+                .await
+                .open_reply_window(chrono::Utc::now());
+            true
+        } else {
+            false
+        }
     }
 
     async fn response(&self, _ctx: &Context, _msg: &Message) -> String {

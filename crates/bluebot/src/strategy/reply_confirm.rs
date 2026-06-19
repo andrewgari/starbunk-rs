@@ -1,12 +1,18 @@
-#![allow(dead_code)]
 use crate::strategy::state::SharedState;
 use async_trait::async_trait;
+use regex::Regex;
 use serenity::all::{Context, Message};
 use starbunk::replybot::Strategy;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
 
-#[allow(dead_code)]
+static CONFIRM_WORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b(yes|yeah|yep|yup|true|definitely|absolutely|blue|blu|bluebot|correct|right)\b",
+    )
+    .expect("confirm words regex")
+});
+
 pub struct ReplyConfirmStrategy {
     pub state: Arc<RwLock<SharedState>>,
 }
@@ -17,11 +23,20 @@ impl ReplyConfirmStrategy {
     }
 
     pub fn check_trigger(
-        _content: &str,
-        _is_reply_to_bot: bool,
-        _is_within_reply_window: bool,
+        content: &str,
+        is_reply_to_bot: bool,
+        is_within_reply_window: bool,
     ) -> bool {
-        false
+        if !is_reply_to_bot && !is_within_reply_window {
+            return false;
+        }
+
+        let words = content.split_whitespace().count();
+        if words > 5 {
+            return false;
+        }
+
+        CONFIRM_WORDS.is_match(content)
     }
 }
 
@@ -31,9 +46,25 @@ impl Strategy for ReplyConfirmStrategy {
         "ReplyConfirmStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, _msg: &Message) -> bool {
-        // TODO: Implement reply window and confirm phrase check
-        false
+    async fn should_trigger(&self, ctx: &Context, msg: &Message) -> bool {
+        let is_within_reply_window = self
+            .state
+            .read()
+            .await
+            .is_within_reply_window(chrono::Utc::now());
+
+        let is_reply_to_bot = msg
+            .referenced_message
+            .as_ref()
+            .map(|m| m.author.id == ctx.cache.current_user().id)
+            .unwrap_or(false);
+
+        if Self::check_trigger(&msg.content, is_reply_to_bot, is_within_reply_window) {
+            self.state.write().await.clear_reply_window();
+            true
+        } else {
+            false
+        }
     }
 
     async fn response(&self, _ctx: &Context, _msg: &Message) -> String {

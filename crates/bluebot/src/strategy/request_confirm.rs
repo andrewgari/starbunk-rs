@@ -1,7 +1,12 @@
-#![allow(dead_code)]
 use async_trait::async_trait;
+use regex::Regex;
 use serenity::all::{Context, Message};
 use starbunk::replybot::Strategy;
+use std::sync::LazyLock;
+
+static NICE_REQUEST: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)bluebot,\s*say\s+something\s+nice\s+about\s+(.+)").expect("nice request regex")
+});
 
 pub struct RequestConfirmStrategy;
 
@@ -10,12 +15,15 @@ impl RequestConfirmStrategy {
         Self {}
     }
 
-    pub fn check_trigger(_content: &str) -> bool {
-        false
+    pub fn check_trigger(content: &str) -> bool {
+        NICE_REQUEST.is_match(content)
     }
 
-    pub fn extract_friend_name(_content: &str) -> Option<&str> {
-        None
+    pub fn extract_friend_name(content: &str) -> Option<&str> {
+        NICE_REQUEST
+            .captures(content)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str())
     }
 }
 
@@ -25,14 +33,21 @@ impl Strategy for RequestConfirmStrategy {
         "RequestConfirmStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, _msg: &Message) -> bool {
-        // TODO: Implement regex check for "say something nice about"
-        false
+    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+        Self::check_trigger(&msg.content)
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
-        // TODO: extract name and return
-        "".to_string()
+    async fn response(&self, _ctx: &Context, msg: &Message) -> String {
+        if let Some(friend) = Self::extract_friend_name(&msg.content) {
+            let author = if friend.to_lowercase() == "me" {
+                format!("<@{}>", msg.author.id.get())
+            } else {
+                friend.to_string()
+            };
+            format!("{}, I think you're pretty blue! :wink:", author)
+        } else {
+            "".to_string()
+        }
     }
 }
 
@@ -59,7 +74,7 @@ mod tests {
             RequestConfirmStrategy::extract_friend_name(
                 "bluebot, say something nice about covabot"
             ),
-            None
+            Some("covabot")
         );
     }
 }
