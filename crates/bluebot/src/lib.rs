@@ -40,9 +40,10 @@ impl EventHandler for Handler {
         let _ = self
             .bot
             .get_or_init(|| async {
+                let state = strategy::state::SharedState::new();
                 ReplyBot::new(
                     Arc::new(DiscordMessageService::new(ctx.http.clone(), ws)),
-                    vec![Box::new(strategy::BlueStrategy)],
+                    vec![Box::new(strategy::BlueStrategy::new(state.clone()))],
                 )
             })
             .await;

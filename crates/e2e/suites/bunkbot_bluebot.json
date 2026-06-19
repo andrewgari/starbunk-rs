@@ -34,6 +34,27 @@
       "message": "This bluetooth speaker is great",
       "expect_no_response": true,
       "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot reply confirm triggers on short confirmation",
+      "sender": "human",
+      "message": "yes",
+      "expect": "Somebody definitely said Blu!",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot request confirm triggers on nice request",
+      "sender": "human",
+      "message": "bluebot, say something nice about me",
+      "expect": "<@human>, I think you're pretty blue! :wink:",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "Bluebot request confirm enemy triggers on enemy request",
+      "sender": "human",
+      "message": "bluebot, say something nice about theenemy",
+      "expect": "No way, they can suck my blue cane :unamused:",
+      "timeout_ms": 2500
     }
   ]
 }
