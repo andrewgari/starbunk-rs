@@ -1,3 +1,4 @@
+use crate::personality::SocialBatteryConfig;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -36,26 +37,54 @@ pub struct EngagementResult {
     pub energy: Option<GateEnergy>,
 }
 
-#[derive(Default)]
 struct ChannelState {
     muted: bool,
     dampened: bool,
     last_spoke_at: Option<Instant>,
+    battery: i32,
+    last_battery_update: Instant,
+}
+
+impl ChannelState {
+    fn new(starting_value: i32) -> Self {
+        Self {
+            muted: false,
+            dampened: false,
+            last_spoke_at: None,
+            battery: starting_value,
+            last_battery_update: Instant::now(),
+        }
+    }
+
+    fn recharge(&mut self, config: &SocialBatteryConfig) {
+        if config.recharge_rate <= 0 || config.recharge_interval_minutes <= 0 {
+            return;
+        }
+        let elapsed_secs = self.last_battery_update.elapsed().as_secs();
+        let interval_secs = (config.recharge_interval_minutes as u64) * 60;
+        let intervals = elapsed_secs / interval_secs;
+
+        if intervals > 0 {
+            let add = (intervals as i32) * config.recharge_rate;
+            self.battery = (self.battery + add).min(config.max);
+            self.last_battery_update += Duration::from_secs(intervals * interval_secs);
+        }
+    }
 }
 
 /// Tracks engagement state per channel and decides if CovaBot should respond.
 pub struct Manager {
     states: Mutex<HashMap<String, ChannelState>>,
     topic_affinities: Vec<String>,
-    battery: Mutex<i32>,
+    battery_config: SocialBatteryConfig,
 }
 
 impl Manager {
-    pub fn new() -> Self {
+    pub fn new(battery_config: SocialBatteryConfig) -> Self {
         Self {
             states: Mutex::new(HashMap::new()),
             topic_affinities: vec![],
-            battery: Mutex::new(100),
+            battery_config,
         }
     }
 
@@ -64,27 +93,36 @@ impl Manager {
         self
     }
 
-    pub fn deplete_battery(&self, amount: i32) {
-        let mut b = self.battery.lock().expect("mutex poisoned");
-        *b -= amount;
-        if *b < 0 {
-            *b = 0;
+    pub fn deplete(&self, channel_id: &str) {
+        let mut states = self.states.lock().expect("mutex poisoned");
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        state.recharge(&self.battery_config);
+        state.battery -= self.battery_config.depletion_rate;
+        if state.battery < 0 {
+            state.battery = 0;
         }
     }
 
     pub fn should_respond(&self, input: &MessageInput) -> EngagementResult {
-        let states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states.get(&input.channel_id);
+        let mut states = self.states.lock().expect("engagement mutex poisoned");
+        let state = states
+            .entry(input.channel_id.clone())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
 
-        let muted = state.map(|s| s.muted).unwrap_or(false);
-        let dampened = state.map(|s| s.dampened).unwrap_or(false);
+        state.recharge(&self.battery_config);
+
+        let muted = state.muted;
+        let dampened = state.dampened;
         let recently_spoke = state
-            .and_then(|s| s.last_spoke_at)
+            .last_spoke_at
             .map(|t| t.elapsed() < RECENT_SPEAK_WINDOW)
             .unwrap_or(false);
 
-        let battery_level = *self.battery.lock().expect("mutex poisoned");
-        let battery_low = battery_level <= 20;
+        // Define "low battery" as <= 20% of max, or just <= 20 if max is near 100
+        let threshold = (self.battery_config.max as f32 * 0.20) as i32;
+        let battery_low = state.battery <= threshold;
 
         // 1. Direct Mention — highest pull, clears all restraints.
         if input.is_mentioned {
@@ -155,40 +193,63 @@ impl Manager {
     /// Record that CovaBot just spoke in `channel_id`.
     pub fn record_cova_speak(&self, channel_id: &str) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states.entry(channel_id.to_string()).or_default();
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
         state.last_spoke_at = Some(Instant::now());
     }
 
     /// Temporarily raise the pull floor; silences non-directed responses.
     pub fn dampen(&self, channel_id: &str) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states.entry(channel_id.to_string()).or_default();
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
         state.dampened = true;
     }
 
     pub fn set_dampen(&self, channel_id: &str, dampened: bool) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states.entry(channel_id.to_string()).or_default();
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
         state.dampened = dampened;
     }
 
     /// Apply a hard floor. Only direct addresses pass through when muted.
     pub fn set_mute(&self, channel_id: &str, muted: bool) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states.entry(channel_id.to_string()).or_default();
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
         state.muted = muted;
     }
-}
 
-impl Default for Manager {
-    fn default() -> Self {
-        Self::new()
+    // For testing
+    #[cfg(test)]
+    pub fn get_battery(&self, channel_id: &str) -> i32 {
+        let mut states = self.states.lock().expect("mutex poisoned");
+        let state = states
+            .entry(channel_id.to_string())
+            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        state.recharge(&self.battery_config);
+        state.battery
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn default_config() -> SocialBatteryConfig {
+        SocialBatteryConfig {
+            max: 100,
+            starting_value: 100,
+            depletion_rate: 10,
+            recharge_rate: 5,
+            recharge_interval_minutes: 5,
+        }
+    }
 
     fn input(channel_id: &str) -> MessageInput {
         MessageInput {
@@ -203,7 +264,7 @@ mod tests {
 
     #[test]
     fn direct_mention_always_responds() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         let mut i = input("ch1");
         i.is_mentioned = true;
         let result = mgr.should_respond(&i);
@@ -214,7 +275,7 @@ mod tests {
 
     #[test]
     fn direct_mention_overrides_mute() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.set_mute("ch1", true);
         let mut i = input("ch1");
         i.is_mentioned = true;
@@ -225,7 +286,7 @@ mod tests {
 
     #[test]
     fn direct_mention_overrides_dampener() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.set_dampen("ch1", true);
         let mut i = input("ch1");
         i.is_mentioned = true;
@@ -236,7 +297,7 @@ mod tests {
 
     #[test]
     fn reply_to_cova_responds() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         let mut i = input("ch1");
         i.is_reply_to_me = true;
         let result = mgr.should_respond(&i);
@@ -247,7 +308,7 @@ mod tests {
 
     #[test]
     fn reply_overrides_dampener() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.set_dampen("ch1", true);
         let mut i = input("ch1");
         i.is_reply_to_me = true;
@@ -258,7 +319,7 @@ mod tests {
 
     #[test]
     fn reply_blocked_by_mute() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.set_mute("ch1", true);
         let mut i = input("ch1");
         i.is_reply_to_me = true;
@@ -268,7 +329,7 @@ mod tests {
 
     #[test]
     fn engagement_continuity_after_cova_speaks() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.record_cova_speak("ch1");
         let result = mgr.should_respond(&input("ch1"));
         assert!(result.respond);
@@ -277,14 +338,14 @@ mod tests {
 
     #[test]
     fn no_response_without_continuity() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         let result = mgr.should_respond(&input("ch1"));
         assert!(!result.respond);
     }
 
     #[test]
     fn dampener_suppresses_continuity() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.record_cova_speak("ch1");
         mgr.set_dampen("ch1", true);
         let result = mgr.should_respond(&input("ch1"));
@@ -293,7 +354,7 @@ mod tests {
 
     #[test]
     fn addressee_self_triggers_reply() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         let mut i = input("ch1");
         i.is_addressee_self = true;
         let result = mgr.should_respond(&i);
@@ -303,7 +364,7 @@ mod tests {
 
     #[test]
     fn no_crossover_between_channels() {
-        let mgr = Manager::new();
+        let mgr = Manager::new(default_config());
         mgr.record_cova_speak("ch1");
         // ch2 has no activity — should not respond
         let result = mgr.should_respond(&input("ch2"));
@@ -312,7 +373,7 @@ mod tests {
 
     #[test]
     fn topic_affinity_pulls_response() {
-        let mgr = Manager::new().with_affinities(vec!["Cheeseburgers".to_string()]);
+        let mgr = Manager::new(default_config()).with_affinities(vec!["Cheeseburgers".to_string()]);
         let mut i = input("ch1");
         i.topical_tags = vec!["Cheeseburgers".to_string()];
 
@@ -323,10 +384,29 @@ mod tests {
 
     #[test]
     fn low_social_battery_dampens_ambient_responses() {
-        let mgr = Manager::new();
-        mgr.deplete_battery(100);
+        let mgr = Manager::new(default_config());
+        for _ in 0..10 {
+            mgr.deplete("ch1"); // Depletes by 10 each time, down to 0
+        }
         let i = input("ch1"); // ambient
         let result = mgr.should_respond(&i);
         assert!(!result.respond);
+    }
+
+    #[test]
+    fn recharge_works_over_time() {
+        let config = default_config();
+        let mut state = ChannelState::new(0); // Start at 0
+                                              // Shift time back by 11 minutes
+        state.last_battery_update -= Duration::from_secs(11 * 60);
+        state.recharge(&config);
+
+        // 2 intervals of 5 minutes = 10 minutes.
+        // Recharge is 5 per interval, so 2 * 5 = 10.
+        assert_eq!(state.battery, 10);
+
+        // last_battery_update should be shifted forward by 10 minutes (leaving 1 minute remainder).
+        let elapsed = state.last_battery_update.elapsed().as_secs();
+        assert!(elapsed >= 60 && elapsed < 65);
     }
 }
