@@ -416,6 +416,6 @@ mod tests {
 
         // last_battery_update should be shifted forward by 10 minutes (leaving 1 minute remainder).
         let elapsed = state.last_battery_update.elapsed().as_secs();
-        assert!(elapsed >= 60 && elapsed < 120);
+        assert!((60..120).contains(&elapsed));
     }
 }
