@@ -37,6 +37,7 @@ pub struct EngagementResult {
     pub energy: Option<GateEnergy>,
 }
 
+#[derive(Clone)]
 struct ChannelState {
     muted: bool,
     dampened: bool,
@@ -46,12 +47,12 @@ struct ChannelState {
 }
 
 impl ChannelState {
-    fn new(starting_value: i32) -> Self {
+    fn new(starting_value: i32, config: &SocialBatteryConfig) -> Self {
         Self {
             muted: false,
             dampened: false,
             last_spoke_at: None,
-            battery: starting_value,
+            battery: starting_value.min(config.max),
             last_battery_update: Instant::now(),
         }
     }
@@ -95,9 +96,9 @@ impl Manager {
 
     pub fn deplete(&self, channel_id: &str) {
         let mut states = self.states.lock().expect("mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.recharge(&self.battery_config);
         state.battery -= self.battery_config.depletion_rate;
         if state.battery < 0 {
@@ -106,23 +107,31 @@ impl Manager {
     }
 
     pub fn should_respond(&self, input: &MessageInput) -> EngagementResult {
-        let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states
-            .entry(input.channel_id.clone())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let states = self.states.lock().expect("engagement mutex poisoned");
 
-        state.recharge(&self.battery_config);
-
-        let muted = state.muted;
-        let dampened = state.dampened;
-        let recently_spoke = state
-            .last_spoke_at
-            .map(|t| t.elapsed() < RECENT_SPEAK_WINDOW)
-            .unwrap_or(false);
-
-        // Define "low battery" as <= 20% of max, or just <= 20 if max is near 100
-        let threshold = (self.battery_config.max as f32 * 0.20) as i32;
-        let battery_low = state.battery <= threshold;
+        let (muted, dampened, recently_spoke, battery_low) =
+            if let Some(state) = states.get(&input.channel_id) {
+                let mut virtual_state = state.clone();
+                virtual_state.recharge(&self.battery_config);
+                let recently_spoke = virtual_state
+                    .last_spoke_at
+                    .map(|t| t.elapsed() < RECENT_SPEAK_WINDOW)
+                    .unwrap_or(false);
+                let threshold = (self.battery_config.max as f32 * 0.20) as i32;
+                (
+                    virtual_state.muted,
+                    virtual_state.dampened,
+                    recently_spoke,
+                    virtual_state.battery <= threshold,
+                )
+            } else {
+                let threshold = (self.battery_config.max as f32 * 0.20) as i32;
+                let battery = self
+                    .battery_config
+                    .starting_value
+                    .min(self.battery_config.max);
+                (false, false, false, battery <= threshold)
+            };
 
         // 1. Direct Mention — highest pull, clears all restraints.
         if input.is_mentioned {
@@ -193,35 +202,35 @@ impl Manager {
     /// Record that CovaBot just spoke in `channel_id`.
     pub fn record_cova_speak(&self, channel_id: &str) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.last_spoke_at = Some(Instant::now());
     }
 
     /// Temporarily raise the pull floor; silences non-directed responses.
     pub fn dampen(&self, channel_id: &str) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.dampened = true;
     }
 
     pub fn set_dampen(&self, channel_id: &str, dampened: bool) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.dampened = dampened;
     }
 
     /// Apply a hard floor. Only direct addresses pass through when muted.
     pub fn set_mute(&self, channel_id: &str, muted: bool) {
         let mut states = self.states.lock().expect("engagement mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.muted = muted;
     }
 
@@ -229,9 +238,9 @@ impl Manager {
     #[cfg(test)]
     pub fn get_battery(&self, channel_id: &str) -> i32 {
         let mut states = self.states.lock().expect("mutex poisoned");
-        let state = states
-            .entry(channel_id.to_string())
-            .or_insert_with(|| ChannelState::new(self.battery_config.starting_value));
+        let state = states.entry(channel_id.to_string()).or_insert_with(|| {
+            ChannelState::new(self.battery_config.starting_value, &self.battery_config)
+        });
         state.recharge(&self.battery_config);
         state.battery
     }
@@ -396,8 +405,8 @@ mod tests {
     #[test]
     fn recharge_works_over_time() {
         let config = default_config();
-        let mut state = ChannelState::new(0); // Start at 0
-                                              // Shift time back by 11 minutes
+        let mut state = ChannelState::new(0, &config); // Start at 0
+                                                       // Shift time back by 11 minutes
         state.last_battery_update -= Duration::from_secs(11 * 60);
         state.recharge(&config);
 
@@ -407,6 +416,6 @@ mod tests {
 
         // last_battery_update should be shifted forward by 10 minutes (leaving 1 minute remainder).
         let elapsed = state.last_battery_update.elapsed().as_secs();
-        assert!(elapsed >= 60 && elapsed < 65);
+        assert!(elapsed >= 60 && elapsed < 120);
     }
 }

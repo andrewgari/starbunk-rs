@@ -219,7 +219,9 @@ impl EventHandler for Handler {
 
         if !svc.profile.relationships.is_empty() {
             system_prompt.push_str("\nRelationships/Biases towards specific users (by ID):\n");
-            for (id, rel) in &svc.profile.relationships {
+            let mut rels: Vec<_> = svc.profile.relationships.iter().collect();
+            rels.sort_by_key(|(id, _)| *id);
+            for (id, rel) in rels {
                 system_prompt.push_str(&format!("- User {}: {}\n", id, rel));
             }
         }
