@@ -240,6 +240,7 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "regex",
  "serde_json",
  "serenity",
