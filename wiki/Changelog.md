@@ -3,6 +3,13 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-06-24 — Fix Postgres GKE CrashLoopBackOff
+
+### Fixed
+- Fixed an issue where the GKE Postgres StatefulSet would get stuck in a `CrashLoopBackOff` state due to `initdb` failing when a `lost+found` directory is present in the persistent volume mount. This was resolved by setting the `PGDATA` environment variable to a subdirectory.
+
+---
+
 ## 2026-06-18 — CovaBot Personality and Engagement System
 
 ### Added
