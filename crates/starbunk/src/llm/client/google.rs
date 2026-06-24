@@ -53,6 +53,8 @@ struct Part {
 struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
+    #[serde(rename = "responseMimeType", skip_serializing_if = "Option::is_none")]
+    response_mime_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -102,9 +104,19 @@ impl LlmService for GoogleClient {
             }
         }
 
-        let generation_config = req.temperature.map(|t| GenerationConfig {
-            temperature: Some(t),
-        });
+        let response_mime_type = match req.expected_output.format {
+            OutputFormat::Json => Some("application/json".to_string()),
+            _ => None,
+        };
+
+        let generation_config = if req.temperature.is_some() || response_mime_type.is_some() {
+            Some(GenerationConfig {
+                temperature: req.temperature,
+                response_mime_type,
+            })
+        } else {
+            None
+        };
 
         let body = ApiRequest {
             system_instruction,
