@@ -64,17 +64,17 @@ spec:
                   key: GOOGLE_API_KEY
                   optional: true
             - name: LLM_TIER_HIGH_PROVIDER
-              value: "anthropic"
+              value: "google"
             - name: LLM_TIER_HIGH_MODEL
-              value: "claude-3-5-sonnet-latest"
+              value: "gemini-1.5-pro"
             - name: LLM_TIER_MEDIUM_PROVIDER
               value: "google"
             - name: LLM_TIER_MEDIUM_MODEL
               value: "gemini-1.5-flash"
             - name: LLM_TIER_LOW_PROVIDER
-              value: "openai"
+              value: "google"
             - name: LLM_TIER_LOW_MODEL
-              value: "text-embedding-3-small"
+              value: "text-embedding-004"
           resources:
             requests:
               cpu: "100m"
