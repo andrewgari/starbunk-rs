@@ -5,6 +5,9 @@ Add an entry under today's date for every PR or significant change.
 
 ## 2026-06-24 — Fix Postgres GKE CrashLoopBackOff
 
+### Changed
+- Switched all Covabot LLM tiers to use Google models (`gemini-1.5-pro`, `gemini-1.5-flash`, `text-embedding-004`) to remove dependencies on OpenAI and Anthropic API keys.
+
 ### Fixed
 - Fixed an issue where the GKE Postgres StatefulSet would get stuck in a `CrashLoopBackOff` state due to `initdb` failing when a `lost+found` directory is present in the persistent volume mount. This was resolved by setting the `PGDATA` environment variable to a subdirectory.
 
