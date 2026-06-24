@@ -122,7 +122,44 @@ impl TaggerService for LlmTagger {
 
         tracing::warn!("raw tagger response: {}", resp.text);
 
-        serde_json::from_str(&resp.text).context("tagger: failed to parse JSON response")
+        let val: serde_json::Value =
+            serde_json::from_str(&resp.text).context("tagger: failed to parse JSON response")?;
+
+        let mut topical_tags = vec![];
+        if let Some(arr) = val.get("topical_tags").and_then(|v| v.as_array()) {
+            for v in arr {
+                if let Some(s) = v.as_str() {
+                    topical_tags.push(s.to_string());
+                }
+            }
+        }
+
+        let mut structural = StructuralTags::default();
+        let struct_obj = val.get("structural").or_else(|| val.get("structural_tags"));
+        if let Some(obj) = struct_obj {
+            if let Some(a) = obj.get("addressee").and_then(|v| v.as_str()) {
+                structural.addressee =
+                    serde_json::from_value(serde_json::Value::String(a.to_string())).ok();
+            }
+            if let Some(i) = obj.get("intent").and_then(|v| v.as_str()) {
+                structural.intent =
+                    serde_json::from_value(serde_json::Value::String(i.to_string())).ok();
+            }
+        } else {
+            if let Some(a) = val.get("addressee").and_then(|v| v.as_str()) {
+                structural.addressee =
+                    serde_json::from_value(serde_json::Value::String(a.to_string())).ok();
+            }
+            if let Some(i) = val.get("intent").and_then(|v| v.as_str()) {
+                structural.intent =
+                    serde_json::from_value(serde_json::Value::String(i.to_string())).ok();
+            }
+        }
+
+        Ok(TagResult {
+            topical_tags,
+            structural,
+        })
     }
 }
 
