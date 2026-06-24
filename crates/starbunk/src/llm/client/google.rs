@@ -164,8 +164,9 @@ impl LlmService for GoogleClient {
         let mut embeddings = Vec::new();
 
         for text in req.input {
+            let model_path = format!("models/{}", model);
             let body = EmbedApiRequest {
-                model: &format!("models/{}", model),
+                model: model_path.as_str(),
                 content: Content {
                     role: None,
                     parts: vec![Part { text }],
