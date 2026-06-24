@@ -158,7 +158,65 @@ impl LlmService for GoogleClient {
         })
     }
 
-    async fn embed(&self, _req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-        Err(anyhow::anyhow!("google: embed not implemented"))
+    async fn embed(&self, req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
+        let model = req.model.as_deref().unwrap_or("text-embedding-004");
+
+        let mut embeddings = Vec::new();
+
+        for text in req.input {
+            let model_path = format!("models/{}", model);
+            let body = EmbedApiRequest {
+                model: model_path.as_str(),
+                content: Content {
+                    role: None,
+                    parts: vec![Part { text }],
+                },
+            };
+
+            let url = format!("{}/models/{}:embedContent", self.base_url, model);
+            let resp = self
+                .client
+                .post(&url)
+                .query(&[("key", &self.api_key)])
+                .json(&body)
+                .send()
+                .await
+                .context("google: embed request failed")?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let text = resp.text().await.unwrap_or_default();
+                return Err(anyhow::anyhow!(
+                    "google: unexpected embed status {}: {}",
+                    status,
+                    text
+                ));
+            }
+
+            let api_resp: EmbedApiResponse = resp
+                .json()
+                .await
+                .context("google: failed to decode embed response")?;
+
+            embeddings.push(api_resp.embedding.values);
+        }
+
+        Ok(EmbedResponse { embeddings })
     }
+}
+
+#[derive(Serialize)]
+struct EmbedApiRequest<'a> {
+    model: &'a str,
+    content: Content,
+}
+
+#[derive(Deserialize)]
+struct EmbedApiResponse {
+    embedding: EmbedValues,
+}
+
+#[derive(Deserialize)]
+struct EmbedValues {
+    values: Vec<f32>,
 }
