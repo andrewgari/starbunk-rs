@@ -66,7 +66,7 @@ spec:
             - name: LLM_TIER_HIGH_PROVIDER
               value: "google"
             - name: LLM_TIER_HIGH_MODEL
-              value: "gemini-2.5-pro"
+              value: "gemini-2.5-flash"
             - name: LLM_TIER_MEDIUM_PROVIDER
               value: "google"
             - name: LLM_TIER_MEDIUM_MODEL

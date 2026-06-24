@@ -183,7 +183,7 @@ impl LlmService for GoogleClient {
     }
 
     async fn embed(&self, req: EmbedRequest) -> anyhow::Result<EmbedResponse> {
-        let model = req.model.as_deref().unwrap_or("text-embedding-004");
+        let model = req.model.as_deref().unwrap_or("gemini-embedding-2");
 
         let mut embeddings = Vec::new();
 
