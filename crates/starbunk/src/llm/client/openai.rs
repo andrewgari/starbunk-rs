@@ -33,6 +33,8 @@ struct ApiRequest<'a> {
     messages: Vec<ApiMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,10 +90,30 @@ impl LlmService for OpenAiClient {
             })
             .collect();
 
+        let response_format = if let Some(schema_str) = &req.expected_output.json_schema {
+            if let Ok(parsed_schema) = serde_json::from_str::<serde_json::Value>(schema_str) {
+                Some(serde_json::json!({
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "structured_output",
+                        "schema": parsed_schema,
+                        "strict": true
+                    }
+                }))
+            } else {
+                None
+            }
+        } else if matches!(req.expected_output.format, OutputFormat::Json) {
+            Some(serde_json::json!({ "type": "json_object" }))
+        } else {
+            None
+        };
+
         let body = ApiRequest {
             model,
             messages,
             temperature: req.temperature,
+            response_format,
         };
 
         let url = format!("{}/chat/completions", self.base_url);
