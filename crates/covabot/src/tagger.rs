@@ -4,35 +4,37 @@ use serde::{Deserialize, Serialize};
 use starbunk::llm::{GenerateRequest, LlmMessage, LlmService, OutputFormat, ResponseSchema};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Addressee {
-    #[serde(rename = "self")]
-    SelfAddr,
-    OtherUser,
     Room,
+    OtherUser,
+    #[serde(rename = "self")]
+    Self_,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Intent {
-    Question,
     Statement,
+    Question,
+    Command,
     #[serde(rename = "low-effort")]
     LowEffort,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct StructuralTags {
     pub addressee: Option<Addressee>,
     pub intent: Option<Intent>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct TagResult {
     pub topical_tags: Vec<String>,
+    #[serde(flatten)]
     pub structural: StructuralTags,
 }
 
@@ -105,12 +107,16 @@ impl TaggerService for LlmTagger {
             }
         }
 
+        let json_schema_str = serde_json::to_string(&schemars::schema_for!(TagResult))
+            .context("tagger: failed to serialize json schema")?;
+
         let mut req = GenerateRequest::new(vec![
             LlmMessage::system(system_prompt),
             LlmMessage::user(content),
         ]);
         req.expected_output = ResponseSchema {
             format: OutputFormat::Json,
+            json_schema: Some(json_schema_str),
             ..Default::default()
         };
 
@@ -214,7 +220,7 @@ mod tests {
             .await
             .expect("should parse");
         assert!(result.topical_tags.is_empty());
-        assert_eq!(result.structural.addressee, Some(Addressee::SelfAddr));
+        assert_eq!(result.structural.addressee, Some(Addressee::Self_));
         assert_eq!(result.structural.intent, Some(Intent::LowEffort));
     }
 

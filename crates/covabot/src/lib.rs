@@ -149,7 +149,7 @@ impl EventHandler for Handler {
             .structural
             .addressee
             .as_ref()
-            .map(|a| *a == Addressee::SelfAddr)
+            .map(|a| *a == Addressee::Self_)
             .unwrap_or(false);
 
         let eng = svc.engagement.should_respond(&MessageInput {
