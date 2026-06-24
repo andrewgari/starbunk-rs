@@ -74,7 +74,7 @@ spec:
             - name: LLM_TIER_LOW_PROVIDER
               value: "google"
             - name: LLM_TIER_LOW_MODEL
-              value: "gemini-2.5-flash-lite"
+              value: "gemini-2.5-flash"
           resources:
             requests:
               cpu: "100m"
