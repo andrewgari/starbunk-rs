@@ -114,7 +114,8 @@ impl LlmService for GoogleClient {
         let response_schema = req
             .expected_output
             .json_schema
-            .and_then(|s| serde_json::from_str(&s).ok());
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .map(clean_schema_for_gemini);
 
         let generation_config = if req.temperature.is_some()
             || response_mime_type.is_some()
@@ -242,4 +243,24 @@ struct EmbedApiResponse {
 #[derive(Deserialize)]
 struct EmbedValues {
     values: Vec<f32>,
+}
+
+fn clean_schema_for_gemini(mut value: serde_json::Value) -> serde_json::Value {
+    if let serde_json::Value::Object(ref mut map) = value {
+        map.remove("$schema");
+        map.remove("$defs");
+        map.remove("definitions");
+        map.remove("title");
+
+        for (_, v) in map.iter_mut() {
+            let old_v = std::mem::replace(v, serde_json::Value::Null);
+            *v = clean_schema_for_gemini(old_v);
+        }
+    } else if let serde_json::Value::Array(ref mut arr) = value {
+        for v in arr.iter_mut() {
+            let old_v = std::mem::replace(v, serde_json::Value::Null);
+            *v = clean_schema_for_gemini(old_v);
+        }
+    }
+    value
 }

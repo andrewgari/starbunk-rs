@@ -107,8 +107,12 @@ impl TaggerService for LlmTagger {
             }
         }
 
-        let json_schema_str = serde_json::to_string(&schemars::schema_for!(TagResult))
-            .context("tagger: failed to serialize json schema")?;
+        let settings =
+            schemars::generate::SchemaSettings::openapi3().with(|s| s.inline_subschemas = true);
+        let gen = settings.into_generator();
+        let schema = gen.into_root_schema_for::<TagResult>();
+        let json_schema_str =
+            serde_json::to_string(&schema).context("tagger: failed to serialize json schema")?;
 
         let mut req = GenerateRequest::new(vec![
             LlmMessage::system(system_prompt),
