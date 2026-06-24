@@ -120,7 +120,7 @@ impl EventHandler for Handler {
         {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("covabot: tagger failed, using zero-value tags: {}", e);
+                tracing::warn!("covabot: tagger failed, using zero-value tags: {:?}", e);
                 TagResult {
                     topical_tags: vec![],
                     structural: tagger::StructuralTags {
