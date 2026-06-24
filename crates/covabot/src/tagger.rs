@@ -22,13 +22,15 @@ pub enum Intent {
     LowEffort,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StructuralTags {
     pub addressee: Option<Addressee>,
     pub intent: Option<Intent>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TagResult {
     pub topical_tags: Vec<String>,
     pub structural: StructuralTags,
@@ -117,6 +119,8 @@ impl TaggerService for LlmTagger {
             .generate(req)
             .await
             .context("tagger: generate failed")?;
+
+        tracing::warn!("raw tagger response: {}", resp.text);
 
         serde_json::from_str(&resp.text).context("tagger: failed to parse JSON response")
     }
