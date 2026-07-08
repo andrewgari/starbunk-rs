@@ -15,11 +15,22 @@ pub enum RouteError {
 
 /// Determines the target UserId for an anonymous message.
 pub fn route_message(
-    _sender: UserId,
-    _target: RouteTarget,
-    _assignments: &[Assignment],
+    sender: UserId,
+    target: RouteTarget,
+    assignments: &[Assignment],
 ) -> Result<UserId, RouteError> {
-    unimplemented!("Message routing logic not yet implemented for TDD PR 1")
+    match target {
+        RouteTarget::Giftee => assignments
+            .iter()
+            .find(|a| a.gifter == sender)
+            .map(|a| a.recipient)
+            .ok_or(RouteError::UserNotParticipating),
+        RouteTarget::SecretSanta => assignments
+            .iter()
+            .find(|a| a.recipient == sender)
+            .map(|a| a.gifter)
+            .ok_or(RouteError::UserNotParticipating),
+    }
 }
 
 #[cfg(test)]
@@ -44,7 +55,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_route_to_giftee() {
         let assignments = get_test_assignments();
         // User 1's giftee is User 2
@@ -65,7 +75,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_route_to_santa() {
         let assignments = get_test_assignments();
         // User 1's santa is User 3 (since 3 gives to 1)
@@ -86,7 +95,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_unrecognized_user() {
         let assignments = get_test_assignments();
         let unknown = UserId::new(999);

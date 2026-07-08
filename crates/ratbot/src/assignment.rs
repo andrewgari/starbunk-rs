@@ -1,3 +1,4 @@
+use rand::seq::SliceRandom;
 use serenity::all::UserId;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,8 +15,22 @@ pub enum AssignmentError {
 /// Generates Secret Santa assignments for a list of participants.
 /// Ensures no one is assigned to themselves, and everyone gives exactly one gift
 /// and receives exactly one gift.
-pub fn generate_assignments(_participants: &[UserId]) -> Result<Vec<Assignment>, AssignmentError> {
-    unimplemented!("Assignment logic not yet implemented for TDD PR 1")
+pub fn generate_assignments(participants: &[UserId]) -> Result<Vec<Assignment>, AssignmentError> {
+    if participants.len() < 3 {
+        return Err(AssignmentError::NotEnoughParticipants);
+    }
+
+    let mut shuffled = participants.to_vec();
+    shuffled.shuffle(&mut rand::thread_rng());
+
+    let mut assignments = Vec::with_capacity(shuffled.len());
+    for i in 0..shuffled.len() {
+        let gifter = shuffled[i];
+        let recipient = shuffled[(i + 1) % shuffled.len()];
+        assignments.push(Assignment { gifter, recipient });
+    }
+
+    Ok(assignments)
 }
 
 #[cfg(test)]
@@ -23,7 +38,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_valid_assignment_even() {
         let participants = vec![
             UserId::new(1),
@@ -52,7 +66,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_valid_assignment_odd() {
         let participants = vec![
             UserId::new(1),
@@ -82,7 +95,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_no_self_assignment() {
         let participants = vec![
             UserId::new(1),
@@ -105,7 +117,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_not_enough_participants() {
         let one = vec![UserId::new(1)];
         assert_eq!(
