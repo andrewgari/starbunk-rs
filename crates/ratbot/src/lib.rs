@@ -4,6 +4,9 @@ use starbunk::discord::{DiscordMessageService, MessageService, WebhookService};
 use starbunk::middleware::{all_of, HAS_CONTENT, NOT_SELF};
 use std::sync::{Arc, OnceLock};
 
+pub mod assignment;
+pub mod routing;
+
 struct Handler {
     filter: Arc<dyn starbunk::middleware::MessageFilter>,
     webhooks: OnceLock<Arc<WebhookService>>,
