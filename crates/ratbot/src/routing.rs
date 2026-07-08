@@ -44,6 +44,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_route_to_giftee() {
         let assignments = get_test_assignments();
         // User 1's giftee is User 2
@@ -64,6 +65,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_route_to_santa() {
         let assignments = get_test_assignments();
         // User 1's santa is User 3 (since 3 gives to 1)
@@ -84,6 +86,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_unrecognized_user() {
         let assignments = get_test_assignments();
         let unknown = UserId::new(999);

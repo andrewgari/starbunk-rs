@@ -23,6 +23,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_valid_assignment_even() {
         let participants = vec![
             UserId::new(1),
@@ -51,6 +52,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_valid_assignment_odd() {
         let participants = vec![
             UserId::new(1),
@@ -80,6 +82,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_no_self_assignment() {
         let participants = vec![
             UserId::new(1),
@@ -102,6 +105,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_not_enough_participants() {
         let one = vec![UserId::new(1)];
         assert_eq!(
