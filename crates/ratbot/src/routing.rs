@@ -4,7 +4,7 @@ use serenity::all::UserId;
 #[derive(Debug, PartialEq, Eq)]
 pub enum RouteTarget {
     Giftee,
-    SecretSanta,
+    SecretRat,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub fn route_message(
             .find(|a| a.gifter == sender)
             .map(|a| a.recipient)
             .ok_or(RouteError::UserNotParticipating),
-        RouteTarget::SecretSanta => assignments
+        RouteTarget::SecretRat => assignments
             .iter()
             .find(|a| a.recipient == sender)
             .map(|a| a.gifter)
@@ -75,21 +75,21 @@ mod tests {
     }
 
     #[test]
-    fn test_route_to_santa() {
+    fn test_route_to_rat() {
         let assignments = get_test_assignments();
-        // User 1's santa is User 3 (since 3 gives to 1)
+        // User 1's rat is User 3 (since 3 gives to 1)
         assert_eq!(
-            route_message(UserId::new(1), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(1), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(3))
         );
-        // User 2's santa is User 1
+        // User 2's rat is User 1
         assert_eq!(
-            route_message(UserId::new(2), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(2), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(1))
         );
-        // User 3's santa is User 2
+        // User 3's rat is User 2
         assert_eq!(
-            route_message(UserId::new(3), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(3), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(2))
         );
     }
@@ -105,7 +105,7 @@ mod tests {
         );
 
         assert_eq!(
-            route_message(unknown, RouteTarget::SecretSanta, &assignments),
+            route_message(unknown, RouteTarget::SecretRat, &assignments),
             Err(RouteError::UserNotParticipating)
         );
     }

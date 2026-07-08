@@ -22,7 +22,7 @@ memory-safe, high-performance implementation.
 - [[bots/BunkBot|BunkBot]] — Administrative backbone and general reply bot
 - [[bots/CovaBot|CovaBot]] — AI personality emulator (LLM-driven)
 - [[bots/DJCova|DJCova]] — Voice channel music streaming (YouTube)
-- [[bots/RatBot|RatBot]] — Rat-themed Secret Santa bot
+- [[bots/RatBot|RatBot]] — Rat-themed SecretRat bot
 
 ### Infrastructure & Deployment
 - [[infrastructure/Architecture|Architecture]] — Monorepo layout, bot pattern, shared libraries

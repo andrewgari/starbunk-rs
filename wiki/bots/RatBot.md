@@ -1,16 +1,16 @@
 # RatBot
 
-> Rat-themed Secret Santa bot — organises the guild's "Ratmas" gift exchange.
+> Rat-themed SecretRat bot — organises the guild's "Ratmas" gift exchange.
 
 ## Goals & Purpose
 
-RatBot manages **Ratmas**, a rat-themed Secret Santa event for the guild.
+RatBot manages **Ratmas**, a rat-themed SecretRat event for the guild.
 It handles sign-ups, randomly pairs gifters with recipients, notifies
 participants, and keeps the guild informed with themed announcements.
-A key feature is the **Anonymous DM Chat**, which allows participants to message their Secret Santa or their Giftee without revealing their identity.
+A key feature is the **Anonymous DM Chat**, which allows participants to message their SecretRat or their Giftee without revealing their identity.
 
 This bot is not a generic trigger/response bot. Its sole purpose is running
-the Ratmas Secret Santa exchange with maximum rat energy.
+the Ratmas SecretRat exchange with maximum rat energy.
 
 ## Commands
 
@@ -20,22 +20,22 @@ Since users interact with Ratmas via emoji reactions and DMs, slash commands are
 |---|---|---|
 | `/ratmas init [channel]` | Starts a new Ratmas event. The bot posts a themed signup message in the specified channel (or current channel) and adds a 🐀 reaction. | Admin Role |
 | `/ratmas status` | Shows how many users have signed up so far (counts reactions on the active message). | Admin Role |
-| `/ratmas assign` | Closes sign-ups, removes the bot's reaction to stop new signups, performs the Secret Santa randomization, and sends a DM to each participant with their recipient. | Admin Role |
+| `/ratmas assign` | Closes sign-ups, removes the bot's reaction to stop new signups, performs the SecretRat randomization, and sends a DM to each participant with their recipient. | Admin Role |
 | `/ratmas cancel` | Cancels the active event (useful if started by mistake). | Admin Role |
 
 ## Anonymous DM Workflow
 
-Participants can chat anonymously with their Secret Santa or their Giftee directly through the bot's DMs.
-To solve the ambiguity of whether a user is trying to reply to their Secret Santa or send a message to their assigned Giftee, the bot uses an interactive prompt flow:
+Participants can chat anonymously with their SecretRat or their Giftee directly through the bot's DMs.
+To solve the ambiguity of whether a user is trying to reply to their SecretRat or send a message to their assigned Giftee, the bot uses an interactive prompt flow:
 
 1. User **A** sends a plain text DM to the bot: `"Did you want the blue one or the red one?"`
 2. The bot replies to **A** with a message containing two buttons:
    - `[ Send to your Giftee ]`
-   - `[ Send to your Secret Santa ]`
+   - `[ Send to your SecretRat ]`
 3. If **A** clicks `[ Send to your Giftee ]`, user **B** receives a DM:
-   `"🐀 Message from your Secret Santa: Did you want the blue one or the red one?"`
+   `"🐀 Message from your SecretRat: Did you want the blue one or the red one?"`
    *(Plus a small footer explaining they can reply by just messaging the bot).*
-4. If user **B** wants to reply to **A**, they send a DM to the bot. The bot prompts **B** with the same two buttons. **B** clicks `[ Send to your Secret Santa ]`, and **A** receives:
+4. If user **B** wants to reply to **A**, they send a DM to the bot. The bot prompts **B** with the same two buttons. **B** clicks `[ Send to your SecretRat ]`, and **A** receives:
    `"🐀 Message from your Giftee: Blue please!"`
 
 This ensures that the "response" flow doesn't accidentally break the typical use case, as the user always explicitly chooses the destination for every message.

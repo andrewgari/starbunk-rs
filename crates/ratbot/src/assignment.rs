@@ -12,7 +12,7 @@ pub enum AssignmentError {
     NotEnoughParticipants,
 }
 
-/// Generates Secret Santa assignments for a list of participants.
+/// Generates SecretRat assignments for a list of participants.
 /// Ensures no one is assigned to themselves, and everyone gives exactly one gift
 /// and receives exactly one gift.
 pub fn generate_assignments(participants: &[UserId]) -> Result<Vec<Assignment>, AssignmentError> {
