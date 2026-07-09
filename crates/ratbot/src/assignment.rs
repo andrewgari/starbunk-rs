@@ -1,5 +1,6 @@
 use rand::seq::SliceRandom;
 use serenity::all::UserId;
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Assignment {
@@ -10,6 +11,7 @@ pub struct Assignment {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AssignmentError {
     NotEnoughParticipants,
+    DuplicateParticipants,
 }
 
 /// Generates SecretRat assignments for a list of participants.
@@ -18,6 +20,11 @@ pub enum AssignmentError {
 pub fn generate_assignments(participants: &[UserId]) -> Result<Vec<Assignment>, AssignmentError> {
     if participants.len() < 3 {
         return Err(AssignmentError::NotEnoughParticipants);
+    }
+
+    let unique_participants: HashSet<_> = participants.iter().collect();
+    if unique_participants.len() != participants.len() {
+        return Err(AssignmentError::DuplicateParticipants);
     }
 
     let mut shuffled = participants.to_vec();
@@ -128,6 +135,21 @@ mod tests {
         assert_eq!(
             generate_assignments(&two),
             Err(AssignmentError::NotEnoughParticipants)
+        );
+    }
+
+    #[test]
+    fn test_duplicate_participants() {
+        let duplicates = vec![
+            UserId::new(1),
+            UserId::new(2),
+            UserId::new(3),
+            UserId::new(1),
+        ];
+
+        assert_eq!(
+            generate_assignments(&duplicates),
+            Err(AssignmentError::DuplicateParticipants)
         );
     }
 }
