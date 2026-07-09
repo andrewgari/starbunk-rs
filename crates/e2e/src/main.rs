@@ -218,7 +218,10 @@ async fn main() -> anyhow::Result<()> {
                 }
                 "ratbot" => {
                     tokio::spawn(async {
-                        if let Err(e) = ratbot::run().await {
+                        let conn_str = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                            "postgres://postgres:postgres@localhost:5432/starbunk".to_string()
+                        });
+                        if let Err(e) = ratbot::run(&conn_str).await {
                             tracing::error!("ratbot exited with error: {}", e);
                         }
                     });

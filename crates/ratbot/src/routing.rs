@@ -4,7 +4,7 @@ use serenity::all::UserId;
 #[derive(Debug, PartialEq, Eq)]
 pub enum RouteTarget {
     Giftee,
-    SecretSanta,
+    SecretRat,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -15,11 +15,30 @@ pub enum RouteError {
 
 /// Determines the target UserId for an anonymous message.
 pub fn route_message(
-    _sender: UserId,
-    _target: RouteTarget,
-    _assignments: &[Assignment],
+    sender: UserId,
+    target: RouteTarget,
+    assignments: &[Assignment],
 ) -> Result<UserId, RouteError> {
-    unimplemented!("Message routing logic not yet implemented for TDD PR 1")
+    let is_participating = assignments
+        .iter()
+        .any(|a| a.gifter == sender || a.recipient == sender);
+
+    if !is_participating {
+        return Err(RouteError::UserNotParticipating);
+    }
+
+    match target {
+        RouteTarget::Giftee => assignments
+            .iter()
+            .find(|a| a.gifter == sender)
+            .map(|a| a.recipient)
+            .ok_or(RouteError::AssignmentNotFound),
+        RouteTarget::SecretRat => assignments
+            .iter()
+            .find(|a| a.recipient == sender)
+            .map(|a| a.gifter)
+            .ok_or(RouteError::AssignmentNotFound),
+    }
 }
 
 #[cfg(test)]
@@ -44,7 +63,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_route_to_giftee() {
         let assignments = get_test_assignments();
         // User 1's giftee is User 2
@@ -65,28 +83,26 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
-    fn test_route_to_santa() {
+    fn test_route_to_rat() {
         let assignments = get_test_assignments();
-        // User 1's santa is User 3 (since 3 gives to 1)
+        // User 1's rat is User 3 (since 3 gives to 1)
         assert_eq!(
-            route_message(UserId::new(1), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(1), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(3))
         );
-        // User 2's santa is User 1
+        // User 2's rat is User 1
         assert_eq!(
-            route_message(UserId::new(2), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(2), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(1))
         );
-        // User 3's santa is User 2
+        // User 3's rat is User 2
         assert_eq!(
-            route_message(UserId::new(3), RouteTarget::SecretSanta, &assignments),
+            route_message(UserId::new(3), RouteTarget::SecretRat, &assignments),
             Ok(UserId::new(2))
         );
     }
 
     #[test]
-    #[ignore = "TDD PR 1: logic not implemented yet"]
     fn test_unrecognized_user() {
         let assignments = get_test_assignments();
         let unknown = UserId::new(999);
@@ -97,8 +113,29 @@ mod tests {
         );
 
         assert_eq!(
-            route_message(unknown, RouteTarget::SecretSanta, &assignments),
+            route_message(unknown, RouteTarget::SecretRat, &assignments),
             Err(RouteError::UserNotParticipating)
+        );
+    }
+
+    #[test]
+    fn test_assignment_not_found() {
+        // Create an inconsistent assignment ring where User 1 only receives
+        let assignments = vec![Assignment {
+            gifter: UserId::new(2),
+            recipient: UserId::new(1),
+        }];
+
+        // User 1 is participating (as a recipient) but has no giftee assigned
+        assert_eq!(
+            route_message(UserId::new(1), RouteTarget::Giftee, &assignments),
+            Err(RouteError::AssignmentNotFound)
+        );
+
+        // User 2 is participating (as a gifter) but has no SecretRat (nobody giving to them)
+        assert_eq!(
+            route_message(UserId::new(2), RouteTarget::SecretRat, &assignments),
+            Err(RouteError::AssignmentNotFound)
         );
     }
 }
