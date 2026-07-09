@@ -25,9 +25,24 @@ impl EventHandler for RatBotHandler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.guild_id.is_none() && !msg.author.bot {
+        if msg.author.bot {
+            return;
+        }
+
+        if msg.guild_id.is_none() {
             if let Err(e) = handle_dm_message(&ctx, &msg, self.store.clone()).await {
                 tracing::error!("Error handling DM message: {}", e);
+            }
+        } else if msg.content == "ping ratbot" {
+            if let Err(e) = msg
+                .channel_id
+                .send_message(
+                    &ctx.http,
+                    serenity::all::CreateMessage::new().content("Pong from ratbot!"),
+                )
+                .await
+            {
+                tracing::error!("Failed to send ping response: {}", e);
             }
         }
     }

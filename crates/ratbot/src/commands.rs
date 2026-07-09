@@ -51,29 +51,36 @@ pub async fn handle_ratmas_command(
     store: Arc<dyn Store>,
 ) -> anyhow::Result<String> {
     // Check permissions
-    let member = command
-        .member
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Command must be run in a guild"))?;
+    let member = match command.member.as_ref() {
+        Some(m) => m,
+        None => return Ok("Command must be run in a guild.".to_string()),
+    };
     let permissions = member.permissions.unwrap_or_default();
     if !permissions.administrator() {
         return Ok("You must be an administrator to use this command.".to_string());
     }
 
-    let guild_id = command.guild_id.unwrap();
+    let guild_id = match command.guild_id {
+        Some(id) => id,
+        None => return Ok("Command must be run in a guild.".to_string()),
+    };
     let subcommand = command.data.options.first();
 
     if let Some(sub) = subcommand {
         match sub.name.as_str() {
             "init" => {
-                let role_opt = sub.value.as_role_id();
-                if let Some(role_id) = role_opt {
-                    store.init_event(guild_id, role_id).await?;
-                    return Ok(format!(
-                        "Ratmas initialized! Participants will be drawn from <@&{}>.",
-                        role_id
-                    ));
+                if let serenity::all::CommandDataOptionValue::SubCommand(ref options) = sub.value {
+                    if let Some(role_opt) = options.first() {
+                        if let Some(role_id) = role_opt.value.as_role_id() {
+                            store.init_event(guild_id, role_id).await?;
+                            return Ok(format!(
+                                "Ratmas initialized! Participants will be drawn from <@&{}>.",
+                                role_id
+                            ));
+                        }
+                    }
                 }
+                return Ok("Missing role option for init command.".to_string());
             }
             "assign" => {
                 let event = store.get_event(guild_id).await?;
@@ -112,7 +119,8 @@ pub async fn handle_ratmas_command(
                                 if let Ok(user) = a.gifter.to_user(&ctx.http).await {
                                     if let Ok(giftee) = a.recipient.to_user(&ctx.http).await {
                                         let msg = format!(
-                                            "🐀 **Ratmas has begun!** 🎁\n\nYou are gifting: **{}**\n\n\
+                                            "🐀 **Ratmas has begun!** 🎁\n\n\
+                                            You are gifting: **{}**\n\n\
                                             Reply to this DM to send them an anonymous message, or to message your SecretRat!",
                                             giftee.name
                                         );

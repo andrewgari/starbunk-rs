@@ -9,24 +9,17 @@ use std::sync::Arc;
 pub async fn handle_dm_message(
     ctx: &Context,
     msg: &Message,
-    _store: Arc<dyn Store>,
+    store: Arc<dyn Store>,
 ) -> anyhow::Result<()> {
     if msg.author.bot {
         return Ok(());
     }
 
-    // Since users might be in multiple guilds (unlikely for Ratmas but possible),
-    // we would theoretically need to prompt for which guild if multiple are active.
-    // For simplicity, we assume one active Ratmas event for now or pick the first.
-    // Since RatBot is mostly scoped to a single primary guild logic, we will check
-    // if the user is in any active assignment list.
-
-    // Note: To implement properly across multiple guilds without a guild context in a DM,
-    // we would need to load all assignments across all active events where this user is present.
-    // As a simplification, we will just present the prompt if they are in at least one active ring.
-    // We can fetch assignments by searching all guilds, but it's simpler to store
-    // a reverse lookup or just let the button interaction handle the specific guild.
-    // For now, we will just present the buttons to ANY DM message.
+    // Only present the prompt if they are in at least one active ring.
+    let guilds = store.get_active_guilds_for_user(msg.author.id).await?;
+    if guilds.is_empty() {
+        return Ok(());
+    }
 
     let buttons = vec![CreateActionRow::Buttons(vec![
         CreateButton::new("send_giftee")
@@ -85,7 +78,22 @@ pub async fn handle_component_interaction(
     // The prompt message replied to the user's message.
     let prompt_msg = &interaction.message;
     let original_msg_id = match &prompt_msg.message_reference {
-        Some(rf) => rf.message_id.unwrap(),
+        Some(rf) => match rf.message_id {
+            Some(id) => id,
+            None => {
+                interaction
+                    .create_response(
+                        &ctx.http,
+                        CreateInteractionResponse::UpdateMessage(
+                            CreateInteractionResponseMessage::new()
+                                .content("Error: Could not find original message ID.")
+                                .components(vec![]),
+                        ),
+                    )
+                    .await?;
+                return Ok(());
+            }
+        },
         None => {
             interaction
                 .create_response(
@@ -101,10 +109,26 @@ pub async fn handle_component_interaction(
         }
     };
 
-    let original_msg = ctx
+    let original_msg = match ctx
         .http
         .get_message(interaction.channel_id, original_msg_id)
-        .await?;
+        .await
+    {
+        Ok(msg) => msg,
+        Err(_) => {
+            interaction
+                .create_response(
+                    &ctx.http,
+                    CreateInteractionResponse::UpdateMessage(
+                        CreateInteractionResponseMessage::new()
+                            .content("Error: Could not read original message (it may have been deleted).")
+                            .components(vec![]),
+                    ),
+                )
+                .await?;
+            return Ok(());
+        }
+    };
 
     // We need to find which guild's Ratmas the user is participating in.
     // For this, we'll need to do a DB query to find the assignment for this user.
