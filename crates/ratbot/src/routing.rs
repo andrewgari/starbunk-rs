@@ -19,17 +19,25 @@ pub fn route_message(
     target: RouteTarget,
     assignments: &[Assignment],
 ) -> Result<UserId, RouteError> {
+    let is_participating = assignments
+        .iter()
+        .any(|a| a.gifter == sender || a.recipient == sender);
+
+    if !is_participating {
+        return Err(RouteError::UserNotParticipating);
+    }
+
     match target {
         RouteTarget::Giftee => assignments
             .iter()
             .find(|a| a.gifter == sender)
             .map(|a| a.recipient)
-            .ok_or(RouteError::UserNotParticipating),
+            .ok_or(RouteError::AssignmentNotFound),
         RouteTarget::SecretRat => assignments
             .iter()
             .find(|a| a.recipient == sender)
             .map(|a| a.gifter)
-            .ok_or(RouteError::UserNotParticipating),
+            .ok_or(RouteError::AssignmentNotFound),
     }
 }
 
@@ -107,6 +115,27 @@ mod tests {
         assert_eq!(
             route_message(unknown, RouteTarget::SecretRat, &assignments),
             Err(RouteError::UserNotParticipating)
+        );
+    }
+
+    #[test]
+    fn test_assignment_not_found() {
+        // Create an inconsistent assignment ring where User 1 only receives
+        let assignments = vec![Assignment {
+            gifter: UserId::new(2),
+            recipient: UserId::new(1),
+        }];
+
+        // User 1 is participating (as a recipient) but has no giftee assigned
+        assert_eq!(
+            route_message(UserId::new(1), RouteTarget::Giftee, &assignments),
+            Err(RouteError::AssignmentNotFound)
+        );
+
+        // User 2 is participating (as a gifter) but has no SecretRat (nobody giving to them)
+        assert_eq!(
+            route_message(UserId::new(2), RouteTarget::SecretRat, &assignments),
+            Err(RouteError::AssignmentNotFound)
         );
     }
 }
