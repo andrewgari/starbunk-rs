@@ -19,3 +19,5 @@ async-trait.workspace        = true
 anyhow.workspace             = true
 tracing.workspace            = true
 rand.workspace               = true
+sqlx.workspace               = true
+chrono.workspace             = true
