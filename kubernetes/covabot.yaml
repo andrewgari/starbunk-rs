@@ -15,6 +15,8 @@ spec:
       labels:
         app: covabot
     spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
       containers:
         - name: covabot
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-covabot:latest

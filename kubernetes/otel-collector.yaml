@@ -55,6 +55,8 @@ spec:
       labels:
         app: otel-collector
     spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
       containers:
         - name: otel-collector
           image: otel/opentelemetry-collector-contrib:0.154.0

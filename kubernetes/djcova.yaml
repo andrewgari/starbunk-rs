@@ -15,6 +15,8 @@ spec:
       labels:
         app: djcova
     spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
       containers:
         - name: djcova
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-djcova:latest
