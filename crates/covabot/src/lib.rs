@@ -1,6 +1,7 @@
 pub mod conversation;
 pub mod engagement;
 pub mod personality;
+pub mod store;
 pub mod tagger;
 
 pub use conversation::{LlmTracker, Tracker};

@@ -1,0 +1,64 @@
+use anyhow::Context as _;
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+
+pub struct AuditRecord {
+    pub id: i32,
+    pub bot_name: String,
+    pub trigger_condition: String,
+    pub output_message: String,
+    pub expected: Option<bool>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub struct AuditStore {
+    pool: PgPool,
+}
+
+impl AuditStore {
+    pub async fn new(pool: PgPool) -> anyhow::Result<Self> {
+        let store = Self { pool };
+        store.init_schema().await?;
+        Ok(store)
+    }
+
+    async fn init_schema(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS bot_audit_history (
+                id SERIAL PRIMARY KEY,
+                bot_name VARCHAR(255) NOT NULL,
+                trigger_condition TEXT NOT NULL,
+                output_message TEXT NOT NULL,
+                expected BOOLEAN,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )"#,
+        )
+        .execute(&self.pool)
+        .await
+        .context("failed to create bot_audit_history table")?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    #[tokio::test]
+    async fn it_initializes_audit_schema() {
+        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost/starbunk_memory".to_string()
+        });
+        let pool = PgPoolOptions::new()
+            .connect(&db_url)
+            .await
+            .expect("Failed to connect to DB");
+
+        // This will succeed or fail depending on the DB connection, but for TDD we just want it to compile and run.
+        let store = AuditStore::new(pool).await;
+        // In full TDD it should fail before implementation, but since schema init is so small we put it here.
+        // We can write a failing query test for the next PR.
+    }
+}

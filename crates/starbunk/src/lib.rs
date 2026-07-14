@@ -1,3 +1,5 @@
+pub mod api;
+pub mod audit;
 pub mod discord;
 pub mod health;
 pub mod llm;

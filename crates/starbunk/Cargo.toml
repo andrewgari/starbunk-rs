@@ -26,4 +26,6 @@ anyhow.workspace       = true
 chrono.workspace       = true
 sqlx.workspace         = true
 pgvector.workspace     = true
+axum.workspace         = true
+tower-http.workspace   = true
 schemars = "1.2.1"
