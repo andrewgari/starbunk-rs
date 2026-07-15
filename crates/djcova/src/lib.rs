@@ -359,8 +359,11 @@ pub async fn run() -> anyhow::Result<()> {
         | GatewayIntents::GUILDS;
 
     tracing::info!(bot = "djcova", "Building Serenity client...");
+    let handler = Handler::new();
+    let managers_clone = handler.managers.clone();
+
     let mut client = serenity::Client::builder(&token, intents)
-        .event_handler(Handler::new())
+        .event_handler(handler)
         .register_songbird()
         .await
         .map_err(|e| {
@@ -370,6 +373,30 @@ pub async fn run() -> anyhow::Result<()> {
         })?;
 
     tracing::info!(bot = "djcova", "Starting Serenity client Gateway loop...");
+
+    // Start Axum API server
+    let api_state = api::AppState {
+        managers: managers_clone,
+    };
+    tokio::spawn(async move {
+        let app = api::bot_router(api_state);
+        let port = std::env::var("API_PORT").unwrap_or_else(|_| "9084".to_string());
+        // Fix: 0.0.0.0 instead of 0.0.0.1
+        let addr = format!("0.0.0.0:{}", port);
+
+        let listener = match tokio::net::TcpListener::bind(&addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::error!(bot = "djcova", err = %e, "Failed to bind API server");
+                return;
+            }
+        };
+        tracing::info!(bot = "djcova", "API server listening on {}", addr);
+        if let Err(e) = axum::serve(listener, app).await {
+            tracing::error!(bot = "djcova", err = %e, "API server error");
+        }
+    });
+
     client.start().await.map_err(|e| {
         tracing::error!(bot = "djcova", err = %e, "Client connection error");
         record_error("client_run_failed");

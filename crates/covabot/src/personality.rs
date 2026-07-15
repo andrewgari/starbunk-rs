@@ -29,6 +29,25 @@ impl Profile {
         let profile = serde_yaml::from_str(yaml_content)?;
         Ok(profile)
     }
+
+    pub fn merge(&mut self, other: Profile) {
+        self.name_aliases.extend(other.name_aliases);
+        if !other.system_prompt.is_empty() {
+            if !self.system_prompt.is_empty() {
+                self.system_prompt.push_str("\n\n");
+            }
+            self.system_prompt.push_str(&other.system_prompt);
+        }
+        self.speech_patterns.extend(other.speech_patterns);
+        self.topic_affinities.extend(other.topic_affinities);
+        self.self_facts.extend(other.self_facts);
+        self.relationships.extend(other.relationships);
+
+        // Overwrite social battery config if provided (assuming max > 0 means it's non-default)
+        if other.social_battery_config.max > 0 {
+            self.social_battery_config = other.social_battery_config;
+        }
+    }
 }
 
 #[cfg(test)]

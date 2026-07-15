@@ -39,6 +39,26 @@ impl AuditStore {
 
         Ok(())
     }
+
+    pub async fn log_event(
+        &self,
+        bot_name: &str,
+        trigger_condition: &str,
+        output_message: &str,
+        expected: Option<bool>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO bot_audit_history (bot_name, trigger_condition, output_message, expected) VALUES ($1, $2, $3, $4)"
+        )
+        .bind(bot_name)
+        .bind(trigger_condition)
+        .bind(output_message)
+        .bind(expected)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

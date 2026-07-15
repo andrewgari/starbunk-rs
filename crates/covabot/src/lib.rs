@@ -1,7 +1,6 @@
 pub mod conversation;
 pub mod engagement;
 pub mod personality;
-pub mod store;
 pub mod tagger;
 
 pub use conversation::{LlmTracker, Tracker};
@@ -27,13 +26,20 @@ struct Services {
     profile: personality::Profile,
 }
 
+use sqlx::postgres::PgPoolOptions;
+use starbunk::audit::AuditStore;
+
+#[derive(Clone)]
+pub struct AppState {}
+
 struct Handler {
     filter: Arc<dyn starbunk::middleware::MessageFilter>,
     services: OnceCell<Services>,
+    audit: Arc<AuditStore>,
 }
 
 impl Handler {
-    fn new() -> Self {
+    fn new(audit: Arc<AuditStore>) -> Self {
         Self {
             filter: all_of(vec![
                 NOT_SELF.clone(),
@@ -42,6 +48,7 @@ impl Handler {
                 HAS_CONTENT.clone(),
             ]),
             services: OnceCell::new(),
+            audit,
         }
     }
 }
@@ -54,14 +61,6 @@ impl EventHandler for Handler {
         let _ = self
             .services
             .get_or_init(|| async {
-                let llms = match starbunk::llm::registry_from_env() {
-                    Ok(r) => r,
-                    Err(e) => {
-                        tracing::error!("covabot: failed to init LLM registry: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-
                 let db_conn = std::env::var("DATABASE_URL")
                     .or_else(|_| std::env::var("POSTGRES_CONN_STR"))
                     .unwrap_or_else(|_| {
@@ -77,16 +76,65 @@ impl EventHandler for Handler {
                     }
                 };
 
+                let llms = match starbunk::llm::registry_from_env() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!("covabot: failed to init LLM registry: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 let low_llm = llms.low().expect("no LLM tier available");
 
-                let profile_yaml = std::fs::read_to_string("config/bots/covabot.yml")
-                    .unwrap_or_else(|_| {
-                        "name_aliases: [\"CovaBot\"]\ntopic_affinities: []".to_string()
-                    });
-                let profile = personality::Profile::load(&profile_yaml).unwrap_or_else(|e| {
-                    tracing::warn!("failed to load profile: {}, falling back to default", e);
-                    personality::Profile::default()
-                });
+                let mut profile = personality::Profile::default();
+                let config_dir = std::env::var("COVABOT_CONFIG_DIR")
+                    .unwrap_or_else(|_| "config/covabot".to_string());
+
+                if let Ok(mut read_dir) = tokio::fs::read_dir(&config_dir).await {
+                    let mut loaded_any = false;
+                    while let Ok(Some(entry)) = read_dir.next_entry().await {
+                        let path = entry.path();
+                        if path.is_file()
+                            && (path.extension().unwrap_or_default() == "yml"
+                                || path.extension().unwrap_or_default() == "yaml")
+                        {
+                            match tokio::fs::read_to_string(&path).await {
+                                Ok(yaml) => match personality::Profile::load(&yaml) {
+                                    Ok(p) => {
+                                        profile.merge(p);
+                                        loaded_any = true;
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "failed to parse profile layer from {}: {}",
+                                            path.display(),
+                                            e
+                                        );
+                                    }
+                                },
+                                Err(e) => {
+                                    tracing::warn!("failed to read file {}: {}", path.display(), e);
+                                }
+                            }
+                        }
+                    }
+
+                    if !loaded_any {
+                        tracing::warn!(
+                            "No valid profile layers found in {}, using default",
+                            config_dir
+                        );
+                    } else {
+                        tracing::info!(
+                            "Successfully loaded and merged profile layers from {}",
+                            config_dir
+                        );
+                    }
+                } else {
+                    tracing::warn!(
+                        "Config directory {} not found, using default profile",
+                        config_dir
+                    );
+                }
 
                 Services {
                     webhooks: Arc::new(WebhookService::new(ctx.http.clone())),
@@ -254,8 +302,13 @@ impl EventHandler for Handler {
 
         let sender = DiscordMessageService::new(ctx.http.clone(), svc.webhooks.clone());
         if let Err(e) = sender.send(msg.channel_id, &resp.text).await {
-            tracing::error!("covabot: send failed: {}", e);
+            tracing::error!(err = %e, "Failed to send response");
         } else {
+            let _ = self
+                .audit
+                .log_event("CovaBot", &msg.content, &resp.text, None)
+                .await;
+
             svc.engagement
                 .record_cova_speak(&msg.channel_id.to_string());
             svc.engagement.deplete(&msg.channel_id.to_string());
@@ -264,10 +317,20 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/starbunk_memory".to_string());
+
+    let pool = PgPoolOptions::new()
+        .connect(&db_url)
+        .await
+        .expect("Failed to connect to DB");
+
+    let audit = Arc::new(AuditStore::new(pool).await?);
+
     starbunk::utils::run_bot(
         "CovaBot",
         starbunk::utils::default_intents(),
-        Handler::new(),
+        Handler::new(audit),
     )
     .await
 }

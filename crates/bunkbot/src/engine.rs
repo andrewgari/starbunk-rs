@@ -17,11 +17,14 @@ use std::sync::{Arc, LazyLock};
 /// Each call to `handle` iterates all loaded bots, applies per-bot author
 /// filters + frequency gate, evaluates trigger conditions, and sends the first
 /// matching response.
+use starbunk::audit::AuditStore;
+
 pub struct BunkBotEngine {
     bots: Vec<CompiledBot>,
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
     state_service: Arc<dyn BotStateService>,
+    audit: Arc<AuditStore>,
 }
 
 impl BunkBotEngine {
@@ -30,6 +33,7 @@ impl BunkBotEngine {
         sender: Arc<dyn MessageService>,
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
+        audit: Arc<AuditStore>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -53,6 +57,7 @@ impl BunkBotEngine {
             sender,
             identity_provider,
             state_service,
+            audit,
         }
     }
 
@@ -119,6 +124,11 @@ impl BunkBotEngine {
                     channel = %msg.channel_id,
                     "send failed: {}", e
                 );
+            } else {
+                let _ = self
+                    .audit
+                    .log_event(&bot.name, &msg.content, &response, None)
+                    .await;
             }
 
             return; // first matching trigger wins
