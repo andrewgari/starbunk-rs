@@ -44,7 +44,7 @@ export default function BunkBotPage() {
       <header className="flex justify-between items-end mb-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">BunkBot Strategies</h1>
-          <p className="text-slate-400 mt-1">Manage BunkBot's reply patterns, chances, and enable/disable states.</p>
+          <p className="text-slate-400 mt-1">Manage BunkBot&apos;s reply patterns, chances, and enable/disable states.</p>
         </div>
         <div className="flex gap-3">
           {hasChanges && (

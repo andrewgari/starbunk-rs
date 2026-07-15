@@ -16,8 +16,10 @@ export default function HistoryPage() {
   };
 
   useEffect(() => {
-    load();
-  }, [filter]);
+    let active = true;
+    (async () => { if (active) await load(); })();
+    return () => { active = false; };
+  }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col h-full gap-4 max-w-5xl mx-auto py-6">

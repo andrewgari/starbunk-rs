@@ -9,7 +9,7 @@ export async function listCovaBotProfiles(): Promise<string[]> {
       throw new Error(`Failed to list profiles: ${res.statusText}`);
     }
     return await res.json();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error listing CovaBot profiles:", error);
     return [];
   }
@@ -23,7 +23,7 @@ export async function getCovaBotProfile(id: string): Promise<string | null> {
       throw new Error(`Failed to fetch config: ${res.statusText}`);
     }
     return await res.text();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error fetching CovaBot profile ${id}:`, error);
     return null;
   }
@@ -43,8 +43,8 @@ export async function saveCovaBotProfile(id: string, yaml: string) {
       return { success: false, error: text || res.statusText };
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error saving CovaBot profile ${id}:`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

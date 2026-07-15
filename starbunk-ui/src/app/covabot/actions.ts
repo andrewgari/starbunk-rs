@@ -9,7 +9,7 @@ export async function getCovaBotConfig() {
       throw new Error(`Failed to fetch config: ${res.statusText}`);
     }
     return await res.text();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching CovaBot config:", error);
     return null;
   }
@@ -29,8 +29,8 @@ export async function saveCovaBotConfig(yaml: string) {
       return { success: false, error: text || res.statusText };
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error saving CovaBot config:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

@@ -14,7 +14,7 @@ export default async function CovaBotLanding() {
       <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-panel p-6">
           <h2 className="text-xl font-semibold mb-4 text-white">Personality Layers</h2>
-          <p className="text-slate-400 mb-2">Create and edit individual layers that compose CovaBot's personality.</p>
+          <p className="text-slate-400 mb-2">Create and edit individual layers that compose CovaBot&apos;s personality.</p>
           <p className="text-xs text-indigo-300">Note: Changes will be applied on the next bot restart.</p>
         </div>
       </div>

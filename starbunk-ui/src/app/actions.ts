@@ -8,6 +8,20 @@ import { revalidatePath } from "next/cache";
 const NAMESPACE = process.env.K8S_NAMESPACE || "starbunk";
 const LOCAL_CONFIG_PATH = path.join(process.cwd(), "..", "config");
 
+function isNotFound(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    ("code" in err || "statusCode" in err) &&
+    ((err as Record<string, unknown>).code === 404 ||
+      (err as Record<string, unknown>).statusCode === 404)
+  );
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 let k8sAppsApi: k8s.AppsV1Api | null = null;
 let k8sCoreApi: k8s.CoreV1Api | null = null;
 
@@ -60,8 +74,8 @@ export async function getBotDeployments(): Promise<BotDeploymentStatus[]> {
           availableReplicas: dep.status?.availableReplicas ?? 0,
           status,
         };
-      } catch (err: any) {
-        if (err.code === 404 || err.statusCode === 404) {
+      } catch (err: unknown) {
+        if (isNotFound(err)) {
           return { name: bot, replicas: 0, readyReplicas: 0, availableReplicas: 0, status: "Unknown" as const };
         }
         throw err;
@@ -101,8 +115,8 @@ export async function setBotState(botName: string, action: "start" | "stop" | "r
             value: timestamp,
           }],
         });
-      } catch (e: any) {
-        if (e.code === 422 || e.statusCode === 422) {
+      } catch (e: unknown) {
+        if (typeof e === "object" && e !== null && ((e as Record<string, unknown>).code === 422 || (e as Record<string, unknown>).statusCode === 422)) {
           await k8sAppsApi.patchNamespacedDeployment({
             name: botName,
             namespace: NAMESPACE,
@@ -120,9 +134,9 @@ export async function setBotState(botName: string, action: "start" | "stop" | "r
 
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error performing ${action} on ${botName}:`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: errMsg(error) };
   }
 }
 
@@ -148,8 +162,8 @@ export async function getBotConfigs(botName: "bunkbot" | "covabot"): Promise<Rec
   try {
     const cm = await k8sCoreApi.readNamespacedConfigMap({ name: `${botName}-configs`, namespace: NAMESPACE });
     return cm.data ?? {};
-  } catch (error: any) {
-    if (error.code === 404 || error.statusCode === 404) return {};
+  } catch (error: unknown) {
+    if (isNotFound(error)) return {};
     console.error(`Error reading configmap for ${botName}:`, error);
     throw error;
   }
@@ -171,8 +185,8 @@ export async function updateBotConfig(
       }
       revalidatePath(`/${botName}`);
       return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: errMsg(e) };
     }
   }
 
@@ -182,8 +196,8 @@ export async function updateBotConfig(
     try {
       const cm = await k8sCoreApi.readNamespacedConfigMap({ name: configMapName, namespace: NAMESPACE });
       currentData = cm.data ?? {};
-    } catch (e: any) {
-      if (e.code !== 404 && e.statusCode !== 404) throw e;
+    } catch (e: unknown) {
+      if (!isNotFound(e)) throw e;
     }
 
     if (content === null) {
@@ -205,8 +219,8 @@ export async function updateBotConfig(
 
     revalidatePath(`/${botName}`);
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error writing configmap for ${botName}:`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: errMsg(error) };
   }
 }

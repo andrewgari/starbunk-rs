@@ -16,9 +16,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
+    let active = true;
+    (async () => { if (active) await load(); })();
+    const interval = setInterval(() => { if (active) void load(); }, 5000);
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
   const handleAction = (botName: string, action: "start" | "stop" | "restart") => {

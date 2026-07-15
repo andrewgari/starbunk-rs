@@ -16,9 +16,10 @@ export default function DJCovaPage() {
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 10000); // auto refresh every 10s
-    return () => clearInterval(interval);
+    let active = true;
+    (async () => { if (active) await load(); })();
+    const interval = setInterval(() => { if (active) void load(); }, 10000);
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
   const handleSkip = (guildId: number) => {

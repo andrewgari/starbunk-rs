@@ -9,7 +9,7 @@ export async function getBunkBotConfig() {
       throw new Error(`Failed to fetch config: ${res.statusText}`);
     }
     return await res.text();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching BunkBot config:", error);
     return null;
   }
@@ -29,8 +29,8 @@ export async function saveBunkBotConfig(yaml: string) {
       return { success: false, error: text || res.statusText };
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error saving BunkBot config:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
