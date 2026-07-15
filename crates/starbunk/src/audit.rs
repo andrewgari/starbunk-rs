@@ -67,6 +67,7 @@ mod tests {
     use sqlx::postgres::PgPoolOptions;
 
     #[tokio::test]
+    #[ignore = "requires a live Postgres connection — run with DATABASE_URL set"]
     async fn it_initializes_audit_schema() {
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgres://postgres:postgres@localhost/starbunk_memory".to_string()
@@ -76,9 +77,6 @@ mod tests {
             .await
             .expect("Failed to connect to DB");
 
-        // This will succeed or fail depending on the DB connection, but for TDD we just want it to compile and run.
-        let store = AuditStore::new(pool).await;
-        // In full TDD it should fail before implementation, but since schema init is so small we put it here.
-        // We can write a failing query test for the next PR.
+        let _store = AuditStore::new(pool).await.expect("schema init failed");
     }
 }
