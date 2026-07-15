@@ -3,6 +3,20 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-07-15 — Bot Management UI (`starbunk-ui`)
+
+### Added
+- New Next.js app (`starbunk-ui/`) providing a glassmorphism web UI for bot lifecycle management and settings editing. Routes: Dashboard, Audit History, CovaBot personalities, BunkBot strategies, DJCova controls.
+- Dual-environment architecture: K8s path uses `@kubernetes/client-node` v1.4 to read/patch Deployments and ConfigMaps; local path falls back to mock state and local filesystem — no cluster needed for dev.
+- `wiki/infrastructure/UI.md` documenting the tech stack, route map, server actions, and local dev setup.
+
+### Fixed
+- `getBotDeployments()` was calling `bot.id` on a plain `string`, passing `undefined` to `readNamespacedDeployment` and silently breaking all K8s lifecycle controls.
+- Migrated all K8s client calls from the old positional-param API (`name, namespace, ...`) to the v1.4 object-param API (`{ name, namespace, body }`). Removed obsolete `.body` response unwrapping.
+- Audit history page now lazy-initializes Postgres (only when `DATABASE_URL` is set) instead of crashing at module load in local dev.
+
+---
+
 ## 2026-06-24 — Fix Postgres GKE CrashLoopBackOff
 
 ### Changed

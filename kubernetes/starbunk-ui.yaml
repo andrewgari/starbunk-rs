@@ -1,0 +1,114 @@
+---
+# ServiceAccount for the UI pod — gives it an identity to bind RBAC to.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: starbunk-ui
+  namespace: starbunk
+
+---
+# Role — least-privilege: read/patch Deployments and ConfigMaps in this namespace only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: starbunk-ui
+  namespace: starbunk
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: starbunk-ui
+  namespace: starbunk
+subjects:
+  - kind: ServiceAccount
+    name: starbunk-ui
+    namespace: starbunk
+roleRef:
+  kind: Role
+  name: starbunk-ui
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starbunk-ui
+  namespace: starbunk
+  labels:
+    app: starbunk-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starbunk-ui
+  template:
+    metadata:
+      labels:
+        app: starbunk-ui
+    spec:
+      serviceAccountName: starbunk-ui
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      containers:
+        - name: starbunk-ui
+          image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: K8S_NAMESPACE
+              value: "starbunk"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: DATABASE_URL
+                  optional: true
+            # Bot API URLs — within-cluster DNS (service names match bot names)
+            - name: BUNKBOT_API_URL
+              value: "http://bunkbot:9082"
+            - name: COVABOT_API_URL
+              value: "http://covabot:9083"
+            - name: DJCOVA_API_URL
+              value: "http://djcova:9084"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+# Service — ClusterIP by default.
+# The tailscale.com/expose annotation tells the Tailscale Operator to give this
+# service a stable https://starbunk-ui.<tailnet>.ts.net address on your tailnet.
+# Remove the annotation if you only want kubectl port-forward access.
+apiVersion: v1
+kind: Service
+metadata:
+  name: starbunk-ui
+  namespace: starbunk
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "starbunk-ui"
+spec:
+  selector:
+    app: starbunk-ui
+  ports:
+    - port: 80
+      targetPort: 3000
