@@ -50,7 +50,7 @@ When any bot is added, removed, or renamed, update **all five**:
 ## Definition of done
 
 A task is complete when:
-1. All CI checks pass
+1. All CI/CD checks in the GitHub repo pass
 2. If a PR was opened — it has approval and all checks are green
 3. `bash scripts/devops-validate.sh` exits cleanly
 4. Relevant wiki pages updated (`wiki/` in repo root)

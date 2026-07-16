@@ -43,7 +43,7 @@ When you hand off work, be specific. Don't say "update the tests" — say "add a
 - `deploy.yml` — after `main.yml`: SSH to Tower, pull images, restart, health check
 
 **Definition of done:**
-1. All CI checks pass (`Validate DevOps Consistency`, `Lint`, `Test`)
+1. All CI/CD checks in the GitHub repo pass (`Validate DevOps Consistency`, `Lint`, `Test`)
 2. If a PR was opened — it has at least one approval and all checks are green
 3. `bash scripts/devops-validate.sh` exits cleanly if any DevOps file was touched
 4. Relevant `wiki/` pages updated

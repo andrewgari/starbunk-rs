@@ -10,6 +10,9 @@ The current members of "The Bois" are defined in the `.gemini/agents/` directory
 - **[The Brains](.gemini/agents/the-brains.md):** Both the leader of the bois and one of the bois. Responsible for system design, architecture, task breakdown, and technical orchestration. **Any updates or changes to the agents/roster must be coordinated with The Brains.**
 - **[The Builder](.gemini/agents/the-builder.md):** The Senior Rust Implementer. Responsible for writing core feature implementation and backend services.
 - **[The Fixer](.gemini/agents/the-fixer.md):** The Quality Assurance & Test Engineer. Responsible for writing/fixing tests and final code review.
+- **[The Painter](.gemini/agents/the-painter.md):** The UI Design and Observability Specialist. Consulted by the rest of the bois for user interface design and setting up clear, visible observability.
+- **[The Consultant](.gemini/agents/the-consultant.md):** The Risk and Maintainability Assessor. Consulted by The Builder and The Fixer to evaluate code for observability improvements, assess feature risk, and provide recommendations for maintainability and correctness.
+- **[The Inspector](.gemini/agents/the-inspector.md):** The Process and Communication Liaison. Frequently checks in on The Builder and The Fixer, distills their progress for The Brains, and delivers The Brains' directives back to the team.
 
 *Note: More agents may be added in the future.*
 
@@ -70,8 +73,7 @@ If the user asks to implement a feature, fix a bug, or perform any refactoring/c
 1. **Recognize the context**: Identify that the request constitutes a "task" (branch -> worktree -> build/test -> PR -> CI watch).
 2. **Take action**: Proactively ask or recommend that the user invoke the `/task` command, OR load and execute the `/task` workflow at your own discretion to handle the workflow properly in an isolated worktree. Never work directly on `main` or bypass the worktree setup.
 
-Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. If tests fail,
-fixing them is part of the task.
+Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. Furthermore, **the definition of "Done" strictly requires that all CI/CD checks in the GitHub repo pass.** If tests fail locally or in CI, fixing them is part of the task.
 
 Rust quality checklist — apply to every file touched:
 - Dependencies injected as `Arc<dyn Trait>`, not concrete types
