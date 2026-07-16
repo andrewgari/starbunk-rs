@@ -53,8 +53,7 @@ If the user asks to implement a feature, fix a bug, or perform any refactoring/c
 1. **Recognize the context**: Identify that the request constitutes a "task" (branch -> worktree -> build/test -> PR -> CI watch).
 2. **Take action**: Proactively ask or recommend that the user invoke the `/task` command, OR load and execute the `/task` workflow at your own discretion to handle the workflow properly in an isolated worktree. Never work directly on `main` or bypass the worktree setup.
 
-Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. If tests fail,
-fixing them is part of the task.
+Before declaring any task done, follow the TDD SDLC workflow and run `cargo test` locally. Furthermore, **the definition of "Done" strictly requires that all CI/CD checks in the GitHub repo pass.** If tests fail locally or in CI, fixing them is part of the task.
 
 Rust quality checklist — apply to every file touched:
 - Dependencies injected as `Arc<dyn Trait>`, not concrete types

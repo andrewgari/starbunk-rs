@@ -60,7 +60,7 @@ Full details: `wiki/development/TDD.md`.
 
 ## Definition of Done
 
-- [ ] All CI checks pass (`Validation Success`)
+- [ ] All CI/CD checks in the GitHub repo pass (`Validation Success`)
 - [ ] PR has at least one approval and all checks are green
 - [ ] `bash scripts/devops-validate.sh` exits cleanly (if any bot or CI/CD file was touched)
 - [ ] `cargo test` passes locally
