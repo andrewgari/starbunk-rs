@@ -28,6 +28,7 @@ memory-safe, high-performance implementation.
 - [[infrastructure/Architecture|Architecture]] — Monorepo layout, bot pattern, shared libraries
 - [[infrastructure/Deployment|Deployment]] — CI/CD pipeline, Docker images, Tower server
 - [[infrastructure/Configuration|Configuration]] — Environment variables and Docker Compose files
+- [[infrastructure/UI|Bot Management UI]] — Next.js control plane for bot lifecycle and settings
 
 ### Development
 - [[development/Getting-Started|Getting Started]] — Local dev setup

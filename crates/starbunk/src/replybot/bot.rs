@@ -1,4 +1,5 @@
 use super::strategy::Strategy;
+use crate::audit::AuditStore;
 use crate::discord::MessageService;
 use serenity::all::{Context, Message};
 use std::sync::Arc;
@@ -9,11 +10,24 @@ use std::sync::Arc;
 pub struct ReplyBot {
     strategies: Vec<Box<dyn Strategy>>,
     sender: Arc<dyn MessageService>,
+    audit: Option<Arc<AuditStore>>,
+    bot_name: String,
 }
 
 impl ReplyBot {
     pub fn new(sender: Arc<dyn MessageService>, strategies: Vec<Box<dyn Strategy>>) -> Self {
-        Self { strategies, sender }
+        Self {
+            strategies,
+            sender,
+            audit: None,
+            bot_name: "ReplyBot".to_string(),
+        }
+    }
+
+    pub fn with_audit(mut self, bot_name: &str, audit: Arc<AuditStore>) -> Self {
+        self.bot_name = bot_name.to_string();
+        self.audit = Some(audit);
+        self
     }
 
     pub async fn handle(&self, ctx: &Context, msg: &Message) {
@@ -43,6 +57,10 @@ impl ReplyBot {
                         "failed to send identified response: {}",
                         e
                     );
+                } else if let Some(audit) = &self.audit {
+                    let _ = audit
+                        .log_event(&self.bot_name, strategy.name(), &resp, None)
+                        .await;
                 }
             } else if let Err(e) = self.sender.send(msg.channel_id, &resp).await {
                 tracing::error!(
@@ -51,6 +69,10 @@ impl ReplyBot {
                     "failed to send response: {}",
                     e
                 );
+            } else if let Some(audit) = &self.audit {
+                let _ = audit
+                    .log_event(&self.bot_name, strategy.name(), &resp, None)
+                    .await;
             }
             return;
         }

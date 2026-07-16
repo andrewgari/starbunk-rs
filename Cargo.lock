@@ -149,6 +149,8 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "itoa",
  "matchit",
  "memchr",
@@ -157,10 +159,15 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
+ "tokio",
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -181,6 +188,7 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -261,15 +269,19 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "chrono",
+ "opentelemetry",
  "rand 0.8.6",
  "regex",
  "serde",
  "serde_json",
  "serde_yaml",
  "serenity",
+ "sqlx",
  "starbunk",
  "tokio",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -490,14 +502,18 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
+ "opentelemetry",
  "rand 0.8.6",
  "schemars",
  "serde",
  "serde_json",
  "serde_yaml",
  "serenity",
+ "sqlx",
  "starbunk",
  "tokio",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -879,6 +895,7 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "opentelemetry",
  "rand 0.8.6",
  "reqwest",
@@ -888,6 +905,7 @@ dependencies = [
  "starbunk",
  "symphonia",
  "tokio",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -3324,7 +3342,7 @@ dependencies = [
  "tokio-rustls 0.26.4",
  "tokio-util",
  "tower 0.5.3",
- "tower-http",
+ "tower-http 0.6.11",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -3745,6 +3763,17 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -4259,6 +4288,7 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "chrono",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -4274,6 +4304,7 @@ dependencies = [
  "serenity",
  "sqlx",
  "tokio",
+ "tower-http 0.5.2",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -4966,6 +4997,24 @@ dependencies = [
  "tokio",
  "tower-layer",
  "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "bitflags 2.13.0",
+ "bytes",
+ "http",
+ "http-body",
+ "http-body-util",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
