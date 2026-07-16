@@ -6,7 +6,7 @@ description: Review PR comments, categorize them into critical/nitpicks, fix use
 
 When triggered, perform the following steps in order:
 
-1. **Fetch Comments**: Fetch the pull request review comments for the current branch using the GitHub MCP or `gh pr review`.
+1. **Fetch Comments**: Fetch the pull request review comments for the current branch using the GitHub MCP or `gh api /repos/{owner}/{repo}/pulls/{pr_number}/comments`.
 2. **Analyze and Categorize**: Read each comment and categorize them into:
    - **Critical:** Bugs, architectural flaws, failing tests, or blockers.
    - **Nitpicks:** Style suggestions, minor naming conventions, or optional improvements.
