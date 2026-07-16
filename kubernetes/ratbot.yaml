@@ -33,6 +33,20 @@ spec:
               value: "false"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector:4317"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: "starbunk_memory"
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
           resources:
             requests:
               cpu: "100m"
