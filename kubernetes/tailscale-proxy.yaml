@@ -9,6 +9,9 @@ data:
       "TCP": {
         "443": {
           "HTTPS": true
+        },
+        "80": {
+          "HTTPS": false
         }
       },
       "Web": {
@@ -18,7 +21,18 @@ data:
               "Proxy": "http://starbunk-ui:80"
             }
           }
+        },
+        "${TS_CERT_DOMAIN}:80": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://starbunk-ui:80"
+            }
+          }
         }
+      },
+      "AllowFunnel": {
+        "${TS_CERT_DOMAIN}:443": false,
+        "${TS_CERT_DOMAIN}:80": false
       }
     }
 ---
@@ -32,6 +46,8 @@ spec:
   selector:
     matchLabels:
       app: starbunk-ui-tailscale
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -46,6 +62,8 @@ spec:
                 secretKeyRef:
                   name: tailscale-auth
                   key: TS_AUTHKEY
+            - name: TS_AUTH_ONCE
+              value: "true"
             - name: TS_USERSPACE
               value: "true"
             - name: TS_HOSTNAME
@@ -68,4 +86,17 @@ spec:
           configMap:
             name: tailscale-serve-config
         - name: ts-state
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: tailscale-proxy-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tailscale-proxy-pvc
+  namespace: starbunk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
