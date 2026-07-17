@@ -60,6 +60,9 @@ impl BunkBotEngine {
             audit,
         }
     }
+    pub fn reload_bots(&mut self, _bots: Vec<BotConfig>) {
+        // Stub: do nothing
+    }
 
     pub fn bot_configs(&self) -> Vec<(String, u8)> {
         self.bots
@@ -433,5 +436,11 @@ mod tests {
             let r = pick_response(&pool).unwrap();
             assert!(pool.iter().any(|s| s == r));
         }
+    }
+
+    // --- reload_bots ---
+    #[test]
+    fn test_reload_bots_updates_internal_bots_list() {
+        assert!(false, "test not implemented");
     }
 }
