@@ -84,3 +84,12 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/covabot
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: covabot-configs
+            optional: true

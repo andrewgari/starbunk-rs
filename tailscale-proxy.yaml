@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-serve-config
+  namespace: starbunk
+data:
+  serve-config.json: |
+    {
+      "TCP": {
+        "443": {
+          "HTTPS": true
+        },
+        "80": {
+          "HTTPS": false
+        }
+      },
+      "Web": {
+        "${TS_CERT_DOMAIN}:443": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://starbunk-ui:80"
+            }
+          }
+        },
+        "${TS_CERT_DOMAIN}:80": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://starbunk-ui:80"
+            }
+          }
+        }
+      },
+      "AllowFunnel": {
+        "${TS_CERT_DOMAIN}:443": false,
+        "${TS_CERT_DOMAIN}:80": false
+      }
+    }

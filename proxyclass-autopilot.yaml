@@ -1,0 +1,16 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: autopilot
+spec:
+  statefulSet:
+    pod:
+      tailscaleContainer:
+        securityContext:
+          privileged: false
+        env:
+          - name: TS_USERSPACE
+            value: "true"
+      tailscaleInitContainer:
+        securityContext:
+          privileged: false

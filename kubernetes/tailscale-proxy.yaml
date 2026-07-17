@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-serve-config
+  namespace: starbunk
+data:
+  serve-config.json: |
+    {
+      "TCP": {
+        "443": {
+          "HTTPS": true
+        },
+        "80": {
+          "HTTPS": false
+        }
+      },
+      "Web": {
+        "${TS_CERT_DOMAIN}:443": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://starbunk-ui:80"
+            }
+          }
+        },
+        "${TS_CERT_DOMAIN}:80": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://starbunk-ui:80"
+            }
+          }
+        }
+      },
+      "AllowFunnel": {
+        "${TS_CERT_DOMAIN}:443": false,
+        "${TS_CERT_DOMAIN}:80": false
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starbunk-ui-tailscale
+  namespace: starbunk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starbunk-ui-tailscale
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: starbunk-ui-tailscale
+    spec:
+      containers:
+        - name: tailscale
+          image: tailscale/tailscale:v1.98.4
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: TS_AUTHKEY
+            - name: TS_AUTH_ONCE
+              value: "true"
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_HOSTNAME
+              value: "starbunk-ui"
+            - name: TS_SERVE_CONFIG
+              value: "/config/serve-config.json"
+            - name: TS_EXTRA_ARGS
+              value: "--advertise-tags=tag:k8s-operator"
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_STATE_DIR
+              value: "/var/lib/tailscale"
+          volumeMounts:
+            - name: serve-config
+              mountPath: /config
+            - name: ts-state
+              mountPath: /var/lib/tailscale
+      volumes:
+        - name: serve-config
+          configMap:
+            name: tailscale-serve-config
+        - name: ts-state
+          persistentVolumeClaim:
+            claimName: tailscale-proxy-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tailscale-proxy-pvc
+  namespace: starbunk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

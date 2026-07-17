@@ -1,14 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { updateBotConfig } from "@/app/actions";
 
 export default function ConfigManager({ configs, botName }: { configs: Record<string, string>, botName: "bunkbot" | "covabot" }) {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [content, setContent] = useState<string>("");
+  const initialFile = Object.keys(configs).length > 0 ? Object.keys(configs)[0] : null;
+  const [selectedFile, setSelectedFile] = useState<string | null>(initialFile);
+  const [content, setContent] = useState<string>(initialFile ? configs[initialFile] : "");
   const [isSaving, setIsSaving] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    if (!isCreating && selectedFile && configs[selectedFile] !== undefined) {
+      setContent(configs[selectedFile]);
+    } else if (!isCreating && !selectedFile && Object.keys(configs).length > 0) {
+      setSelectedFile(Object.keys(configs)[0]);
+      setContent(configs[Object.keys(configs)[0]]);
+    }
+  }, [configs, selectedFile, isCreating]);
 
   const handleSelect = (filename: string) => {
     setSelectedFile(filename);
@@ -73,12 +83,14 @@ export default function ConfigManager({ configs, botName }: { configs: Record<st
               {filename}
             </button>
           ))}
-          <button
-            onClick={handleCreateNew}
-            className="mt-4 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded-md transition-colors text-sm font-medium"
-          >
-            + Create New
-          </button>
+          {botName !== "bunkbot" && (
+            <button
+              onClick={handleCreateNew}
+              className="mt-4 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded-md transition-colors text-sm font-medium"
+            >
+              + Create New
+            </button>
+          )}
         </div>
       </div>
       
@@ -99,7 +111,7 @@ export default function ConfigManager({ configs, botName }: { configs: Record<st
               )}
               
               <div className="flex gap-3">
-                {!isCreating && (
+                {!isCreating && botName !== "bunkbot" && (
                   <button 
                     onClick={handleDelete}
                     disabled={isSaving}
