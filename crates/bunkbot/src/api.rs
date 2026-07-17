@@ -71,6 +71,7 @@ mod tests {
                 Request::builder()
                     .method("POST")
                     .uri("/config")
+                    .header("content-type", "application/yaml")
                     .body(Body::from(invalid_yaml))
                     .unwrap(),
             )

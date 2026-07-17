@@ -29,5 +29,5 @@ regex.workspace              = true
 chrono.workspace             = true
 
 [dev-dependencies]
-http-body-util = "0.1.4"
+http-body-util.workspace     = true
 serde_json.workspace         = true
