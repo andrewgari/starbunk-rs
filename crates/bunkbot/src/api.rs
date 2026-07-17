@@ -7,7 +7,7 @@ use crate::engine::BunkBotEngine;
 
 #[derive(Clone)]
 pub struct ApiState {
-    pub engine: Arc<RwLock<Option<BunkBotEngine>>>,
+    pub engine: Arc<RwLock<Option<Arc<BunkBotEngine>>>>,
     pub config_dir: String,
 }
 
@@ -43,25 +43,41 @@ async fn post_config(State(state): State<ApiState>, payload: String) -> axum::ht
 
     // Now reload all files in the directory to reconstruct the full bot list
     let mut all_bots = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(&state.config_dir).await {
-        while let Ok(Some(entry)) = read_dir.next_entry().await {
-            let p = entry.path();
-            if p.is_file()
-                && (p.extension().unwrap_or_default() == "yml"
-                    || p.extension().unwrap_or_default() == "yaml")
-            {
-                if let Ok(yaml) = tokio::fs::read_to_string(&p).await {
-                    if let Ok(mut parsed) = config::parse_bots(&yaml) {
-                        all_bots.append(&mut parsed);
-                    }
+    let mut read_dir = match tokio::fs::read_dir(&state.config_dir).await {
+        Ok(dir) => dir,
+        Err(e) => {
+            tracing::error!(err = %e, "failed to read config directory");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    };
+
+    while let Ok(Some(entry)) = read_dir.next_entry().await {
+        let p = entry.path();
+        if p.is_file()
+            && (p.extension().unwrap_or_default() == "yml"
+                || p.extension().unwrap_or_default() == "yaml")
+        {
+            let yaml = match tokio::fs::read_to_string(&p).await {
+                Ok(content) => content,
+                Err(e) => {
+                    tracing::error!(err = %e, file = %p.display(), "failed to read config file");
+                    return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+                }
+            };
+            match config::parse_bots(&yaml) {
+                Ok(mut parsed) => all_bots.append(&mut parsed),
+                Err(e) => {
+                    tracing::error!(err = %e, file = %p.display(), "failed to parse config file");
+                    return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
                 }
             }
         }
     }
 
     let mut engine_lock = state.engine.write().await;
-    if let Some(engine) = engine_lock.as_mut() {
-        engine.reload_bots(all_bots);
+    if let Some(engine_arc) = engine_lock.as_mut() {
+        let new_engine = engine_arc.reload_bots_as_new(all_bots);
+        *engine_arc = Arc::new(new_engine);
     }
 
     axum::http::StatusCode::OK

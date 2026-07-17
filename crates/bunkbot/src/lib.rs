@@ -16,20 +16,20 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub engine: Arc<tokio::sync::RwLock<Option<BunkBotEngine>>>,
+    pub engine: Arc<tokio::sync::RwLock<Option<Arc<BunkBotEngine>>>>,
     pub state_service: Arc<dyn state::BotStateService>,
 }
 
 struct Handler {
     filter: Arc<dyn MessageFilter>,
-    engine: Arc<tokio::sync::RwLock<Option<BunkBotEngine>>>,
+    engine: Arc<tokio::sync::RwLock<Option<Arc<BunkBotEngine>>>>,
     state_service: Arc<dyn state::BotStateService>,
     audit: Arc<starbunk::audit::AuditStore>,
 }
 
 impl Handler {
     fn new(
-        engine: Arc<tokio::sync::RwLock<Option<BunkBotEngine>>>,
+        engine: Arc<tokio::sync::RwLock<Option<Arc<BunkBotEngine>>>>,
         state_service: Arc<dyn state::BotStateService>,
         audit: Arc<starbunk::audit::AuditStore>,
     ) -> Self {
@@ -98,11 +98,11 @@ impl EventHandler for Handler {
             sender,
             identity_provider,
             self.state_service.clone(),
-            self.audit.clone(),
+            Some(self.audit.clone()),
         );
 
         let mut engine_lock = self.engine.write().await;
-        *engine_lock = Some(new_engine);
+        *engine_lock = Some(Arc::new(new_engine));
         drop(engine_lock);
 
         // Register slash commands
@@ -129,7 +129,7 @@ impl EventHandler for Handler {
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        let engine_opt = self.engine.read().await;
+        let engine_opt = { self.engine.read().await.clone() };
         if let Some(engine) = engine_opt.as_ref() {
             if let Err(e) = commands::handle_interaction(&ctx, &interaction, engine).await {
                 tracing::error!("error handling interaction: {}", e);
@@ -143,7 +143,7 @@ impl EventHandler for Handler {
         if !self.filter.check(&ctx, &msg) {
             return;
         }
-        let engine_opt = self.engine.read().await;
+        let engine_opt = { self.engine.read().await.clone() };
         if let Some(engine) = engine_opt.as_ref() {
             let self_id = ctx.cache.current_user().id;
             engine.handle(&ctx, &msg, self_id).await;
@@ -165,7 +165,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let state_service = Arc::new(state::InMemoryBotStateManager::new());
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:9082").await?;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:9082").await?;
     let config_dir =
         std::env::var("BUNKBOT_CONFIG_DIR").unwrap_or_else(|_| "config/bunkbot".to_string());
     let api_state = api::ApiState {
@@ -176,7 +176,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app).await {
-            tracing::error!("api server error: {}", e);
+            tracing::error!(err = %e, "api server error");
         }
     });
 

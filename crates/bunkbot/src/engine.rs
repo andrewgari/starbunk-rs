@@ -24,7 +24,7 @@ pub struct BunkBotEngine {
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
     state_service: Arc<dyn BotStateService>,
-    audit: Arc<AuditStore>,
+    audit: Option<Arc<AuditStore>>,
 }
 
 impl BunkBotEngine {
@@ -33,7 +33,7 @@ impl BunkBotEngine {
         sender: Arc<dyn MessageService>,
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
-        audit: Arc<AuditStore>,
+        audit: Option<Arc<AuditStore>>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -44,7 +44,8 @@ impl BunkBotEngine {
                     Err(e) => {
                         tracing::error!(
                             bot = %name,
-                            "invalid regex in bot config, skipping: {}", e
+                            err = %e,
+                            "invalid regex in bot config, skipping"
                         );
                         None
                     }
@@ -70,7 +71,8 @@ impl BunkBotEngine {
                     Err(e) => {
                         tracing::error!(
                             bot = %name,
-                            "invalid regex in bot config, skipping: {}", e
+                            err = %e,
+                            "invalid regex in bot config, skipping"
                         );
                         None
                     }
@@ -78,6 +80,18 @@ impl BunkBotEngine {
             })
             .collect();
         self.bots = compiled;
+    }
+
+    pub fn reload_bots_as_new(&self, configs: Vec<BotConfig>) -> Self {
+        let mut new_engine = Self {
+            bots: vec![],
+            sender: self.sender.clone(),
+            identity_provider: self.identity_provider.clone(),
+            state_service: self.state_service.clone(),
+            audit: self.audit.clone(),
+        };
+        new_engine.reload_bots(configs);
+        new_engine
     }
 
     pub fn bot_configs(&self) -> Vec<(String, u8)> {
@@ -144,10 +158,11 @@ impl BunkBotEngine {
                     "send failed: {}", e
                 );
             } else {
-                let _ = self
-                    .audit
-                    .log_event(&bot.name, &msg.content, &response, None)
-                    .await;
+                if let Some(audit) = &self.audit {
+                    let _ = audit
+                        .log_event(&bot.name, &msg.content, &response, None)
+                        .await;
+                }
             }
 
             return; // first matching trigger wins
@@ -506,21 +521,15 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires live postgres"]
     async fn test_reload_bots_updates_internal_bots_list() {
         use crate::config::BotConfig;
-
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .connect("postgres://postgres:postgres@localhost/starbunk_memory")
-            .await
-            .expect("Failed to connect to DB");
 
         let mut engine = BunkBotEngine::new(
             vec![],
             Arc::new(DummySender),
             Arc::new(DummyProvider),
             Arc::new(InMemoryBotStateManager::new()),
-            Arc::new(AuditStore::new(pool).await.unwrap()),
+            None,
         );
 
         assert_eq!(engine.bots.len(), 0);
