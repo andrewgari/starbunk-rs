@@ -12,8 +12,14 @@ export default function ConfigManager({ configs, botName }: { configs: Record<st
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
-    if (!isCreating && selectedFile && configs[selectedFile] !== undefined) {
-      setContent(configs[selectedFile]);
+    if (!isCreating && selectedFile) {
+      if (configs[selectedFile] !== undefined) {
+        setContent(configs[selectedFile]);
+      } else {
+        const first = Object.keys(configs)[0];
+        setSelectedFile(first || null);
+        setContent(first ? configs[first] : "");
+      }
     } else if (!isCreating && !selectedFile && Object.keys(configs).length > 0) {
       setSelectedFile(Object.keys(configs)[0]);
       setContent(configs[Object.keys(configs)[0]]);

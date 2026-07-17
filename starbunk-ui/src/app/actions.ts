@@ -226,6 +226,7 @@ export async function updateBotConfig(
         currentData = secret.data ?? {};
       } catch (e: unknown) {
         if (!isNotFound(e)) throw e;
+        return { success: false, error: "Secret starbunk-secrets not found. Cannot save configuration." };
       }
 
       if (content === null) {
@@ -270,6 +271,7 @@ export async function updateBotConfig(
       };
 
       if (isCreate) {
+        if (content === null) return { success: true }; // short-circuit deletes when missing
         await k8sCoreApi.createNamespacedConfigMap({ namespace: NAMESPACE, body });
       } else {
         await k8sCoreApi.replaceNamespacedConfigMap({
