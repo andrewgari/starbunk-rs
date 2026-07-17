@@ -42,3 +42,4 @@ pgvector           = { version = "0.4", features = ["sqlx"] }
 axum               = "0.7"
 tower-http         = { version = "0.5", features = ["cors", "trace"] }
 tower              = { version = "0.4", features = ["util"] }
+http-body-util     = "0.1.4"

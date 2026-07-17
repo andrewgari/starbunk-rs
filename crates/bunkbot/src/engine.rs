@@ -24,7 +24,7 @@ pub struct BunkBotEngine {
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
     state_service: Arc<dyn BotStateService>,
-    audit: Arc<AuditStore>,
+    audit: Option<Arc<AuditStore>>,
 }
 
 impl BunkBotEngine {
@@ -33,7 +33,7 @@ impl BunkBotEngine {
         sender: Arc<dyn MessageService>,
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
-        audit: Arc<AuditStore>,
+        audit: Option<Arc<AuditStore>>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -44,7 +44,8 @@ impl BunkBotEngine {
                     Err(e) => {
                         tracing::error!(
                             bot = %name,
-                            "invalid regex in bot config, skipping: {}", e
+                            err = %e,
+                            "invalid regex in bot config, skipping"
                         );
                         None
                     }
@@ -59,6 +60,38 @@ impl BunkBotEngine {
             state_service,
             audit,
         }
+    }
+    pub fn reload_bots(&mut self, bots: Vec<BotConfig>) {
+        let compiled = bots
+            .into_iter()
+            .filter_map(|config| {
+                let name = config.name.clone();
+                match CompiledBot::try_from(config) {
+                    Ok(b) => Some(b),
+                    Err(e) => {
+                        tracing::error!(
+                            bot = %name,
+                            err = %e,
+                            "invalid regex in bot config, skipping"
+                        );
+                        None
+                    }
+                }
+            })
+            .collect();
+        self.bots = compiled;
+    }
+
+    pub fn reload_bots_as_new(&self, configs: Vec<BotConfig>) -> Self {
+        let mut new_engine = Self {
+            bots: vec![],
+            sender: self.sender.clone(),
+            identity_provider: self.identity_provider.clone(),
+            state_service: self.state_service.clone(),
+            audit: self.audit.clone(),
+        };
+        new_engine.reload_bots(configs);
+        new_engine
     }
 
     pub fn bot_configs(&self) -> Vec<(String, u8)> {
@@ -125,10 +158,11 @@ impl BunkBotEngine {
                     "send failed: {}", e
                 );
             } else {
-                let _ = self
-                    .audit
-                    .log_event(&bot.name, &msg.content, &response, None)
-                    .await;
+                if let Some(audit) = &self.audit {
+                    let _ = audit
+                        .log_event(&bot.name, &msg.content, &response, None)
+                        .await;
+                }
             }
 
             return; // first matching trigger wins
@@ -433,5 +467,87 @@ mod tests {
             let r = pick_response(&pool).unwrap();
             assert!(pool.iter().any(|s| s == r));
         }
+    }
+
+    struct DummySender;
+    #[async_trait::async_trait]
+    impl starbunk::discord::MessageService for DummySender {
+        async fn send(&self, _: serenity::all::ChannelId, _: &str) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn send_with_identity(
+            &self,
+            _: serenity::all::ChannelId,
+            _: &str,
+            _: Identity,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn reply(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn edit(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn delete(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+        async fn close(&self) {}
+    }
+    struct DummyProvider;
+    #[async_trait::async_trait]
+    impl starbunk::discord::IdentityProvider for DummyProvider {
+        async fn get_identity(
+            &self,
+            _: UserId,
+            _: Option<serenity::all::GuildId>,
+        ) -> anyhow::Result<Identity> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reload_bots_updates_internal_bots_list() {
+        use crate::config::BotConfig;
+
+        let mut engine = BunkBotEngine::new(
+            vec![],
+            Arc::new(DummySender),
+            Arc::new(DummyProvider),
+            Arc::new(InMemoryBotStateManager::new()),
+            None,
+        );
+
+        assert_eq!(engine.bots.len(), 0);
+
+        let config = BotConfig {
+            name: "testbot".into(),
+            identity: crate::config::IdentityConfig::Random,
+            responses: vec![],
+            ignore_bots: true,
+            ignore_humans: false,
+            ignore_self: true,
+            frequency: 100,
+            triggers: vec![],
+        };
+
+        engine.reload_bots(vec![config]);
+
+        assert_eq!(engine.bots.len(), 1);
+        assert_eq!(engine.bots[0].name, "testbot");
     }
 }
