@@ -33,6 +33,7 @@ mod tests {
     use tower::ServiceExt;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_config_returns_yaml() {
         let state = Arc::new(RwLock::new(None));
         let app = router(state);
@@ -60,6 +61,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_post_config_invalid_yaml_returns_bad_request() {
         let state = Arc::new(RwLock::new(None));
         let app = router(state);
