@@ -1,6 +1,8 @@
 import { getBotConfigs } from "../actions";
 import ConfigManager from "@/components/ConfigManager";
 
+export const dynamic = "force-dynamic";
+
 export default async function CovaBotLanding() {
   const configs = await getBotConfigs("covabot");
 
