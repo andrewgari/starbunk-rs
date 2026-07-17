@@ -442,6 +442,6 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_reload_bots_updates_internal_bots_list() {
-        assert!(false, "test not implemented");
+        panic!("test not implemented");
     }
 }
