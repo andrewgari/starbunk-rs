@@ -60,8 +60,24 @@ impl BunkBotEngine {
             audit,
         }
     }
-    pub fn reload_bots(&mut self, _bots: Vec<BotConfig>) {
-        // Stub: do nothing
+    pub fn reload_bots(&mut self, bots: Vec<BotConfig>) {
+        let compiled = bots
+            .into_iter()
+            .filter_map(|config| {
+                let name = config.name.clone();
+                match CompiledBot::try_from(config) {
+                    Ok(b) => Some(b),
+                    Err(e) => {
+                        tracing::error!(
+                            bot = %name,
+                            "invalid regex in bot config, skipping: {}", e
+                        );
+                        None
+                    }
+                }
+            })
+            .collect();
+        self.bots = compiled;
     }
 
     pub fn bot_configs(&self) -> Vec<(String, u8)> {
@@ -438,10 +454,91 @@ mod tests {
         }
     }
 
-    // --- reload_bots ---
+    struct DummySender;
+    #[async_trait::async_trait]
+    impl starbunk::discord::MessageService for DummySender {
+        async fn send(&self, _: serenity::all::ChannelId, _: &str) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn send_with_identity(
+            &self,
+            _: serenity::all::ChannelId,
+            _: &str,
+            _: Identity,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn reply(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn edit(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn delete(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+        async fn close(&self) {}
+    }
+    struct DummyProvider;
+    #[async_trait::async_trait]
+    impl starbunk::discord::IdentityProvider for DummyProvider {
+        async fn get_identity(
+            &self,
+            _: UserId,
+            _: Option<serenity::all::GuildId>,
+        ) -> anyhow::Result<Identity> {
+            unimplemented!()
+        }
+    }
+
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires live postgres"]
     async fn test_reload_bots_updates_internal_bots_list() {
-        assert!(false, "test not implemented");
+        use crate::config::BotConfig;
+
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect("postgres://postgres:postgres@localhost/starbunk_memory")
+            .await
+            .expect("Failed to connect to DB");
+
+        let mut engine = BunkBotEngine::new(
+            vec![],
+            Arc::new(DummySender),
+            Arc::new(DummyProvider),
+            Arc::new(InMemoryBotStateManager::new()),
+            Arc::new(AuditStore::new(pool).await.unwrap()),
+        );
+
+        assert_eq!(engine.bots.len(), 0);
+
+        let config = BotConfig {
+            name: "testbot".into(),
+            identity: crate::config::IdentityConfig::Random,
+            responses: vec![],
+            ignore_bots: true,
+            ignore_humans: false,
+            ignore_self: true,
+            frequency: 100,
+            triggers: vec![],
+        };
+
+        engine.reload_bots(vec![config]);
+
+        assert_eq!(engine.bots.len(), 1);
+        assert_eq!(engine.bots[0].name, "testbot");
     }
 }

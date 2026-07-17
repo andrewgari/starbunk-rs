@@ -165,6 +165,21 @@ pub async fn run() -> anyhow::Result<()> {
 
     let state_service = Arc::new(state::InMemoryBotStateManager::new());
 
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9082").await?;
+    let config_dir =
+        std::env::var("BUNKBOT_CONFIG_DIR").unwrap_or_else(|_| "config/bunkbot".to_string());
+    let api_state = api::ApiState {
+        engine: engine_ref.clone(),
+        config_dir,
+    };
+    let app = api::router(api_state);
+
+    tokio::spawn(async move {
+        if let Err(e) = axum::serve(listener, app).await {
+            tracing::error!("api server error: {}", e);
+        }
+    });
+
     starbunk::utils::run_bot(
         "BunkBot",
         starbunk::utils::default_intents(),
