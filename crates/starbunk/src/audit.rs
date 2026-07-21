@@ -61,6 +61,15 @@ impl AuditStore {
     }
 }
 
+impl AuditStore {
+    pub fn dummy() -> Self {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost/starbunk_memory")
+            .unwrap();
+        Self { pool }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

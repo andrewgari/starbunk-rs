@@ -438,10 +438,87 @@ mod tests {
         }
     }
 
+    struct DummySender;
+    #[async_trait::async_trait]
+    impl starbunk::discord::MessageService for DummySender {
+        async fn send(&self, _c: serenity::all::ChannelId, _m: &str) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn send_with_identity(
+            &self,
+            _c: serenity::all::ChannelId,
+            _m: &str,
+            _i: starbunk::discord::Identity,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn reply(
+            &self,
+            _c: serenity::all::ChannelId,
+            _m: serenity::all::MessageId,
+            _co: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn edit(
+            &self,
+            _c: serenity::all::ChannelId,
+            _m: serenity::all::MessageId,
+            _co: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn delete(
+            &self,
+            _c: serenity::all::ChannelId,
+            _m: serenity::all::MessageId,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+        async fn close(&self) {}
+    }
+
+    struct DummyIdentity;
+    #[async_trait::async_trait]
+    impl starbunk::discord::IdentityProvider for DummyIdentity {
+        async fn get_identity(
+            &self,
+            _u: UserId,
+            _g: Option<serenity::all::GuildId>,
+        ) -> anyhow::Result<starbunk::discord::Identity> {
+            unimplemented!()
+        }
+    }
+
     // --- reload_bots ---
     #[tokio::test]
     #[ignore]
     async fn test_reload_bots_updates_internal_bots_list() {
-        panic!("test not implemented");
+        use std::sync::Arc;
+        let mut engine = BunkBotEngine {
+            bots: vec![],
+            sender: Arc::new(DummySender),
+            identity_provider: Arc::new(DummyIdentity),
+            state_service: Arc::new(InMemoryBotStateManager::new()),
+            audit: Arc::new(starbunk::audit::AuditStore::dummy()),
+        };
+
+        let new_bot = crate::config::BotConfig {
+            name: "new_bot".into(),
+            identity: IdentityConfig::Random,
+            ignore_self: false,
+            ignore_bots: false,
+            ignore_humans: false,
+            frequency: 100,
+            triggers: vec![],
+            responses: vec!["hello".into()],
+        };
+
+        engine.reload_bots(vec![new_bot.clone()]);
+
+        let configs = engine.bot_configs();
+        // Failing condition: the stub does nothing, so configs is empty. We expect it to have new_bot
+        assert_eq!(configs.len(), 1, "Expected reload_bots to add the new bot");
+        assert_eq!(configs[0].0, "new_bot");
     }
 }
