@@ -1,6 +1,8 @@
 "use server";
 
 const BUNKBOT_API_URL = process.env.BUNKBOT_API_URL || "http://localhost:9082";
+import * as yaml from "js-yaml";
+import { updateBotConfig, setBotState } from "@/app/actions";
 
 export async function getBunkBotConfig() {
   try {
@@ -26,6 +28,10 @@ export async function saveBunkBotConfig(yaml: string) {
       },
       body: yaml,
     });
+    
+    // Save to Kubernetes Secret directly for persistence
+    await updateBotConfig("bunkbot", "botbot.yml", yaml);
+
     if (!res.ok) {
       const text = await res.text();
       return { success: false, error: text || res.statusText };
@@ -34,5 +40,19 @@ export async function saveBunkBotConfig(yaml: string) {
   } catch (error: unknown) {
     console.error("Error saving BunkBot config:", error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function saveBunkBotConfigJson(bots: any[]) {
+  try {
+    const yamlStr = yaml.dump({ "reply-bots": bots });
+    
+    // Save to Kubernetes Secret directly
+    const result = await updateBotConfig("bunkbot", "botbot.yml", yamlStr);
+    
+    return result;
+  } catch (error: any) {
+    console.error("Failed to parse and save JSON config", error);
+    return { success: false, error: error.message };
   }
 }
