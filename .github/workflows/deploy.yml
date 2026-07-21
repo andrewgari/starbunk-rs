@@ -70,14 +70,21 @@ jobs:
           REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
           VERSION="${{ steps.deploy_info.outputs.deploy_tag }}"
           
-          echo "Retagging sha-${SHORT_SHA} to ${VERSION}..."
+          retag_image() {
+            local IMAGE=$1
+            echo "Attempting to retag sha-${SHORT_SHA} for ${IMAGE}..."
+            if ! gcloud artifacts docker tags add "${IMAGE}:sha-${SHORT_SHA}" "${IMAGE}:${VERSION}" 2>/dev/null; then
+              echo "sha-${SHORT_SHA} not found for ${IMAGE}, falling back to latest..."
+              gcloud artifacts docker tags add "${IMAGE}:latest" "${IMAGE}:${VERSION}"
+            fi
+          }
           
           # Tag the UI
-          gcloud artifacts docker tags add "${REGISTRY}/starbunk-ui:sha-${SHORT_SHA}" "${REGISTRY}/starbunk-ui:${VERSION}"
+          retag_image "${REGISTRY}/starbunk-ui"
           
           # Tag the bots
           for BOT in bluebot bunkbot covabot djcova ratbot; do
-            gcloud artifacts docker tags add "${REGISTRY}/starbunk-${BOT}:sha-${SHORT_SHA}" "${REGISTRY}/starbunk-${BOT}:${VERSION}"
+            retag_image "${REGISTRY}/starbunk-${BOT}"
           done
 
       - name: Deploy to GKE
