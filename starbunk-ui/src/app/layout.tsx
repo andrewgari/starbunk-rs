@@ -45,6 +45,7 @@ export default function RootLayout({
             </Link>
 
             <Link href="/bluebot" className="p-2 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white">BlueBot</Link>
+            <Link href="/ratbot" className="p-2 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white">RatBot</Link>
           </nav>
         </aside>
         

@@ -27,6 +27,9 @@ pub trait BotStateService: Send + Sync + std::fmt::Debug {
     fn reset_frequency(&self, bot_name: &str) -> Option<u8>;
     fn get_all_states(&self) -> HashMap<String, bool>;
     fn get_all_frequencies(&self) -> HashMap<String, FrequencyOverride>;
+    fn increment_trigger(&self, bot_name: &str);
+    fn get_triggers_today(&self, bot_name: &str) -> u64;
+    fn get_all_triggers_today(&self) -> HashMap<String, u64>;
 }
 
 #[allow(dead_code)]
@@ -39,6 +42,7 @@ pub trait BotStateService: Send + Sync + std::fmt::Debug {
 pub struct InMemoryBotStateManager {
     states: RwLock<HashMap<String, bool>>,
     frequencies: RwLock<HashMap<String, FrequencyOverride>>,
+    triggers: RwLock<HashMap<String, u64>>,
 }
 
 impl InMemoryBotStateManager {
@@ -46,6 +50,7 @@ impl InMemoryBotStateManager {
         Self {
             states: RwLock::new(HashMap::new()),
             frequencies: RwLock::new(HashMap::new()),
+            triggers: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -114,6 +119,24 @@ impl BotStateService for InMemoryBotStateManager {
             .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
+
+    fn increment_trigger(&self, bot_name: &str) {
+        let mut triggers = self.triggers.write().unwrap_or_else(|e| e.into_inner());
+        let count = triggers.entry(bot_name.to_string()).or_insert(0);
+        *count += 1;
+    }
+
+    fn get_triggers_today(&self, bot_name: &str) -> u64 {
+        let triggers = self.triggers.read().unwrap_or_else(|e| e.into_inner());
+        *triggers.get(bot_name).unwrap_or(&0)
+    }
+
+    fn get_all_triggers_today(&self) -> HashMap<String, u64> {
+        self.triggers
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
 }
 
 #[cfg(test)]
@@ -171,5 +194,19 @@ mod tests {
     fn test_reset_nonexistent_override() {
         let manager = InMemoryBotStateManager::new();
         assert_eq!(manager.reset_frequency("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_increment_triggers() {
+        let manager = InMemoryBotStateManager::new();
+        assert_eq!(manager.get_triggers_today("bot1"), 0);
+        manager.increment_trigger("bot1");
+        assert_eq!(manager.get_triggers_today("bot1"), 1);
+        manager.increment_trigger("bot1");
+        assert_eq!(manager.get_triggers_today("bot1"), 2);
+
+        let all = manager.get_all_triggers_today();
+        assert_eq!(all.get("bot1"), Some(&2));
+        assert_eq!(all.get("bot2"), None);
     }
 }

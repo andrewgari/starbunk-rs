@@ -158,6 +158,7 @@ impl BunkBotEngine {
                     "send failed: {}", e
                 );
             } else {
+                self.state_service.increment_trigger(&bot.name);
                 if let Some(audit) = &self.audit {
                     let _ = audit
                         .log_event(&bot.name, &msg.content, &response, None)
