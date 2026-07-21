@@ -17,10 +17,12 @@ export async function getBunkBotConfig() {
 
 export async function saveBunkBotConfig(yaml: string) {
   try {
+    const token = process.env.BUNKBOT_ADMIN_TOKEN || "";
     const res = await fetch(`${BUNKBOT_API_URL}/config`, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
       },
       body: yaml,
     });
