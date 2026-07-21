@@ -165,7 +165,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let state_service = Arc::new(state::InMemoryBotStateManager::new());
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:9082").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9082").await?;
     let config_dir =
         std::env::var("BUNKBOT_CONFIG_DIR").unwrap_or_else(|_| "config/bunkbot".to_string());
     let api_state = api::ApiState {

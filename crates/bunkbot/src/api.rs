@@ -35,7 +35,14 @@ async fn get_config(State(state): State<ApiState>) -> Result<String, axum::http:
     })
 }
 
-async fn post_config(State(state): State<ApiState>, payload: String) -> axum::http::StatusCode {
+async fn post_config(
+    headers: axum::http::HeaderMap,
+    State(state): State<ApiState>,
+    payload: String,
+) -> axum::http::StatusCode {
+    if !is_authorized(&headers) {
+        return axum::http::StatusCode::UNAUTHORIZED;
+    }
     let _parsed_bots = match config::parse_bots(&payload) {
         Ok(b) => b,
         Err(e) => {
@@ -172,9 +179,13 @@ async fn get_bots_status(
 }
 
 async fn enable_bot(
+    headers: axum::http::HeaderMap,
     State(state): State<ApiState>,
     Path(name): Path<String>,
 ) -> axum::http::StatusCode {
+    if !is_authorized(&headers) {
+        return axum::http::StatusCode::UNAUTHORIZED;
+    }
     let engine_lock = state.engine.read().await;
     if let Some(engine) = &*engine_lock {
         engine.state_service().enable_bot(&name);
@@ -183,9 +194,13 @@ async fn enable_bot(
 }
 
 async fn disable_bot(
+    headers: axum::http::HeaderMap,
     State(state): State<ApiState>,
     Path(name): Path<String>,
 ) -> axum::http::StatusCode {
+    if !is_authorized(&headers) {
+        return axum::http::StatusCode::UNAUTHORIZED;
+    }
     let engine_lock = state.engine.read().await;
     if let Some(engine) = &*engine_lock {
         engine.state_service().disable_bot(&name);
@@ -199,10 +214,14 @@ pub struct FrequencyPayload {
 }
 
 async fn set_bot_frequency(
+    headers: axum::http::HeaderMap,
     State(state): State<ApiState>,
     Path(name): Path<String>,
     Json(payload): Json<FrequencyPayload>,
 ) -> axum::http::StatusCode {
+    if !is_authorized(&headers) {
+        return axum::http::StatusCode::UNAUTHORIZED;
+    }
     let engine_lock = state.engine.read().await;
     if let Some(engine) = &*engine_lock {
         let orig = engine
@@ -219,9 +238,13 @@ async fn set_bot_frequency(
 }
 
 async fn put_bots(
+    headers: axum::http::HeaderMap,
     State(state): State<ApiState>,
     Json(bots): Json<Vec<BotConfig>>,
 ) -> axum::http::StatusCode {
+    if !is_authorized(&headers) {
+        return axum::http::StatusCode::UNAUTHORIZED;
+    }
     let file = config::ReplyBotsFile { reply_bots: bots };
     let yaml = match serde_yaml::to_string(&file) {
         Ok(y) => y,
@@ -238,6 +261,21 @@ async fn put_bots(
     }
 
     reload_all_bots(&state).await
+}
+
+fn is_authorized(headers: &axum::http::HeaderMap) -> bool {
+    let token = match std::env::var("BUNKBOT_ADMIN_TOKEN") {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+    if let Some(auth_header) = headers.get(axum::http::header::AUTHORIZATION) {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if auth_str == format!("Bearer {}", token) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]

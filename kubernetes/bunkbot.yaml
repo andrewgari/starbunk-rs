@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bunkbot
+  namespace: starbunk
+spec:
+  ports:
+    - port: 9082
+      targetPort: 9082
+  selector:
+    app: bunkbot
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,11 +29,26 @@ spec:
     spec:
       nodeSelector:
         cloud.google.com/gke-spot: "true"
+      initContainers:
+        - name: init-config
+          image: busybox:latest
+          command: ["sh", "-c", "cp /tmp/config/* /app/config/bunkbot/"]
+          volumeMounts:
+            - name: configmap-volume
+              mountPath: /tmp/config
+            - name: config-volume
+              mountPath: /app/config/bunkbot
       containers:
         - name: bunkbot
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bunkbot:latest
           imagePullPolicy: Always
           env:
+            - name: BUNKBOT_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: BUNKBOT_ADMIN_TOKEN
+                  optional: true
             - name: DISCORD_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -47,6 +74,8 @@ spec:
               value: "starbunk_memory"
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          ports:
+            - containerPort: 9082
           resources:
             requests:
               cpu: "100m"
@@ -56,13 +85,12 @@ spec:
               memory: "256Mi"
           volumeMounts:
             - name: config-volume
-              mountPath: /app/config
-              readOnly: true
+              mountPath: /app/config/bunkbot
       volumes:
         - name: config-volume
-          secret:
-            secretName: starbunk-secrets
-            items:
-              - key: BOTS_CONFIG_YAML
-                path: bots.yml
+          emptyDir: {}
+        - name: configmap-volume
+          configMap:
+            name: bunkbot-configs
+            optional: true
 
