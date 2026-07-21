@@ -1,7 +1,7 @@
 name: CD / Main Merge
 
-# Every merge to main: lint → test → build all bots
-# → push :latest + :sha-<sha>
+# Every merge to main: detect what changed, then selectively
+# rebuild only the containers whose source changed.
 #
 # Releases and deployments are handled by release.yml instead.
 
@@ -9,6 +9,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Force rebuild all containers'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -16,10 +21,115 @@ permissions:
 
 jobs:
 
+  # ─── Detect which bots changed ───────────────────────────────────────────────
+  detect_changes:
+    name: Detect Changed Bots
+    runs-on: ubuntu-latest
+    outputs:
+      bots:            ${{ steps.matrix.outputs.bots }}
+      has_bot_changes: ${{ steps.matrix.outputs.has_bot_changes }}
+      build_ui:        ${{ steps.matrix.outputs.build_ui }}
+      run_lint:        ${{ steps.matrix.outputs.run_lint }}
+      run_devops:      ${{ steps.matrix.outputs.run_devops }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            bluebot:
+              - 'crates/bluebot/**'
+            bunkbot:
+              - 'crates/bunkbot/**'
+            covabot:
+              - 'crates/covabot/**'
+            djcova:
+              - 'crates/djcova/**'
+            ratbot:
+              - 'crates/ratbot/**'
+            ui:
+              - 'starbunk-ui/**'
+            shared:
+              - 'crates/starbunk/**'
+            global:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'docker/Dockerfile'
+            rust_related:
+              - '**/*.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'clippy.toml'
+              - '.rustfmt.toml'
+            devops:
+              - 'docker/docker-compose.yml'
+              - '.github/workflows/**'
+              - 'scripts/devops-validate.sh'
+              - 'AGENTS.md'
+
+      - name: Build bot matrix
+        id: matrix
+        env:
+          FORCE_ALL: ${{ github.event.inputs.force_all == 'true' }}
+        run: |
+          BOTS=()
+
+          GLOBAL_CHANGE=false
+          if [ "${{ steps.filter.outputs.global }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.shared }}" == "true" ] || \
+             [ "$FORCE_ALL" == "true" ]; then
+            GLOBAL_CHANGE=true
+          fi
+
+          if [ "$GLOBAL_CHANGE" == "true" ]; then
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
+          else
+            [[ "${{ steps.filter.outputs.bluebot }}" == "true" ]] && BOTS+=("bluebot")
+            [[ "${{ steps.filter.outputs.bunkbot }}" == "true" ]] && BOTS+=("bunkbot")
+            [[ "${{ steps.filter.outputs.covabot }}" == "true" ]] && BOTS+=("covabot")
+            [[ "${{ steps.filter.outputs.djcova }}"  == "true" ]] && BOTS+=("djcova")
+            [[ "${{ steps.filter.outputs.ratbot }}"  == "true" ]] && BOTS+=("ratbot")
+          fi
+
+          if [ ${#BOTS[@]} -eq 0 ]; then
+            echo 'bots=[]' >> $GITHUB_OUTPUT
+            echo 'has_bot_changes=false' >> $GITHUB_OUTPUT
+          else
+            BOTS_JSON=$(printf '%s\n' "${BOTS[@]}" | jq -R . | jq -sc .)
+            echo "bots=$BOTS_JSON" >> $GITHUB_OUTPUT
+            echo 'has_bot_changes=true' >> $GITHUB_OUTPUT
+          fi
+
+          # UI rebuild?
+          BUILD_UI="false"
+          if [ "${{ steps.filter.outputs.ui }}" == "true" ] || [ "$FORCE_ALL" == "true" ]; then
+            BUILD_UI="true"
+          fi
+          echo "build_ui=${BUILD_UI}" >> $GITHUB_OUTPUT
+
+          # Lint?
+          RUN_LINT="false"
+          if [ "${{ steps.filter.outputs.rust_related }}" == "true" ] || [ "$FORCE_ALL" == "true" ]; then
+            RUN_LINT="true"
+          fi
+          echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
+
+          # DevOps validate?
+          RUN_DEVOPS="false"
+          if [ "${{ steps.filter.outputs.devops }}" == "true" ] || [ ${#BOTS[@]} -gt 0 ] || [ "$FORCE_ALL" == "true" ]; then
+            RUN_DEVOPS="true"
+          fi
+          echo "run_devops=${RUN_DEVOPS}" >> $GITHUB_OUTPUT
+
   # ─── Validate DevOps consistency ─────────────────────────────────────────────
   validate_devops:
     name: Validate DevOps Consistency
     runs-on: ubuntu-latest
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_devops == 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Check all DevOps files are in sync
@@ -29,6 +139,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_lint == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +170,13 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: [validate_devops, lint]
+    needs: [detect_changes, validate_devops, lint]
+    if: |
+      always() &&
+      needs.detect_changes.result == 'success' &&
+      (needs.validate_devops.result == 'success' || needs.validate_devops.result == 'skipped') &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      needs.detect_changes.outputs.run_lint == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +211,14 @@ jobs:
   docker_publish_ui:
     name: Docker Publish / starbunk-ui
     runs-on: ubuntu-latest
-    needs: [validate_devops, lint, test]
+    needs: [detect_changes, validate_devops, lint, test]
+    if: |
+      always() &&
+      needs.detect_changes.outputs.build_ui == 'true' &&
+      needs.detect_changes.result == 'success' &&
+      (needs.validate_devops.result == 'success' || needs.validate_devops.result == 'skipped') &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -130,13 +255,18 @@ jobs:
           cache-to: type=gha,scope=starbunk-ui,mode=max
           push: true
 
-  # ─── Build and push Docker images (all bots) ─────────────────────────────────
-  #
-  # Always rebuilds all 5 bots. Tags: :latest  :sha-<short-sha>
+  # ─── Build and push Docker images (changed bots only) ────────────────────────
   docker_publish:
     name: Docker Publish / ${{ matrix.bot }}
     runs-on: ubuntu-latest
-    needs: [validate_devops, lint, test]
+    needs: [detect_changes, validate_devops, lint, test]
+    if: |
+      always() &&
+      needs.detect_changes.outputs.has_bot_changes == 'true' &&
+      needs.detect_changes.result == 'success' &&
+      (needs.validate_devops.result == 'success' || needs.validate_devops.result == 'skipped') &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -144,7 +274,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bot: [bluebot, bunkbot, covabot, djcova, ratbot]
+        bot: ${{ fromJson(needs.detect_changes.outputs.bots) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -178,5 +308,3 @@ jobs:
           cache-from: type=gha,scope=bot-${{ matrix.bot }}
           cache-to: type=gha,scope=bot-${{ matrix.bot }},mode=max
           push: true
-
-
