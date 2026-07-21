@@ -3,6 +3,16 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-07-21 — BunkBot Deployment and Security Overhaul
+
+### Changed
+- **ConfigMap Mapping**: Changed BunkBot's `bunkbot-configs.yaml` to map directly to `botbot.yml` instead of `default.yml`, fixing 500 errors when reading configuration via the API.
+- **Writable Volumes**: Replaced the direct ConfigMap mount in `kubernetes/bunkbot.yaml` with an `emptyDir` seeded via an `initContainer`. This resolves read-only filesystem errors when the UI saves config back to disk.
+- **API Security**: Added Bearer token authentication (via `BUNKBOT_ADMIN_TOKEN` environment variable) to all BunkBot configuration endpoints (`/config` POST, `/api/bots` PUT, etc.) to prevent unauthenticated access.
+- **UI Connectivity**: Updated `kubernetes/starbunk-ui.yaml` to inject `BUNKBOT_ADMIN_TOKEN` so the UI can correctly authenticate its requests.
+
+---
+
 ## 2026-07-17 — BunkBot Hot-Reloading Config API
 
 ### Added

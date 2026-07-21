@@ -29,11 +29,26 @@ spec:
     spec:
       nodeSelector:
         cloud.google.com/gke-spot: "true"
+      initContainers:
+        - name: init-config
+          image: busybox:latest
+          command: ["sh", "-c", "cp /tmp/config/* /app/config/bunkbot/"]
+          volumeMounts:
+            - name: configmap-volume
+              mountPath: /tmp/config
+            - name: config-volume
+              mountPath: /app/config/bunkbot
       containers:
         - name: bunkbot
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bunkbot:latest
           imagePullPolicy: Always
           env:
+            - name: BUNKBOT_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: BUNKBOT_ADMIN_TOKEN
+                  optional: true
             - name: DISCORD_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -71,9 +86,10 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /app/config/bunkbot
-              readOnly: true
       volumes:
         - name: config-volume
+          emptyDir: {}
+        - name: configmap-volume
           configMap:
             name: bunkbot-configs
             optional: true

@@ -72,6 +72,12 @@ spec:
                   name: starbunk-secrets
                   key: DATABASE_URL
                   optional: true
+            - name: BUNKBOT_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: starbunk-secrets
+                  key: BUNKBOT_ADMIN_TOKEN
+                  optional: true
             # Bot API URLs — within-cluster DNS (service names match bot names)
             - name: BUNKBOT_API_URL
               value: "http://bunkbot:9082"

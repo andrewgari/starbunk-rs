@@ -4,7 +4,7 @@ metadata:
   name: bunkbot-configs
   namespace: starbunk
 data:
-  default.yml: |
+  botbot.yml: |
     reply-bots:
       - name: botbot
         identity:
