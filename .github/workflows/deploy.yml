@@ -64,6 +64,22 @@ jobs:
           cluster_name: starbunk-gke-cluster
           location: us-central1
 
+      - name: Retag images for release
+        if: ${{ steps.deploy_info.outputs.deploy_tag != 'latest' && !startsWith(steps.deploy_info.outputs.deploy_tag, 'manual-') }}
+        run: |
+          REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
+          VERSION="${{ steps.deploy_info.outputs.deploy_tag }}"
+          
+          echo "Retagging sha-${SHORT_SHA} to ${VERSION}..."
+          
+          # Tag the UI
+          gcloud artifacts docker tags add "${REGISTRY}/starbunk-ui:sha-${SHORT_SHA}" "${REGISTRY}/starbunk-ui:${VERSION}"
+          
+          # Tag the bots
+          for BOT in bluebot bunkbot covabot djcova ratbot; do
+            gcloud artifacts docker tags add "${REGISTRY}/starbunk-${BOT}:sha-${SHORT_SHA}" "${REGISTRY}/starbunk-${BOT}:${VERSION}"
+          done
+
       - name: Deploy to GKE
         run: |
           # Apply namespace first so it exists before dependent resources
@@ -73,12 +89,15 @@ jobs:
           # Pin each deployment to the exact image tag for this release
           DEPLOY_TAG="${{ steps.deploy_info.outputs.deploy_tag }}"
           REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
+          
+          kubectl set image "deployment/starbunk-ui" "starbunk-ui=${REGISTRY}/starbunk-ui:${DEPLOY_TAG}" -n starbunk
           for BOT in bluebot bunkbot covabot djcova ratbot; do
             kubectl set image "deployment/${BOT}" "${BOT}=${REGISTRY}/starbunk-${BOT}:${DEPLOY_TAG}" -n starbunk
           done
 
       - name: Health check (Wait for Rollout)
         run: |
+          kubectl rollout status deployment/starbunk-ui -n starbunk --timeout=3m
           kubectl rollout status deployment/bluebot -n starbunk --timeout=3m
           kubectl rollout status deployment/bunkbot -n starbunk --timeout=3m
           kubectl rollout status deployment/covabot -n starbunk --timeout=3m
