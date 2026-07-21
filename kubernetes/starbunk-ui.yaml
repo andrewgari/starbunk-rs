@@ -100,18 +100,15 @@ spec:
             periodSeconds: 10
 
 ---
-# Service — ClusterIP by default.
-# The tailscale.com/expose annotation tells the Tailscale Operator to give this
-# service a stable https://starbunk-ui.<tailnet>.ts.net address on your tailnet.
-# Remove the annotation if you only want kubectl port-forward access.
+# Service — ClusterIP only. Tailscale exposure is handled by the standalone
+# starbunk-ui-tailscale Deployment in tailscale-proxy.yaml, which persists
+# node identity via a PVC. Do NOT add tailscale.com/expose here — the Operator
+# would register a second ephemeral node and cause incrementing hostnames.
 apiVersion: v1
 kind: Service
 metadata:
   name: starbunk-ui
   namespace: starbunk
-  annotations:
-    tailscale.com/expose: "true"
-    tailscale.com/hostname: "starbunk-ui"
 spec:
   selector:
     app: starbunk-ui
