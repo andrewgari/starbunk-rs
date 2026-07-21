@@ -1,14 +1,14 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Top-level wrapper matching the `reply-bots:` YAML key.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ReplyBotsFile {
     #[serde(rename = "reply-bots")]
     pub reply_bots: Vec<BotConfig>,
 }
 
 /// Configuration for a single reply bot loaded from YAML.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct BotConfig {
     pub name: String,
     pub identity: IdentityConfig,
@@ -40,7 +40,7 @@ fn default_frequency() -> u8 {
 }
 
 /// The persona a bot assumes when posting a response via webhook.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IdentityConfig {
     /// Fixed display name and avatar.
@@ -57,7 +57,7 @@ pub enum IdentityConfig {
 }
 
 /// A single named trigger within a bot definition.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct TriggerConfig {
     /// Optional label used in logs and admin commands.
     pub name: Option<String>,
@@ -173,11 +173,33 @@ impl<'de> Deserialize<'de> for ConditionNode {
     }
 }
 
+impl serde::Serialize for ConditionNode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(1))?;
+        match self {
+            ConditionNode::ContainsPhrase(val) => map.serialize_entry("contains_phrase", val)?,
+            ConditionNode::ContainsWord(val) => map.serialize_entry("contains_word", val)?,
+            ConditionNode::MatchesRegex(val) => map.serialize_entry("matches_regex", val)?,
+            ConditionNode::FromUser(val) => map.serialize_entry("from_user", val)?,
+            ConditionNode::WithChance(val) => map.serialize_entry("with_chance", val)?,
+            ConditionNode::Always(val) => map.serialize_entry("always", val)?,
+            ConditionNode::AllOf(val) => map.serialize_entry("all_of", val)?,
+            ConditionNode::AnyOf(val) => map.serialize_entry("any_of", val)?,
+            ConditionNode::NoneOf(val) => map.serialize_entry("none_of", val)?,
+        }
+        map.end()
+    }
+}
+
 /// A Discord snowflake ID that safely deserializes from either a quoted string
 /// (`"113035990725066752"`) or a bare YAML integer (`113035990725066752`).
 ///
 /// Both forms appear in the production bots.yml.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Snowflake(pub String);
 
 impl<'de> Deserialize<'de> for Snowflake {

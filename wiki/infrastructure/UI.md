@@ -60,15 +60,17 @@ K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & Co
 
 | Route | Component | Data source |
 |---|---|---|
-| `/` | Dashboard | `getBotDeployments()` — K8s or mock |
-| `/history` | Audit Log | Postgres `bot_audit_history` table |
-| `/covabot` | CovaBot landing | `getBotConfigs("covabot")` — K8s ConfigMap or local FS |
+| `/` | Dashboard | `getBotDeployments()` — K8s or mock (all 5 bots) |
+| `/api/sse` | Real-time SSE Stream | EventSource streaming live telemetry & trigger audits |
+| `/history` | Audit Log | Postgres `bot_audit_history` table or local mock |
+| `/covabot` | CovaBot landing | Model Tier Routing Matrix, Personality Studio & ConfigMap |
 | `/covabot/personalities` | Persona editor | CovaBot HTTP API (`/config/profiles/…`) |
-| `/bunkbot` | BunkBot landing | `getBotConfigs("bunkbot")` — K8s ConfigMap or local FS |
+| `/bunkbot` | BunkBot Magnum Opus | Global & per-bot limiters, "+ Add Bot" (JSON/TOML/YAML loader), SubBot cards |
 | `/bunkbot/strategies` | Strategy editor | BunkBot HTTP API (`/config`) |
-| `/djcova` | DJCova landing | `getDjcovaState()` — DJCova HTTP API |
+| `/djcova` | DJCova landing | Streaming Music HUD, voice channel stats & live queue |
 | `/djcova/controls` | Queue / skip / kick | DJCova HTTP API, polled every 10s |
-| `/bluebot` | BlueBot landing | Static (no dynamic config) |
+| `/bluebot` | BlueBot landing | Pattern inspector, regex matcher coverage & SSE response audit stream |
+| `/ratbot` | RatBot landing | Automated (Cron) vs Manual/Ad-hoc mode toggle & Secret Santa control dashboard |
 
 ---
 
