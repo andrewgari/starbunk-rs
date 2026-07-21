@@ -1,0 +1,64 @@
+name: Daily Production Health Check
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # Daily at 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://console.cloud.google.com/kubernetes/workload/overview?project=starbunk-bot
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: starbunk-gke-cluster
+          location: us-central1
+
+      - name: Health check deployments
+        run: |
+          echo "Checking rollout status for all bots..."
+          for BOT in bluebot bunkbot covabot djcova ratbot; do
+            kubectl rollout status deployment/${BOT} -n starbunk --timeout=2m
+          done
+          
+      - name: Check for crashing pods
+        run: |
+          # Verify no pods are in CrashLoopBackOff or Error states
+          UNHEALTHY=$(kubectl get pods -n starbunk --no-headers | awk '{print $1, $3}' | grep -Ev '(Running|Completed)')
+          if [ -n "$UNHEALTHY" ]; then
+            echo "ERROR: Found unhealthy pods:"
+            echo "$UNHEALTHY"
+            exit 1
+          fi
+          echo "All pods are healthy."
+
+      - name: Create Issue on Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "🚨 Production Health Check Failed" \
+            --body "The daily production health check has failed. Please investigate immediately.
+            
+            [View Workflow Run Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --label "bug"

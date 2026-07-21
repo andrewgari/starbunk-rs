@@ -20,12 +20,11 @@ use std::sync::{Arc, LazyLock};
 use starbunk::audit::AuditStore;
 
 pub struct BunkBotEngine {
-    configs: Vec<BotConfig>,
     bots: Vec<CompiledBot>,
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
     state_service: Arc<dyn BotStateService>,
-    audit: Arc<AuditStore>,
+    audit: Option<Arc<AuditStore>>,
 }
 
 impl BunkBotEngine {
@@ -34,9 +33,8 @@ impl BunkBotEngine {
         sender: Arc<dyn MessageService>,
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
-        audit: Arc<AuditStore>,
+        audit: Option<Arc<AuditStore>>,
     ) -> Self {
-        let configs = bots.clone();
         let compiled = bots
             .into_iter()
             .filter_map(|config| {
@@ -46,7 +44,8 @@ impl BunkBotEngine {
                     Err(e) => {
                         tracing::error!(
                             bot = %name,
-                            "invalid regex in bot config, skipping: {}", e
+                            err = %e,
+                            "invalid regex in bot config, skipping"
                         );
                         None
                     }
@@ -55,7 +54,6 @@ impl BunkBotEngine {
             .collect();
 
         Self {
-            configs,
             bots: compiled,
             sender,
             identity_provider,
@@ -65,27 +63,38 @@ impl BunkBotEngine {
     }
     pub fn reload_bots(&mut self, bots: Vec<BotConfig>) {
         let compiled = bots
-            .iter()
+            .into_iter()
             .filter_map(|config| {
                 let name = config.name.clone();
-                match CompiledBot::try_from(config.clone()) {
+                match CompiledBot::try_from(config) {
                     Ok(b) => Some(b),
                     Err(e) => {
-                        tracing::error!(bot = %name, "failed to compile bot config: {}", e);
+                        tracing::error!(
+                            bot = %name,
+                            err = %e,
+                            "invalid regex in bot config, skipping"
+                        );
                         None
                     }
                 }
             })
             .collect();
-        self.configs = bots;
         self.bots = compiled;
     }
 
-    pub fn bot_configs(&self) -> &[BotConfig] {
-        &self.configs
+    pub fn reload_bots_as_new(&self, configs: Vec<BotConfig>) -> Self {
+        let mut new_engine = Self {
+            bots: vec![],
+            sender: self.sender.clone(),
+            identity_provider: self.identity_provider.clone(),
+            state_service: self.state_service.clone(),
+            audit: self.audit.clone(),
+        };
+        new_engine.reload_bots(configs);
+        new_engine
     }
 
-    pub fn active_bots(&self) -> Vec<(String, u8)> {
+    pub fn bot_configs(&self) -> Vec<(String, u8)> {
         self.bots
             .iter()
             .map(|b| (b.name.clone(), b.frequency))
@@ -149,10 +158,12 @@ impl BunkBotEngine {
                     "send failed: {}", e
                 );
             } else {
-                let _ = self
-                    .audit
-                    .log_event(&bot.name, &msg.content, &response, None)
-                    .await;
+                self.state_service.increment_trigger(&bot.name);
+                if let Some(audit) = &self.audit {
+                    let _ = audit
+                        .log_event(&bot.name, &msg.content, &response, None)
+                        .await;
+                }
             }
 
             return; // first matching trigger wins
@@ -273,7 +284,7 @@ async fn resolve_identity(
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::compiled::{CompiledBot, CompiledNode};
     use super::*;
     use crate::config::IdentityConfig;
@@ -459,88 +470,85 @@ pub mod tests {
         }
     }
 
-    #[derive(Clone)]
-    pub(crate) struct DummySender;
+    struct DummySender;
     #[async_trait::async_trait]
     impl starbunk::discord::MessageService for DummySender {
-        async fn send(&self, _c: serenity::all::ChannelId, _m: &str) -> anyhow::Result<Message> {
+        async fn send(&self, _: serenity::all::ChannelId, _: &str) -> anyhow::Result<Message> {
             unimplemented!()
         }
         async fn send_with_identity(
             &self,
-            _c: serenity::all::ChannelId,
-            _m: &str,
-            _i: starbunk::discord::Identity,
+            _: serenity::all::ChannelId,
+            _: &str,
+            _: Identity,
         ) -> anyhow::Result<Message> {
             unimplemented!()
         }
         async fn reply(
             &self,
-            _c: serenity::all::ChannelId,
-            _m: serenity::all::MessageId,
-            _co: &str,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
         ) -> anyhow::Result<Message> {
             unimplemented!()
         }
         async fn edit(
             &self,
-            _c: serenity::all::ChannelId,
-            _m: serenity::all::MessageId,
-            _co: &str,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
         ) -> anyhow::Result<Message> {
             unimplemented!()
         }
         async fn delete(
             &self,
-            _c: serenity::all::ChannelId,
-            _m: serenity::all::MessageId,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
         ) -> anyhow::Result<()> {
             unimplemented!()
         }
         async fn close(&self) {}
     }
-
-    pub(crate) struct DummyIdentity;
+    struct DummyProvider;
     #[async_trait::async_trait]
-    impl starbunk::discord::IdentityProvider for DummyIdentity {
+    impl starbunk::discord::IdentityProvider for DummyProvider {
         async fn get_identity(
             &self,
-            _u: UserId,
-            _g: Option<serenity::all::GuildId>,
-        ) -> anyhow::Result<starbunk::discord::Identity> {
+            _: UserId,
+            _: Option<serenity::all::GuildId>,
+        ) -> anyhow::Result<Identity> {
             unimplemented!()
         }
     }
 
-    // --- reload_bots ---
     #[tokio::test]
     async fn test_reload_bots_updates_internal_bots_list() {
-        use std::sync::Arc;
-        let mut engine = BunkBotEngine {
-            configs: vec![],
-            bots: vec![],
-            sender: Arc::new(DummySender),
-            identity_provider: Arc::new(DummyIdentity),
-            state_service: Arc::new(InMemoryBotStateManager::new()),
-            audit: Arc::new(starbunk::audit::AuditStore::dummy()),
-        };
+        use crate::config::BotConfig;
 
-        let new_bot = crate::config::BotConfig {
-            name: "new_bot".into(),
-            identity: IdentityConfig::Random,
-            ignore_self: false,
-            ignore_bots: false,
+        let mut engine = BunkBotEngine::new(
+            vec![],
+            Arc::new(DummySender),
+            Arc::new(DummyProvider),
+            Arc::new(InMemoryBotStateManager::new()),
+            None,
+        );
+
+        assert_eq!(engine.bots.len(), 0);
+
+        let config = BotConfig {
+            name: "testbot".into(),
+            identity: crate::config::IdentityConfig::Random,
+            responses: vec![],
+            ignore_bots: true,
             ignore_humans: false,
+            ignore_self: true,
             frequency: 100,
             triggers: vec![],
-            responses: vec!["hello".into()],
         };
 
-        engine.reload_bots(vec![new_bot.clone()]);
+        engine.reload_bots(vec![config]);
 
-        let configs = engine.bot_configs();
-        // Failing condition: the stub does nothing, so configs is empty. We expect it to have new_bot
-        assert_eq!(configs.len(), 1, "Expected reload_bots to add the new bot");
-        assert_eq!(configs[0].name, "new_bot");
+        assert_eq!(engine.bots.len(), 1);
+        assert_eq!(engine.bots[0].name, "testbot");
     }
 }

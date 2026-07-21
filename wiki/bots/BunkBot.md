@@ -16,6 +16,7 @@ identities using `src/shared/discord::MessageService`.
   - `/clearwebhooks` to fetch and clear active Starbunk webhooks.
   - `/ping` to verify bot responsiveness.
 - Dynamic bot state manager (`BotStateService` / `InMemoryBotStateManager`) to enable/disable bots and apply frequency overrides at runtime.
+- Local HTTP API (`127.0.0.1:9082/config`) to view and overwrite the active `bots.yml` configuration, automatically hot-reloading bot strategies.
 - Webhook-based responses using `send_message_with_identity`.
 
 ## Dependencies & Architecture

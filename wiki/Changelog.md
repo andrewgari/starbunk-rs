@@ -3,6 +3,19 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-07-17 — BunkBot Hot-Reloading Config API
+
+### Added
+- Implemented `/config` (GET/POST) HTTP API in BunkBot using Axum, bound to `127.0.0.1:9082`.
+- Added `BunkBotEngine::reload_bots_as_new` to support hot-reloading bot strategies dynamically without application restart.
+- Added comprehensive unit and E2E tests for the new configuration API endpoints.
+
+### Changed
+- Wrapped `BunkBotEngine` in an `Arc` within `tokio::sync::RwLock` in the AppState to eliminate lock contention during message processing and hot-reloading.
+- Refactored `AuditStore` in BunkBot to an `Option<Arc<AuditStore>>` allowing for purely in-memory unit tests without requiring a live Postgres connection.
+
+---
+
 ## 2026-07-15 — Bot Management UI (`starbunk-ui`)
 
 ### Added

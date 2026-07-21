@@ -43,7 +43,7 @@ export interface BotDeploymentStatus {
 }
 
 export async function getBotDeployments(): Promise<BotDeploymentStatus[]> {
-  const bots = ["bunkbot", "covabot", "djcova", "bluebot"];
+  const bots = ["bunkbot", "covabot", "djcova", "bluebot", "ratbot"];
 
   if (!k8sAppsApi) {
     return bots.map(bot => ({
@@ -140,7 +140,7 @@ export async function setBotState(botName: string, action: "start" | "stop" | "r
   }
 }
 
-export async function getBotConfigs(botName: "bunkbot" | "covabot"): Promise<Record<string, string>> {
+export async function getBotConfigs(botName: string): Promise<Record<string, string>> {
   if (!k8sCoreApi) {
     try {
       if (botName === "bunkbot") {
@@ -148,7 +148,7 @@ export async function getBotConfigs(botName: "bunkbot" | "covabot"): Promise<Rec
         try {
           const content = await fs.readFile(filePath, "utf-8");
           return { "bots.yml": content };
-        } catch (e) {
+        } catch {
           return { "bots.yml": "" };
         }
       } else {
@@ -187,7 +187,7 @@ export async function getBotConfigs(botName: "bunkbot" | "covabot"): Promise<Rec
 }
 
 export async function updateBotConfig(
-  botName: "bunkbot" | "covabot",
+  botName: string,
   filename: string,
   content: string | null,
 ): Promise<{ success: boolean; error?: string }> {

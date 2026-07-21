@@ -1,157 +1,180 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { updateBotConfig } from "@/app/actions";
 
-export default function ConfigManager({ configs, botName }: { configs: Record<string, string>, botName: "bunkbot" | "covabot" }) {
-  const initialFile = Object.keys(configs).length > 0 ? Object.keys(configs)[0] : null;
-  const [selectedFile, setSelectedFile] = useState<string | null>(initialFile);
-  const [content, setContent] = useState<string>(initialFile ? configs[initialFile] : "");
+export default function ConfigManager({ configs, botName }: { configs: Record<string, string>, botName: string }) {
+  const fileKeys = Object.keys(configs);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [content, setContent] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    if (!isCreating && selectedFile) {
-      if (configs[selectedFile] !== undefined) {
-        setContent(configs[selectedFile]);
-      } else {
-        const first = Object.keys(configs)[0];
-        setSelectedFile(first || null);
-        setContent(first ? configs[first] : "");
-      }
-    } else if (!isCreating && !selectedFile && Object.keys(configs).length > 0) {
-      setSelectedFile(Object.keys(configs)[0]);
-      setContent(configs[Object.keys(configs)[0]]);
+  // Determine currently active file name
+  const activeFile = isCreating
+    ? null
+    : selectedFile && configs[selectedFile] !== undefined
+    ? selectedFile
+    : fileKeys[0] || null;
+
+  // React recommended pattern: Adjust state during render when props/selection change
+  const [syncedKey, setSyncedKey] = useState<string | null>(null);
+  const currentKey = `${activeFile}:${configs[activeFile || ""]}`;
+  if (syncedKey !== currentKey && !isCreating) {
+    setSyncedKey(currentKey);
+    if (activeFile) {
+      setContent(configs[activeFile] || "");
     }
-  }, [configs, selectedFile, isCreating]);
+  }
 
   const handleSelect = (filename: string) => {
     setSelectedFile(filename);
-    setContent(configs[filename]);
+    setContent(configs[filename] || "");
     setIsCreating(false);
   };
 
   const handleCreateNew = () => {
     setIsCreating(true);
     setSelectedFile(null);
-    setContent("");
     setNewFileName("");
+    setContent("");
   };
 
   const handleSave = async () => {
-    const targetFile = isCreating ? newFileName : selectedFile;
-    if (!targetFile) return;
-    
-    // Ensure it ends with .yml
-    const finalFilename = targetFile.endsWith(".yml") || targetFile.endsWith(".yaml") ? targetFile : `${targetFile}.yml`;
+    const filename = isCreating ? newFileName.trim() : activeFile;
+    if (!filename) return;
+
+    const finalFileName = filename.endsWith(".yml") || filename.endsWith(".yaml")
+      ? filename
+      : `${filename}.yml`;
 
     setIsSaving(true);
-    const res = await updateBotConfig(botName, finalFilename, content);
+    const res = await updateBotConfig(botName, finalFileName, content);
     setIsSaving(false);
-    
+
     if (res.success) {
-      if (isCreating) {
-        setIsCreating(false);
-        setSelectedFile(finalFilename);
-      }
+      setIsCreating(false);
+      setSelectedFile(finalFileName);
     } else {
-      alert(`Error saving: ${res.error}`);
+      alert(`Error saving config: ${res.error}`);
     }
   };
 
   const handleDelete = async () => {
-    if (!selectedFile) return;
-    if (!confirm(`Are you sure you want to delete ${selectedFile}?`)) return;
-    
+    if (!activeFile) return;
+    if (!confirm(`Are you sure you want to delete ${activeFile}?`)) return;
+
     setIsSaving(true);
-    const res = await updateBotConfig(botName, selectedFile, null);
+    const res = await updateBotConfig(botName, activeFile, null);
     setIsSaving(false);
-    
+
     if (res.success) {
       setSelectedFile(null);
     } else {
-      alert(`Error deleting: ${res.error}`);
+      alert(`Error deleting config: ${res.error}`);
     }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div className="md:col-span-1 flex flex-col gap-2">
-        <div className="glass-panel p-4 flex flex-col gap-2">
-          <h3 className="text-lg font-semibold text-white mb-2">Configuration Files</h3>
-          {Object.keys(configs).map((filename) => (
+    <div className="glass-panel p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-white capitalize">{botName} Configurations</h2>
+        <button
+          onClick={handleCreateNew}
+          className="btn-secondary text-xs px-3 py-1.5"
+        >
+          + New File
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Sidebar file list */}
+        <div className="flex flex-col gap-1 border-r border-slate-700/50 pr-4">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Files</div>
+          {fileKeys.length === 0 && !isCreating && (
+            <div className="text-xs text-slate-500 py-2">No config files found.</div>
+          )}
+          {fileKeys.map((file) => (
             <button
-              key={filename}
-              onClick={() => handleSelect(filename)}
-              className={`text-left px-3 py-2 rounded-md transition-colors ${selectedFile === filename ? "bg-indigo-500/20 border border-indigo-500/50 text-indigo-200" : "hover:bg-white/5 text-slate-300"}`}
+              key={file}
+              onClick={() => handleSelect(file)}
+              className={`text-left text-sm px-3 py-2 rounded-lg transition-colors truncate ${
+                !isCreating && activeFile === file
+                  ? "bg-accent/20 text-white font-medium border border-accent/30"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+              }`}
             >
-              {filename}
+              {file}
             </button>
           ))}
-          {botName !== "bunkbot" && (
-            <button
-              onClick={handleCreateNew}
-              className="mt-4 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded-md transition-colors text-sm font-medium"
-            >
-              + Create New
-            </button>
+          {isCreating && (
+            <div className="text-left text-sm px-3 py-2 rounded-lg bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30">
+              New File...
+            </div>
           )}
         </div>
-      </div>
-      
-      <div className="md:col-span-3">
-        {(selectedFile || isCreating) ? (
-          <div className="glass-panel p-6 flex flex-col h-[600px]">
-            <div className="flex justify-between items-center mb-4">
-              {isCreating ? (
-                <input 
-                  type="text" 
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  placeholder="filename.yml"
-                  className="bg-black/20 border border-white/10 rounded-md px-3 py-1.5 text-white focus:outline-none focus:border-indigo-500"
-                />
-              ) : (
-                <h3 className="text-xl font-semibold text-white">{selectedFile}</h3>
-              )}
-              
-              <div className="flex gap-3">
-                {!isCreating && botName !== "bunkbot" && (
-                  <button 
-                    onClick={handleDelete}
-                    disabled={isSaving}
-                    className="text-red-400 hover:text-red-300 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+
+        {/* Editor main panel */}
+        <div className="md:col-span-3 flex flex-col gap-4">
+          {isCreating ? (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Filename</label>
+              <input
+                type="text"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                placeholder="e.g. custom_settings.yml"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+              />
+            </div>
+          ) : activeFile ? (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-mono text-indigo-300 font-semibold">{activeFile}</span>
+              <button
+                onClick={handleDelete}
+                disabled={isSaving}
+                className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2 py-1 rounded transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          ) : null}
+
+          {(activeFile || isCreating) ? (
+            <>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={12}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-accent resize-y"
+                placeholder="Enter YAML configuration here..."
+              />
+
+              <div className="flex justify-end gap-2">
+                {isCreating && (
+                  <button
+                    onClick={() => setIsCreating(false)}
+                    className="btn-secondary text-xs"
                   >
-                    Delete
+                    Cancel
                   </button>
                 )}
-                <button 
+                <button
                   onClick={handleSave}
-                  disabled={isSaving || (isCreating && !newFileName.trim())}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  disabled={isSaving}
+                  className="btn-primary text-xs px-4"
                 >
-                  {isSaving ? "Saving..." : "Save Changes"}
+                  {isSaving ? "Saving..." : "Save Config"}
                 </button>
               </div>
+            </>
+          ) : (
+            <div className="text-sm text-slate-500 p-8 text-center border border-dashed border-slate-800 rounded-lg">
+              Select a file on the left or create a new one to edit.
             </div>
-            
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="flex-1 w-full bg-black/40 border border-white/10 rounded-lg p-4 text-emerald-300 font-mono text-sm focus:outline-none focus:border-indigo-500/50 resize-none"
-              placeholder="Enter YAML configuration here..."
-              spellCheck={false}
-            />
-          </div>
-        ) : (
-          <div className="glass-panel p-12 flex flex-col items-center justify-center h-full text-slate-400">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p>Select a configuration file to edit or create a new one.</p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

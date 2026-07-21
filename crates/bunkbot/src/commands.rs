@@ -116,7 +116,7 @@ pub async fn handle_interaction(
                             &cmd.user.id.to_string(),
                             is_admin,
                             &*state_service,
-                            &engine.active_bots(),
+                            &engine.bot_configs(),
                         ) {
                             Ok(msg) => result_msg = msg,
                             Err(msg) => result_msg = msg,
