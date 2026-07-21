@@ -147,13 +147,13 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
           <div className="bg-slate-900 rounded-lg p-1 flex gap-1">
             <button
               onClick={() => setVisualMode(true)}
-              className={\`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors \${visualMode ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}\`}
+              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${visualMode ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
             >
               Visual Builder
             </button>
             <button
               onClick={() => setVisualMode(false)}
-              className={\`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors \${!visualMode ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}\`}
+              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${!visualMode ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
             >
               JSON Editor
             </button>
@@ -220,7 +220,7 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
                 onChange={(e) => setRawInput(e.target.value)}
                 rows={10}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-accent"
-                placeholder={\`Enter single sub-bot definition in JSON...\`}
+                placeholder={`Enter single sub-bot definition in JSON...`}
               />
             </div>
           </>
