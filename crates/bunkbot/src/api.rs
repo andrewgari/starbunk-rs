@@ -53,8 +53,11 @@ async fn post_config(
 
     let path = format!("{}/botbot.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &payload).await {
-        tracing::error!("failed to write config file {}: {}", path, e);
-        return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        tracing::warn!(
+            "failed to write config file {} (this is normal in K8s): {}",
+            path,
+            e
+        );
     }
 
     reload_all_bots(&state).await
@@ -256,8 +259,11 @@ async fn put_bots(
 
     let path = format!("{}/botbot.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &yaml).await {
-        tracing::error!("failed to write config file {}: {}", path, e);
-        return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        tracing::warn!(
+            "failed to write config file {} (this is normal in K8s): {}",
+            path,
+            e
+        );
     }
 
     reload_all_bots(&state).await

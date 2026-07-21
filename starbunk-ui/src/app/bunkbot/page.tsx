@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import AddBotModal from "@/components/AddBotModal";
 import SubBotCard, { SubBotData } from "@/components/SubBotCard";
 import { useSSE } from "@/components/useSSE";
+import { saveBunkBotConfigJson } from "./actions";
 
 export default function BunkBotMagnumOpus() {
   const [subBots, setSubBots] = useState<SubBotData[]>([]);
@@ -62,6 +63,7 @@ export default function BunkBotMagnumOpus() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedList),
       });
+      await saveBunkBotConfigJson(updatedList);
       if (res.ok) {
         await loadBots();
       }
@@ -106,6 +108,7 @@ export default function BunkBotMagnumOpus() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updatedList),
         });
+        await saveBunkBotConfigJson(updatedList);
         updated.yamlSnippet = JSON.stringify(newBotConfig, null, 2);
       } catch (e) {
         console.error("Invalid JSON snippet", e);
@@ -122,6 +125,7 @@ export default function BunkBotMagnumOpus() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updatedList),
     });
+    await saveBunkBotConfigJson(updatedList);
     if (res.ok) {
       await loadBots();
     }
