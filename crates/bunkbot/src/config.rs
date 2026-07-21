@@ -107,6 +107,25 @@ pub enum ConditionNode {
     NoneOf(Vec<ConditionNode>),
 }
 
+impl serde::Serialize for ConditionNode {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(1))?;
+        match self {
+            ConditionNode::ContainsPhrase(s) => map.serialize_entry("contains_phrase", s)?,
+            ConditionNode::ContainsWord(s) => map.serialize_entry("contains_word", s)?,
+            ConditionNode::MatchesRegex(s) => map.serialize_entry("matches_regex", s)?,
+            ConditionNode::FromUser(s) => map.serialize_entry("from_user", s)?,
+            ConditionNode::WithChance(n) => map.serialize_entry("with_chance", n)?,
+            ConditionNode::Always(b) => map.serialize_entry("always", b)?,
+            ConditionNode::AllOf(v) => map.serialize_entry("all_of", v)?,
+            ConditionNode::AnyOf(v) => map.serialize_entry("any_of", v)?,
+            ConditionNode::NoneOf(v) => map.serialize_entry("none_of", v)?,
+        }
+        map.end()
+    }
+}
+
 impl<'de> Deserialize<'de> for ConditionNode {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         use serde::de::{MapAccess, Visitor};
@@ -170,28 +189,6 @@ impl<'de> Deserialize<'de> for ConditionNode {
         }
 
         deserializer.deserialize_map(ConditionVisitor)
-    }
-}
-
-impl serde::Serialize for ConditionNode {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeMap;
-        let mut map = serializer.serialize_map(Some(1))?;
-        match self {
-            ConditionNode::ContainsPhrase(val) => map.serialize_entry("contains_phrase", val)?,
-            ConditionNode::ContainsWord(val) => map.serialize_entry("contains_word", val)?,
-            ConditionNode::MatchesRegex(val) => map.serialize_entry("matches_regex", val)?,
-            ConditionNode::FromUser(val) => map.serialize_entry("from_user", val)?,
-            ConditionNode::WithChance(val) => map.serialize_entry("with_chance", val)?,
-            ConditionNode::Always(val) => map.serialize_entry("always", val)?,
-            ConditionNode::AllOf(val) => map.serialize_entry("all_of", val)?,
-            ConditionNode::AnyOf(val) => map.serialize_entry("any_of", val)?,
-            ConditionNode::NoneOf(val) => map.serialize_entry("none_of", val)?,
-        }
-        map.end()
     }
 }
 
