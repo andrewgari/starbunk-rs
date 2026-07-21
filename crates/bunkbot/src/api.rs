@@ -12,14 +12,35 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn get_config(State(_state): State<AppState>) -> String {
-    // Stub
-    String::new()
+async fn get_config(State(state): State<AppState>) -> String {
+    let engine_guard = state.read().await;
+    if let Some(engine) = engine_guard.as_ref() {
+        let configs = engine.bot_configs().to_vec();
+        let file = crate::config::ReplyBotsFile {
+            reply_bots: configs,
+        };
+        serde_yaml::to_string(&file).unwrap_or_default()
+    } else {
+        String::new()
+    }
 }
 
-async fn post_config(State(_state): State<AppState>, _payload: String) -> axum::http::StatusCode {
-    // Stub
-    axum::http::StatusCode::OK
+async fn post_config(State(state): State<AppState>, payload: String) -> axum::http::StatusCode {
+    match crate::config::parse_bots(&payload) {
+        Ok(bots) => {
+            let mut engine_guard = state.write().await;
+            if let Some(engine) = engine_guard.as_mut() {
+                engine.reload_bots(bots);
+                axum::http::StatusCode::OK
+            } else {
+                axum::http::StatusCode::SERVICE_UNAVAILABLE
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to parse uploaded config: {}", e);
+            axum::http::StatusCode::BAD_REQUEST
+        }
+    }
 }
 
 #[cfg(test)]
@@ -33,9 +54,15 @@ mod tests {
     use tower::ServiceExt;
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_config_returns_yaml() {
-        let state = Arc::new(RwLock::new(None));
+        let engine = BunkBotEngine::new(
+            vec![],
+            Arc::new(crate::engine::tests::DummySender),
+            Arc::new(crate::engine::tests::DummyIdentity),
+            Arc::new(crate::state::InMemoryBotStateManager::new()),
+            Arc::new(starbunk::audit::AuditStore::dummy()),
+        );
+        let state = Arc::new(RwLock::new(Some(engine)));
         let app = router(state);
 
         let response = app
@@ -55,13 +82,12 @@ mod tests {
 
         // Failing condition: the stub returns empty string, test expects YAML content
         assert!(
-            body_str.contains("bots:"),
-            "Expected config to contain 'bots:'"
+            body_str.contains("reply-bots:"),
+            "Expected config to contain 'reply-bots:'"
         );
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_post_config_invalid_yaml_returns_bad_request() {
         let state = Arc::new(RwLock::new(None));
         let app = router(state);

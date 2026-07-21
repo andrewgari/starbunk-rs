@@ -1,14 +1,14 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Top-level wrapper matching the `reply-bots:` YAML key.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ReplyBotsFile {
     #[serde(rename = "reply-bots")]
     pub reply_bots: Vec<BotConfig>,
 }
 
 /// Configuration for a single reply bot loaded from YAML.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct BotConfig {
     pub name: String,
     pub identity: IdentityConfig,
@@ -40,7 +40,7 @@ fn default_frequency() -> u8 {
 }
 
 /// The persona a bot assumes when posting a response via webhook.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IdentityConfig {
     /// Fixed display name and avatar.
@@ -57,7 +57,7 @@ pub enum IdentityConfig {
 }
 
 /// A single named trigger within a bot definition.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct TriggerConfig {
     /// Optional label used in logs and admin commands.
     pub name: Option<String>,
@@ -105,6 +105,25 @@ pub enum ConditionNode {
     AnyOf(Vec<ConditionNode>),
     /// Passes when no child passes (NOR).
     NoneOf(Vec<ConditionNode>),
+}
+
+impl serde::Serialize for ConditionNode {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(1))?;
+        match self {
+            ConditionNode::ContainsPhrase(s) => map.serialize_entry("contains_phrase", s)?,
+            ConditionNode::ContainsWord(s) => map.serialize_entry("contains_word", s)?,
+            ConditionNode::MatchesRegex(s) => map.serialize_entry("matches_regex", s)?,
+            ConditionNode::FromUser(s) => map.serialize_entry("from_user", s)?,
+            ConditionNode::WithChance(n) => map.serialize_entry("with_chance", n)?,
+            ConditionNode::Always(b) => map.serialize_entry("always", b)?,
+            ConditionNode::AllOf(v) => map.serialize_entry("all_of", v)?,
+            ConditionNode::AnyOf(v) => map.serialize_entry("any_of", v)?,
+            ConditionNode::NoneOf(v) => map.serialize_entry("none_of", v)?,
+        }
+        map.end()
+    }
 }
 
 impl<'de> Deserialize<'de> for ConditionNode {
@@ -177,7 +196,7 @@ impl<'de> Deserialize<'de> for ConditionNode {
 /// (`"113035990725066752"`) or a bare YAML integer (`113035990725066752`).
 ///
 /// Both forms appear in the production bots.yml.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Snowflake(pub String);
 
 impl<'de> Deserialize<'de> for Snowflake {

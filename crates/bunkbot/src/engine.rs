@@ -20,6 +20,7 @@ use std::sync::{Arc, LazyLock};
 use starbunk::audit::AuditStore;
 
 pub struct BunkBotEngine {
+    configs: Vec<BotConfig>,
     bots: Vec<CompiledBot>,
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
@@ -35,6 +36,7 @@ impl BunkBotEngine {
         state_service: Arc<dyn BotStateService>,
         audit: Arc<AuditStore>,
     ) -> Self {
+        let configs = bots.clone();
         let compiled = bots
             .into_iter()
             .filter_map(|config| {
@@ -53,6 +55,7 @@ impl BunkBotEngine {
             .collect();
 
         Self {
+            configs,
             bots: compiled,
             sender,
             identity_provider,
@@ -60,11 +63,29 @@ impl BunkBotEngine {
             audit,
         }
     }
-    pub fn reload_bots(&mut self, _bots: Vec<BotConfig>) {
-        // Stub: do nothing
+    pub fn reload_bots(&mut self, bots: Vec<BotConfig>) {
+        let compiled = bots
+            .iter()
+            .filter_map(|config| {
+                let name = config.name.clone();
+                match CompiledBot::try_from(config.clone()) {
+                    Ok(b) => Some(b),
+                    Err(e) => {
+                        tracing::error!(bot = %name, "failed to compile bot config: {}", e);
+                        None
+                    }
+                }
+            })
+            .collect();
+        self.configs = bots;
+        self.bots = compiled;
     }
 
-    pub fn bot_configs(&self) -> Vec<(String, u8)> {
+    pub fn bot_configs(&self) -> &[BotConfig] {
+        &self.configs
+    }
+
+    pub fn active_bots(&self) -> Vec<(String, u8)> {
         self.bots
             .iter()
             .map(|b| (b.name.clone(), b.frequency))
@@ -252,7 +273,7 @@ async fn resolve_identity(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::compiled::{CompiledBot, CompiledNode};
     use super::*;
     use crate::config::IdentityConfig;
@@ -438,7 +459,8 @@ mod tests {
         }
     }
 
-    struct DummySender;
+    #[derive(Clone)]
+    pub(crate) struct DummySender;
     #[async_trait::async_trait]
     impl starbunk::discord::MessageService for DummySender {
         async fn send(&self, _c: serenity::all::ChannelId, _m: &str) -> anyhow::Result<Message> {
@@ -478,7 +500,7 @@ mod tests {
         async fn close(&self) {}
     }
 
-    struct DummyIdentity;
+    pub(crate) struct DummyIdentity;
     #[async_trait::async_trait]
     impl starbunk::discord::IdentityProvider for DummyIdentity {
         async fn get_identity(
@@ -492,10 +514,10 @@ mod tests {
 
     // --- reload_bots ---
     #[tokio::test]
-    #[ignore]
     async fn test_reload_bots_updates_internal_bots_list() {
         use std::sync::Arc;
         let mut engine = BunkBotEngine {
+            configs: vec![],
             bots: vec![],
             sender: Arc::new(DummySender),
             identity_provider: Arc::new(DummyIdentity),
@@ -519,6 +541,6 @@ mod tests {
         let configs = engine.bot_configs();
         // Failing condition: the stub does nothing, so configs is empty. We expect it to have new_bot
         assert_eq!(configs.len(), 1, "Expected reload_bots to add the new bot");
-        assert_eq!(configs[0].0, "new_bot");
+        assert_eq!(configs[0].name, "new_bot");
     }
 }
