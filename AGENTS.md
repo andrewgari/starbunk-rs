@@ -17,11 +17,16 @@ Claude Code loads it automatically via `CLAUDE.md`; other tools should read it d
 The wiki lives at `wiki/`. Start at `wiki/Home.md`. "Meaningful" = anything that affects
 architecture, configuration, bot behavior, infrastructure, deployment, testing, or a non-obvious bug fix.
 
+**The `wiki/` folder syncs automatically to the hosted wiki at `wiki.starbunk.net`** via a Gitea
+mirror (`StarbunkCrusaders/starbunk-wiki`) that Wiki.js pulls from every 5 minutes. Any `.md` file
+you commit under `wiki/` (except `wiki/raw/`) will appear on the live wiki. Do not put draft or
+scratch content directly in `wiki/` — use `wiki/raw/` for that (it is excluded from the live wiki).
+
 ---
 
 ## CHANGELOG Workflow
 
-While on a branch: maintain `wiki/raw/CHANGELOG-<branch>.md` (gitignored, local only).
+While on a branch: maintain `wiki/raw/CHANGELOG-<branch>.md` (excluded from live wiki).
 Format: `## [Unreleased] — <branch>` with `### Added / Changed / Fixed` sections.
 On merge: prepend to `wiki/Changelog.md`, delete the raw file.
 
