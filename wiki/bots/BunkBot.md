@@ -31,11 +31,34 @@ identities using `src/shared/discord::MessageService`.
 
 BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup. See the [[../infrastructure/Configuration|Configuration]] wiki page for detailed instructions on managing this configuration file in development and production GKE environments.
 
+## Config Write Error Handling
+
+The HTTP API endpoints `POST /config` and `PUT /api/bots` attempt to persist the
+new configuration to `botbot.yml` before hot-reloading the bot strategies.
+
+In a Kubernetes environment the config directory is typically a read-only
+ConfigMap/Secret mount. Two `std::io::ErrorKind` values are therefore treated as
+**expected and non-fatal**:
+
+| `ErrorKind` | Scenario |
+|---|---|
+| `ReadOnlyFilesystem` | K8s read-only volume mount |
+| `PermissionDenied` | Restrictive container permissions |
+
+For these errors a `WARN` log entry is emitted and the request proceeds to
+`reload_all_bots` as normal (the in-memory state is still updated).
+
+Any other write failure (e.g. `StorageFull`, `NotFound`) is treated as an
+**unexpected error** — an `ERROR` log entry is emitted and the endpoint returns
+`500 Internal Server Error` instead of silently succeeding.
+
 ## Edge Cases
 
 - Webhook permission errors or timeouts.
 - Race conditions on simultaneous admin commands.
 - Graceful degradation when Discord API is unreachable.
+- Config write failures on non-K8s deployments now surface as HTTP 500 rather
+  than being silently swallowed.
 
 ## See Also
 
