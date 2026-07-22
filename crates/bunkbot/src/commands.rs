@@ -132,7 +132,9 @@ pub async fn handle_interaction(
             .create_response(
                 &ctx.http,
                 CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new().content(content),
+                    CreateInteractionResponseMessage::new()
+                        .content(content)
+                        .ephemeral(true),
                 ),
             )
             .await;
