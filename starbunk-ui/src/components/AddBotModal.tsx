@@ -68,11 +68,15 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
   const [rawInput, setRawInput] = useState(TEMPLATES.keyword.code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  
+
   // Basic visual editor state
   const [visualMode, setVisualMode] = useState(false);
   const [botName, setBotName] = useState("NewBot");
   const [identityType, setIdentityType] = useState("static");
+  // Identity-specific fields
+  const [staticBotName, setStaticBotName] = useState("HelperBot");
+  const [staticAvatarUrl, setStaticAvatarUrl] = useState("");
+  const [mimicUserId, setMimicUserId] = useState("");
   const [triggerCondition, setTriggerCondition] = useState("contains_phrase");
   const [triggerValue, setTriggerValue] = useState("ping");
   const [botResponse, setBotResponse] = useState("pong");
@@ -95,9 +99,16 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
       let jsonOutput = rawInput;
 
       if (visualMode) {
+        const identityPayload =
+          identityType === "static"
+            ? { type: "static", bot_name: staticBotName, avatar_url: staticAvatarUrl }
+            : identityType === "mimic"
+              ? { type: "mimic", user_id: mimicUserId }
+              : { type: identityType };
+
         const generated = {
           name: botName,
-          identity: { type: identityType },
+          identity: identityPayload,
           frequency: 100,
           ignore_bots: true,
           ignore_humans: false,
@@ -166,7 +177,7 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
               <label className="text-xs text-slate-400">Bot Name</label>
               <input type="text" value={botName} onChange={e => setBotName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white" />
             </div>
-            
+
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-400">Identity Mode</label>
               <select value={identityType} onChange={e => setIdentityType(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white">
@@ -176,6 +187,49 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
                 <option value="mimic_poster">Mimic Message Poster</option>
               </select>
             </div>
+
+            {identityType === "static" && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400">Bot Display Name</label>
+                  <input
+                    type="text"
+                    value={staticBotName}
+                    onChange={e => setStaticBotName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400">Avatar URL</label>
+                  <input
+                    type="text"
+                    value={staticAvatarUrl}
+                    onChange={e => setStaticAvatarUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white"
+                  />
+                </div>
+              </>
+            )}
+
+            {identityType === "mimic" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">Discord User ID</label>
+                <input
+                  type="text"
+                  value={mimicUserId}
+                  onChange={e => setMimicUserId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white"
+                />
+              </div>
+            )}
+
+
+            {identityType === "mimic" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">Discord User ID</label>
+                <input type="text" value={mimicUserId} onChange={e => setMimicUserId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white" />
+              </div>
+            )}
 
             <div className="flex flex-col gap-1 p-3 border border-slate-700 rounded-lg bg-slate-900/50">
               <label className="text-xs text-indigo-400 font-semibold mb-2">Logic Gate / Trigger Condition</label>
