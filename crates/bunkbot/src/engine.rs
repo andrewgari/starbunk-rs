@@ -229,6 +229,24 @@ fn pick_response(pool: &[String]) -> Option<&str> {
     Some(&pool[rand::thread_rng().gen_range(0..pool.len())])
 }
 
+/// Pick a random index from a slice of (is_bot, ...) tuples, filtering to
+/// human members only. Returns `None` if the filtered list is empty.
+///
+/// Separated from `resolve_identity` so the filter logic can be unit-tested
+/// without a live Discord cache.
+fn pick_human_member_index(is_bot_flags: &[bool]) -> Option<usize> {
+    let human_indices: Vec<usize> = is_bot_flags
+        .iter()
+        .enumerate()
+        .filter_map(|(i, is_bot)| if !is_bot { Some(i) } else { None })
+        .collect();
+    if human_indices.is_empty() {
+        return None;
+    }
+    let chosen = human_indices[rand::thread_rng().gen_range(0..human_indices.len())];
+    Some(chosen)
+}
+
 async fn resolve_identity(
     identity: &IdentityConfig,
     ctx: &Context,
@@ -259,13 +277,13 @@ async fn resolve_identity(
         IdentityConfig::Random => {
             let guild_id = msg.guild_id?;
             // Hold the cache lock only long enough to copy the data out.
+            // Filter to human members only — bot accounts must not be impersonated.
             let (username, avatar_url) = {
                 let guild = ctx.cache.guild(guild_id)?;
                 let members: Vec<_> = guild.members.values().collect();
-                if members.is_empty() {
-                    return None;
-                }
-                let m = members[rand::thread_rng().gen_range(0..members.len())];
+                let is_bot_flags: Vec<bool> = members.iter().map(|m| m.user.bot).collect();
+                let idx = pick_human_member_index(&is_bot_flags)?;
+                let m = members[idx];
                 (m.display_name().to_string(), m.face())
             };
             Some(Identity {
@@ -467,6 +485,37 @@ mod tests {
         for _ in 0..100 {
             let r = pick_response(&pool).unwrap();
             assert!(pool.iter().any(|s| s == r));
+        }
+    }
+
+    // --- pick_human_member_index ---
+
+    #[test]
+    fn pick_human_member_index_empty_returns_none() {
+        assert!(pick_human_member_index(&[]).is_none());
+    }
+
+    #[test]
+    fn pick_human_member_index_all_bots_returns_none() {
+        // All members are bots — must return None so random identity falls back gracefully.
+        assert!(pick_human_member_index(&[true, true, true]).is_none());
+    }
+
+    #[test]
+    fn pick_human_member_index_returns_human_index() {
+        // Only index 1 is human; must always return 1.
+        for _ in 0..50 {
+            assert_eq!(pick_human_member_index(&[true, false, true]), Some(1));
+        }
+    }
+
+    #[test]
+    fn pick_human_member_index_never_returns_bot_index() {
+        // Indices 0 and 2 are bots; 1 and 3 are human. Result must always be 1 or 3.
+        let flags = [true, false, true, false];
+        for _ in 0..100 {
+            let idx = pick_human_member_index(&flags).expect("has humans");
+            assert!(idx == 1 || idx == 3, "picked bot at index {idx}");
         }
     }
 
