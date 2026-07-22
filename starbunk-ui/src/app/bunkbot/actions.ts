@@ -28,14 +28,18 @@ export async function saveBunkBotConfig(yaml: string) {
       },
       body: yaml,
     });
-    
-    // Save to Kubernetes Secret directly for persistence
-    await updateBotConfig("bunkbot", "botbot.yml", yaml);
 
     if (!res.ok) {
       const text = await res.text();
       return { success: false, error: text || res.statusText };
     }
+
+    // Only persist to Kubernetes Secret after the API accepted the config
+    const saveResult = await updateBotConfig("bunkbot", "botbot.yml", yaml);
+    if (!saveResult.success) {
+      return saveResult;
+    }
+
     return { success: true };
   } catch (error: unknown) {
     console.error("Error saving BunkBot config:", error);
