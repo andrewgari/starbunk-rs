@@ -43,7 +43,8 @@ jobs:
       - name: Check for crashing pods
         run: |
           # Verify no pods are in CrashLoopBackOff or Error states
-          UNHEALTHY=$(kubectl get pods -n starbunk --no-headers | awk '{print $1, $3}' | grep -Ev '(Running|Completed)')
+          # grep exits 1 when no matches found, which is the healthy case — use || true
+          UNHEALTHY=$(kubectl get pods -n starbunk --no-headers | awk '{print $1, $3}' | grep -Ev '(Running|Completed)' || true)
           if [ -n "$UNHEALTHY" ]; then
             echo "ERROR: Found unhealthy pods:"
             echo "$UNHEALTHY"
@@ -56,9 +57,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Skip if an open health-check issue already exists
+          EXISTING=$(gh issue list --label bug --state open --search "Production Health Check Failed" --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "Open health-check issue #${EXISTING} already exists — skipping duplicate creation."
+            exit 0
+          fi
           gh issue create \
             --title "🚨 Production Health Check Failed" \
             --body "The daily production health check has failed. Please investigate immediately.
-            
+
             [View Workflow Run Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
             --label "bug"
