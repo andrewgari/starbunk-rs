@@ -4,10 +4,11 @@ use regex::Regex;
 /// Resolves response template placeholders against the triggering message content.
 ///
 /// Supported placeholders:
-/// - `{start}` — first **15 characters** (Unicode char-boundary safe) of the message, wrapped in
-///   `***...***`. A `...` suffix is added when the message exceeds 15 chars; shorter messages are
-///   not truncated. This is the authoritative spec; the original Go port described a word-based
-///   excerpt, but character-based truncation is what the tests define and what PR 2 must implement.
+/// - `{start}` — an excerpt of the triggering message, wrapped in `***...***`. The excerpt is
+///   built by taking the **first 3 whitespace-separated words**, joining them with a single space,
+///   and then slicing to at most **15 Unicode characters** (char-boundary safe). A `...` suffix is
+///   appended only when the message has more than 3 words OR when the joined text was truncated to
+///   15 chars. Matches the JS `response-resolver` word-based extraction with conditional ellipsis.
 /// - `{random:min-max:chars}` — repeat `chars` a random N times, N ∈ [min, max], capped at 1000
 /// - `{swap_message:word1:word2}` — swap occurrences of word1↔word2 (word-boundary, case-preserving)
 ///
@@ -23,13 +24,28 @@ pub fn resolve_template(template: &str, msg_content: &str) -> String {
 
 fn resolve_start(template: &str, msg: &str) -> String {
     const MARKER: &str = "{start}";
-    let chars: Vec<char> = msg.chars().collect();
-    let excerpt = if chars.len() <= 15 {
-        msg.to_string()
+    let words: Vec<&str> = msg.split_whitespace().collect();
+    let word_count = words.len();
+
+    // Take at most the first 3 words and join with spaces
+    let joined: String = words.into_iter().take(3).collect::<Vec<_>>().join(" ");
+
+    // Slice to at most 15 Unicode characters (char-boundary safe)
+    let char_count = joined.chars().count();
+    let (clipped, was_truncated) = if char_count <= 15 {
+        (joined, false)
     } else {
-        let truncated: String = chars[..15].iter().collect();
-        format!("{}...", truncated)
+        let truncated: String = joined.chars().take(15).collect();
+        (truncated, true)
     };
+
+    // Append "..." only when there are more than 3 words OR the text was truncated to 15 chars
+    let excerpt = if word_count > 3 || was_truncated {
+        format!("{}...", clipped)
+    } else {
+        clipped
+    };
+
     template.replace(MARKER, &format!("***{}***", excerpt))
 }
 
@@ -192,50 +208,67 @@ mod tests {
     use super::resolve_template;
 
     // -----------------------------------------------------------------------
-    // {start} — excerpt of the triggering message
+    // {start} — word-based excerpt of the triggering message (JS-aligned)
     // -----------------------------------------------------------------------
 
+    /// 1 word, ≤3 words, ≤15 chars — no ellipsis
     #[test]
     fn start_short_message_no_truncation() {
-        // "Hi" is 2 chars — well under 15, no ellipsis
         assert_eq!(
             resolve_template("{start} said hi", "Hi"),
             "***Hi*** said hi"
         );
     }
 
+    /// 2 words, ≤3 words, ≤15 chars — no ellipsis
     #[test]
-    fn start_message_exactly_15_chars_no_truncation() {
-        // "Hello world goo" is exactly 15 chars
-        assert_eq!(
-            resolve_template("{start}!", "Hello world goo"),
-            "***Hello world goo***!"
-        );
-    }
-
-    #[test]
-    fn start_message_over_15_chars_truncated_with_ellipsis() {
-        // "Hello world this is a test" — first 15 chars = "Hello world thi"
-        assert_eq!(
-            resolve_template("{start}-- go ahead", "Hello world this is a test"),
-            "***Hello world thi...***-- go ahead"
-        );
-    }
-
-    #[test]
-    fn start_message_under_15_chars() {
+    fn start_two_words_no_ellipsis() {
         assert_eq!(
             resolve_template("{start}-- sorry", "Hey there"),
             "***Hey there***-- sorry"
         );
     }
 
+    /// Exactly 3 words that fit in 15 chars — no ellipsis
     #[test]
-    fn start_replaces_within_longer_response_string() {
-        // Production: "{start}-- Oh, sorry... go ahead"
-        let result = resolve_template("{start}-- Oh, sorry... go ahead", "What are you doing");
-        assert!(result.starts_with("***"));
-        assert!(result.contains("***-- Oh, sorry... go ahead"));
+    fn start_exactly_3_words_fits_no_ellipsis() {
+        // "Hello world goo" is exactly 15 chars, 3 words
+        assert_eq!(
+            resolve_template("{start}!", "Hello world goo"),
+            "***Hello world goo***!"
+        );
+    }
+
+    /// Exactly 3 words but joined text > 15 chars — ellipsis because truncated
+    #[test]
+    fn start_3_words_over_15_chars_truncated_with_ellipsis() {
+        // "Superlongword1 Superlongword2 X" — first 3 words joined = "Superlongword1 Superlongword2 X"
+        // "Superlongword1" is 14 chars, space is char 15 → first 15 chars = "Superlongword1 "
+        // truncated, so ellipsis added
+        let result = resolve_template("{start}", "Superlongword1 Superlongword2 X");
+        assert_eq!(result, "***Superlongword1 ...***");
+    }
+
+    /// More than 3 words, first 3 fit in 15 chars — ellipsis because >3 words
+    #[test]
+    fn start_more_than_3_words_ellipsis_appended() {
+        // "What are you doing" — first 3 words = "What are you" (12 chars, fits in 15)
+        // but there are >3 words so ellipsis is added
+        assert_eq!(
+            resolve_template("{start}-- Oh, sorry... go ahead", "What are you doing"),
+            "***What are you...***-- Oh, sorry... go ahead"
+        );
+    }
+
+    /// Classic production case: long message, >3 words, first 3 words truncated at 15 chars
+    #[test]
+    fn start_message_over_15_chars_truncated_with_ellipsis() {
+        // "Hello world this is a test" — first 3 words = "Hello world this" (16 chars)
+        // truncated to 15 = "Hello world thi", plus ellipsis (both >3 words AND truncated)
+        assert_eq!(
+            resolve_template("{start}-- go ahead", "Hello world this is a test"),
+            "***Hello world thi...***-- go ahead"
+        );
     }
 
     #[test]
@@ -246,14 +279,13 @@ mod tests {
 
     #[test]
     fn start_unicode_message_truncates_at_character_not_byte_boundary() {
-        // Each emoji is 4 bytes but 1 char — truncation must not split a code point.
-        // 15 emoji chars = definitely truncated, but the cut must be at char 15.
-        let msg = "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"; // 16 emoji
+        // Each emoji is 4 bytes but 1 char — one very long "word" of 16 emoji.
+        // First 3 words = just that one word, but it exceeds 15 chars so truncation fires.
+        let msg = "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"; // 16 emoji, 1 word
         let result = resolve_template("{start}", msg);
-        // First 15 emoji + "..." all wrapped in ***...***
         assert!(result.starts_with("***"));
         assert!(result.contains("...***"));
-        // Must not contain the 16th emoji (index 15)
+        // Must not contain the 16th emoji
         let inner = result.trim_start_matches("***").trim_end_matches("***");
         let excerpt = inner.trim_end_matches("...");
         assert_eq!(excerpt.chars().count(), 15);
