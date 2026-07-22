@@ -51,10 +51,7 @@ export async function saveBunkBotConfigJson(bots: any[]) {
   try {
     const yamlStr = yaml.dump({ "reply-bots": bots });
     
-    // Save to Kubernetes Secret directly
-    const result = await updateBotConfig("bunkbot", "botbot.yml", yamlStr);
-    
-    return result;
+    return await saveBunkBotConfig(yamlStr);
   } catch (error: any) {
     console.error("Failed to parse and save JSON config", error);
     return { success: false, error: error.message };
