@@ -7,6 +7,16 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// Returns `true` for write errors that are expected and harmless in a
+/// Kubernetes environment (read-only config mounts).  Every other error is
+/// unexpected and should surface as a 500.
+fn is_expected_write_error(e: &std::io::Error) -> bool {
+    matches!(
+        e.kind(),
+        std::io::ErrorKind::ReadOnlyFilesystem | std::io::ErrorKind::PermissionDenied
+    )
+}
+
 use crate::config::{self, BotConfig};
 use crate::engine::BunkBotEngine;
 
@@ -53,11 +63,16 @@ async fn post_config(
 
     let path = format!("{}/botbot.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &payload).await {
-        tracing::warn!(
-            "failed to write config file {} (this is normal in K8s): {}",
-            path,
-            e
-        );
+        if is_expected_write_error(&e) {
+            tracing::warn!(
+                path = %path,
+                err = %e,
+                "config write skipped — read-only filesystem (expected in K8s)"
+            );
+        } else {
+            tracing::error!(path = %path, err = %e, "unexpected config write failure");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
     }
 
     reload_all_bots(&state).await
@@ -259,11 +274,16 @@ async fn put_bots(
 
     let path = format!("{}/botbot.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &yaml).await {
-        tracing::warn!(
-            "failed to write config file {} (this is normal in K8s): {}",
-            path,
-            e
-        );
+        if is_expected_write_error(&e) {
+            tracing::warn!(
+                path = %path,
+                err = %e,
+                "config write skipped — read-only filesystem (expected in K8s)"
+            );
+        } else {
+            tracing::error!(path = %path, err = %e, "unexpected config write failure");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
     }
 
     reload_all_bots(&state).await
@@ -338,6 +358,117 @@ mod tests {
         assert!(
             body_str.contains("reply-bots:"),
             "Expected config to contain 'reply-bots:'"
+        );
+    }
+
+    // ── is_expected_write_error ──────────────────────────────────────────────
+
+    #[test]
+    fn read_only_filesystem_is_expected() {
+        let e = std::io::Error::from(std::io::ErrorKind::ReadOnlyFilesystem);
+        assert!(
+            is_expected_write_error(&e),
+            "ReadOnlyFilesystem should be treated as an expected K8s error"
+        );
+    }
+
+    #[test]
+    fn permission_denied_is_expected() {
+        let e = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(
+            is_expected_write_error(&e),
+            "PermissionDenied should be treated as an expected K8s error"
+        );
+    }
+
+    #[test]
+    fn unexpected_errors_are_not_expected() {
+        for kind in [
+            std::io::ErrorKind::StorageFull,
+            std::io::ErrorKind::NotFound,
+            std::io::ErrorKind::BrokenPipe,
+        ] {
+            let e = std::io::Error::from(kind);
+            assert!(
+                !is_expected_write_error(&e),
+                "ErrorKind::{:?} should NOT be treated as an expected write error",
+                kind
+            );
+        }
+    }
+
+    // ── post_config write-error handling ────────────────────────────────────
+
+    #[tokio::test]
+    async fn post_config_returns_500_when_config_dir_is_missing() {
+        // Point config_dir at a non-existent path so tokio::fs::write fails
+        // with NotFound (which is an unexpected error).
+        std::env::set_var("BUNKBOT_ADMIN_TOKEN", "testtoken");
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
+        };
+
+        let valid_yaml =
+            "reply-bots:\n  - name: test_bot\n    triggers: []\n    identity:\n      type: random";
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/config")
+                    .header("Authorization", "Bearer testtoken")
+                    .header("Content-Type", "text/plain")
+                    .body(Body::from(valid_yaml))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected write error should return 500"
+        );
+    }
+
+    // ── put_bots write-error handling ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn put_bots_returns_500_when_config_dir_is_missing() {
+        std::env::set_var("BUNKBOT_ADMIN_TOKEN", "testtoken");
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
+        };
+
+        let bots_json = serde_json::json!([{
+            "name": "test_bot",
+            "enabled": true,
+            "frequency": 100,
+            "triggers": [],
+            "identity": {"type": "random"}
+        }]);
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/bots")
+                    .header("Authorization", "Bearer testtoken")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(bots_json.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected write error should return 500"
         );
     }
 }
