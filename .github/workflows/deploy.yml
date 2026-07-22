@@ -65,27 +65,44 @@ jobs:
           location: us-central1
 
       - name: Retag images for release
+        id: retag
         if: ${{ steps.deploy_info.outputs.deploy_tag != 'latest' && !startsWith(steps.deploy_info.outputs.deploy_tag, 'manual-') }}
         run: |
           REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
           VERSION="${{ steps.deploy_info.outputs.deploy_tag }}"
-          
+          RETAGGED_BOTS=""
+          UI_RETAGGED="false"
+
           retag_image() {
             local IMAGE=$1
             echo "Attempting to retag sha-${SHORT_SHA} for ${IMAGE}..."
-            if ! gcloud artifacts docker tags add "${IMAGE}:sha-${SHORT_SHA}" "${IMAGE}:${VERSION}" 2>/dev/null; then
-              echo "sha-${SHORT_SHA} not found for ${IMAGE}, falling back to latest..."
-              gcloud artifacts docker tags add "${IMAGE}:latest" "${IMAGE}:${VERSION}"
+            if gcloud artifacts docker tags add "${IMAGE}:sha-${SHORT_SHA}" "${IMAGE}:${VERSION}" 2>/dev/null; then
+              echo "Successfully retagged ${IMAGE}:sha-${SHORT_SHA} as ${IMAGE}:${VERSION}"
+              return 0
+            else
+              echo "sha-${SHORT_SHA} not found for ${IMAGE} — image was not rebuilt in this release, skipping retag."
+              return 1
             fi
           }
-          
+
           # Tag the UI
-          retag_image "${REGISTRY}/starbunk-ui"
-          
-          # Tag the bots
+          if retag_image "${REGISTRY}/starbunk-ui"; then
+            UI_RETAGGED="true"
+          fi
+
+          # Tag the bots — only track those that were actually retagged
           for BOT in bluebot bunkbot covabot djcova ratbot; do
-            retag_image "${REGISTRY}/starbunk-${BOT}"
+            if retag_image "${REGISTRY}/starbunk-${BOT}"; then
+              RETAGGED_BOTS="${RETAGGED_BOTS} ${BOT}"
+            fi
           done
+
+          # Trim leading whitespace
+          RETAGGED_BOTS="${RETAGGED_BOTS# }"
+
+          echo "retagged_bots=${RETAGGED_BOTS}" >> $GITHUB_OUTPUT
+          echo "ui_retagged=${UI_RETAGGED}" >> $GITHUB_OUTPUT
+          echo "Retagged bots: '${RETAGGED_BOTS}', UI retagged: ${UI_RETAGGED}"
 
       - name: Deploy to GKE
         run: |
@@ -93,13 +110,36 @@ jobs:
           kubectl apply -f kubernetes/namespace.yaml
           kubectl apply -f kubernetes/
 
-          # Pin each deployment to the exact image tag for this release
           DEPLOY_TAG="${{ steps.deploy_info.outputs.deploy_tag }}"
           REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
-          
-          kubectl set image "deployment/starbunk-ui" "starbunk-ui=${REGISTRY}/starbunk-ui:${DEPLOY_TAG}" -n starbunk
+
+          # For a release deploy, use the version tag only for images that were
+          # actually retagged (i.e. rebuilt in this release). Unchanged bots were
+          # not rebuilt, so their sha tag does not exist; fall back to :latest for
+          # those so we deploy the most-recent known-good image without fabricating
+          # a misleading version tag.
+          #
+          # For manual dispatches DEPLOY_TAG is already "latest", so every bot
+          # gets :latest regardless of the outputs below.
+          RETAGGED_BOTS="${{ steps.retag.outputs.retagged_bots }}"
+          UI_RETAGGED="${{ steps.retag.outputs.ui_retagged }}"
+
+          # Determine the tag to use for the UI
+          if [ "${UI_RETAGGED}" = "true" ]; then
+            UI_TAG="${DEPLOY_TAG}"
+          else
+            UI_TAG="latest"
+          fi
+          kubectl set image "deployment/starbunk-ui" "starbunk-ui=${REGISTRY}/starbunk-ui:${UI_TAG}" -n starbunk
+
+          # Determine the tag to use for each bot
           for BOT in bluebot bunkbot covabot djcova ratbot; do
-            kubectl set image "deployment/${BOT}" "${BOT}=${REGISTRY}/starbunk-${BOT}:${DEPLOY_TAG}" -n starbunk
+            if echo " ${RETAGGED_BOTS} " | grep -q " ${BOT} "; then
+              BOT_TAG="${DEPLOY_TAG}"
+            else
+              BOT_TAG="latest"
+            fi
+            kubectl set image "deployment/${BOT}" "${BOT}=${REGISTRY}/starbunk-${BOT}:${BOT_TAG}" -n starbunk
           done
 
       - name: Health check (Wait for Rollout)

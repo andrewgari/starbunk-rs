@@ -3,6 +3,15 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-07-22 — Fix deploy.yml retag fallback bug (issues #80, #82)
+
+### Fixed
+- **Retag fallback removed**: `retag_image()` in `.github/workflows/deploy.yml` no longer falls back to tagging `:latest` as the release version when a sha tag is missing. When a bot was not rebuilt in a given release its sha tag doesn't exist; the old code silently created a misleading version tag pointing at whatever `:latest` happened to be. The function now logs a skip message and returns non-zero instead.
+- **Per-bot tag selection in deploy step**: The "Deploy to GKE" step now uses the release version tag only for images that were actually retagged (confirmed rebuilt in this release). Unchanged bots are deployed with `:latest` to avoid fabricating incorrect version tags. The retag step outputs `retagged_bots` and `ui_retagged` to communicate this to the deploy step.
+- Closed issues #81 and #83 as false positives — `SHORT_SHA` is set correctly by the "Set short SHA" step (line 39) which writes to `$GITHUB_ENV`, making it available to all subsequent steps.
+
+---
+
 ## 2026-07-21 — BunkBot Deployment and Security Overhaul
 
 ### Changed
