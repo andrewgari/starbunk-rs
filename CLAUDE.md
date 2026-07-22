@@ -47,6 +47,7 @@ the skill immediately — don't describe what you'd do, just do it.
 | PR is open — review comments to address | `/pr-comment-review` |
 | User asks about Agent API / tools | `/api-guide` |
 | Setting up hooks or automated behaviors | `/update-config` |
+| Implementing a PR from start to finish | `/pr-start <issue_number_or_text>` |
 
 ## Task Integration & Discretionary Loading
 If the user asks to implement a feature, fix a bug, or perform any refactoring/coding task directly in chat without explicitly typing `/task`:
