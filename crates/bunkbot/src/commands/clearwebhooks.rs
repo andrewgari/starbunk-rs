@@ -3,19 +3,20 @@ use serenity::all::{CreateCommand, Permissions};
 pub fn clearwebhooks_command() -> CreateCommand {
     CreateCommand::new("clearwebhooks")
         .description("Clear all webhooks made by the bot")
-        .default_member_permissions(Permissions::ADMINISTRATOR)
+        // JS reference (clear-webhooks.ts) uses ManageWebhooks, not ADMINISTRATOR.
+        .default_member_permissions(Permissions::MANAGE_WEBHOOKS)
 }
 
 pub async fn execute_clearwebhooks<F, Fut>(
-    is_admin: bool,
+    has_manage_webhooks: bool,
     find_webhooks_and_delete: F,
 ) -> Result<String, String>
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = anyhow::Result<usize>>,
 {
-    if !is_admin {
-        return Err("You need administrator permissions to use this command.".to_string());
+    if !has_manage_webhooks {
+        return Err("You need Manage Webhooks permission to use this command.".to_string());
     }
 
     match find_webhooks_and_delete().await {
@@ -29,17 +30,17 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_clearwebhooks_admin_success() {
+    async fn test_clearwebhooks_with_permission_success() {
         let res = execute_clearwebhooks(true, || async { Ok(3) }).await;
         assert_eq!(res, Ok("Deleted 3 webhook(s).".to_string()));
     }
 
     #[tokio::test]
-    async fn test_clearwebhooks_non_admin_failure() {
+    async fn test_clearwebhooks_without_permission_failure() {
         let res = execute_clearwebhooks(false, || async { Ok(3) }).await;
         assert_eq!(
             res,
-            Err("You need administrator permissions to use this command.".to_string())
+            Err("You need Manage Webhooks permission to use this command.".to_string())
         );
     }
 
