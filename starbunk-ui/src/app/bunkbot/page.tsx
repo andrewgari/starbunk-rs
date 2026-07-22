@@ -12,6 +12,7 @@ export default function BunkBotMagnumOpus() {
   const [globalRateLimit, setGlobalRateLimit] = useState(10);
   const [globalEnabled, setGlobalEnabled] = useState(true);
   const [isReloading, setIsReloading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { isConnected, bunkbotAudits } = useSSE();
 
@@ -22,10 +23,10 @@ export default function BunkBotMagnumOpus() {
         fetch("/api/bots/status"),
       ]);
       if (!botsRes.ok || !statusRes.ok) return;
-      
+
       const bots = await botsRes.json();
       const statuses = await statusRes.json();
-      
+
       const mapped: SubBotData[] = bots.map((b: any) => {
         const st = statuses.find((s: any) => s.name === b.name) || {};
         return {
@@ -57,13 +58,18 @@ export default function BunkBotMagnumOpus() {
     try {
       const newBot = JSON.parse(jsonInput);
       const updatedList = [...subBots.map(b => b.botConfig), newBot];
-      
+
       const res = await fetch("/api/bots", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedList),
       });
-      await saveBunkBotConfigJson(updatedList);
+      const result = await saveBunkBotConfigJson(updatedList);
+      if (!result.success) {
+        setSaveError(result.error || "Failed to save configuration");
+        return;
+      }
+      setSaveError(null);
       if (res.ok) {
         await loadBots();
       }
@@ -100,7 +106,7 @@ export default function BunkBotMagnumOpus() {
         newBotConfig.ignore_self = updated.ignore_self;
         newBotConfig.identity.type = updated.identityType;
 
-        const updatedList = subBots.map(b => 
+        const updatedList = subBots.map(b =>
           b.name === updated.name ? newBotConfig : b.botConfig
         );
         await fetch("/api/bots", {
@@ -108,7 +114,12 @@ export default function BunkBotMagnumOpus() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updatedList),
         });
-        await saveBunkBotConfigJson(updatedList);
+        const result = await saveBunkBotConfigJson(updatedList);
+        if (!result.success) {
+          setSaveError(result.error || "Failed to save configuration");
+          return;
+        }
+        setSaveError(null);
         updated.yamlSnippet = JSON.stringify(newBotConfig, null, 2);
       } catch (e) {
         console.error("Invalid JSON snippet", e);
@@ -125,7 +136,12 @@ export default function BunkBotMagnumOpus() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updatedList),
     });
-    await saveBunkBotConfigJson(updatedList);
+    const result = await saveBunkBotConfigJson(updatedList);
+    if (!result.success) {
+      setSaveError(result.error || "Failed to save configuration");
+      return;
+    }
+    setSaveError(null);
     if (res.ok) {
       await loadBots();
     }
@@ -160,6 +176,20 @@ export default function BunkBotMagnumOpus() {
           <span>+</span> Add Bot
         </button>
       </header>
+
+      {/* Save Error Banner */}
+      {saveError && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex items-center justify-between">
+          <span><strong className="font-semibold">Config save failed:</strong> {saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-400 hover:text-red-200 font-bold text-lg leading-none"
+            aria-label="Dismiss error"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Global Controls & HUD */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
