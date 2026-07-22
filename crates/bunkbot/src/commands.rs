@@ -24,17 +24,17 @@ pub async fn handle_interaction(
         let content = match cmd.data.name.as_str() {
             "ping" => ping::execute_ping(),
             "clearwebhooks" => {
-                let is_admin = cmd
+                let has_manage_webhooks = cmd
                     .member
                     .as_ref()
                     .map(|m| {
                         m.permissions
                             .unwrap_or_else(serenity::all::Permissions::empty)
-                            .administrator()
+                            .manage_webhooks()
                     })
                     .unwrap_or(false);
 
-                match clearwebhooks::execute_clearwebhooks(is_admin, || async {
+                match clearwebhooks::execute_clearwebhooks(has_manage_webhooks, || async {
                     let mut count = 0;
                     let webhooks = ctx
                         .http
@@ -42,6 +42,8 @@ pub async fn handle_interaction(
                         .await
                         .map_err(|e| anyhow::anyhow!("Failed to fetch webhooks: {}", e))?;
                     for webhook in webhooks {
+                        // Intentional deviation from JS (which filters by name "Starbunk Bot"):
+                        // matching by bot user ID is more robust against name changes.
                         if webhook
                             .user
                             .is_some_and(|u| u.id == ctx.cache.current_user().id)
