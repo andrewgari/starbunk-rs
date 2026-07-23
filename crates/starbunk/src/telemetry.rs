@@ -17,7 +17,7 @@
 //!
 //! | Variable                         | Default                         | Effect                                   |
 //! |----------------------------------|---------------------------------|------------------------------------------|
-//! | `OTEL_EXPORTER_OTLP_ENDPOINT`   | `http://otel-collector:4317`   | gRPC endpoint for the OTEL collector     |
+//! | `OTEL_EXPORTER_OTLP_ENDPOINT`   | `http://127.0.0.1:4317`   | gRPC endpoint for the OTEL collector     |
 //! | `RUST_LOG`                       | `info` / `debug` in verbose    | tracing filter directives (e.g. `debug,serenity=warn`) |
 //! | `VERBOSE`                        | unset / `false`                | Enable verbose mode — see below          |
 //!
@@ -159,7 +159,7 @@ fn is_verbose() -> bool {
 
 fn otel_endpoint() -> String {
     std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
-        .unwrap_or_else(|_| "http://otel-collector:4317".to_string())
+        .unwrap_or_else(|_| "http://127.0.0.1:4317".to_string())
 }
 
 fn build_resource(service_name: &'static str) -> Resource {
@@ -259,7 +259,7 @@ mod tests {
     fn otel_endpoint_default() {
         let _guard = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
-        assert_eq!(otel_endpoint(), "http://otel-collector:4317");
+        assert_eq!(otel_endpoint(), "http://127.0.0.1:4317");
     }
 
     #[test]

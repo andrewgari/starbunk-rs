@@ -143,26 +143,16 @@ export async function setBotState(botName: string, action: "start" | "stop" | "r
 export async function getBotConfigs(botName: string): Promise<Record<string, string>> {
   if (!k8sCoreApi) {
     try {
-      if (botName === "bunkbot") {
-        const filePath = path.join(LOCAL_CONFIG_PATH, "bots.yml");
-        try {
-          const content = await fs.readFile(filePath, "utf-8");
-          return { "bots.yml": content };
-        } catch {
-          return { "bots.yml": "" };
+      const dirPath = path.join(LOCAL_CONFIG_PATH, botName);
+      await fs.mkdir(dirPath, { recursive: true });
+      const files = await fs.readdir(dirPath);
+      const configs: Record<string, string> = {};
+      for (const file of files) {
+        if (file.endsWith(".yml") || file.endsWith(".yaml")) {
+          configs[file] = await fs.readFile(path.join(dirPath, file), "utf-8");
         }
-      } else {
-        const dirPath = path.join(LOCAL_CONFIG_PATH, botName);
-        await fs.mkdir(dirPath, { recursive: true });
-        const files = await fs.readdir(dirPath);
-        const configs: Record<string, string> = {};
-        for (const file of files) {
-          if (file.endsWith(".yml") || file.endsWith(".yaml")) {
-            configs[file] = await fs.readFile(path.join(dirPath, file), "utf-8");
-          }
-        }
-        return configs;
       }
+      return configs;
     } catch (e) {
       console.error(`Failed to read local configs for ${botName}`, e);
       return {};
@@ -170,15 +160,8 @@ export async function getBotConfigs(botName: string): Promise<Record<string, str
   }
 
   try {
-    if (botName === "bunkbot") {
-      const secret = await k8sCoreApi.readNamespacedSecret({ name: "starbunk-secrets", namespace: NAMESPACE });
-      const base64Data = secret.data?.BOTS_CONFIG_YAML || "";
-      const decoded = Buffer.from(base64Data, "base64").toString("utf-8");
-      return { "bots.yml": decoded };
-    } else {
-      const cm = await k8sCoreApi.readNamespacedConfigMap({ name: `${botName}-configs`, namespace: NAMESPACE });
-      return cm.data ?? {};
-    }
+    const cm = await k8sCoreApi.readNamespacedConfigMap({ name: `${botName}-configs`, namespace: NAMESPACE });
+    return cm.data ?? {};
   } catch (error: unknown) {
     if (isNotFound(error)) return {};
     console.error(`Error reading config for ${botName}:`, error);
@@ -193,22 +176,12 @@ export async function updateBotConfig(
 ): Promise<{ success: boolean; error?: string }> {
   if (!k8sCoreApi) {
     try {
-      if (botName === "bunkbot" && filename === "bots.yml") {
-        const filePath = path.join(LOCAL_CONFIG_PATH, "bots.yml");
-        if (content === null) {
-          await fs.unlink(filePath).catch(() => {});
-        } else {
-          await fs.mkdir(path.dirname(filePath), { recursive: true });
-          await fs.writeFile(filePath, content, "utf-8");
-        }
+      const filePath = path.join(LOCAL_CONFIG_PATH, botName, filename);
+      if (content === null) {
+        await fs.unlink(filePath).catch(() => {});
       } else {
-        const filePath = path.join(LOCAL_CONFIG_PATH, botName, filename);
-        if (content === null) {
-          await fs.unlink(filePath).catch(() => {});
-        } else {
-          await fs.mkdir(path.dirname(filePath), { recursive: true });
-          await fs.writeFile(filePath, content, "utf-8");
-        }
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, content, "utf-8");
       }
       revalidatePath(`/${botName}`);
       return { success: true };
@@ -218,68 +191,39 @@ export async function updateBotConfig(
   }
 
   try {
-    if (botName === "bunkbot" && filename === "bots.yml") {
-      const secretName = "starbunk-secrets";
-      let currentData: Record<string, string> = {};
-      try {
-        const secret = await k8sCoreApi.readNamespacedSecret({ name: secretName, namespace: NAMESPACE });
-        currentData = secret.data ?? {};
-      } catch (e: unknown) {
-        if (!isNotFound(e)) throw e;
-        return { success: false, error: "Secret starbunk-secrets not found. Cannot save configuration." };
-      }
+    const configMapName = `${botName}-configs`;
+    let currentData: Record<string, string> = {};
+    let isCreate = false;
+    try {
+      const cm = await k8sCoreApi.readNamespacedConfigMap({ name: configMapName, namespace: NAMESPACE });
+      currentData = cm.data ?? {};
+    } catch (e: unknown) {
+      if (!isNotFound(e)) throw e;
+      isCreate = true;
+    }
 
-      if (content === null) {
-        delete currentData["BOTS_CONFIG_YAML"];
-      } else {
-        currentData["BOTS_CONFIG_YAML"] = Buffer.from(content, "utf-8").toString("base64");
-      }
-
-      await k8sCoreApi.replaceNamespacedSecret({
-        name: secretName,
-        namespace: NAMESPACE,
-        body: {
-          apiVersion: "v1",
-          kind: "Secret",
-          metadata: { name: secretName, namespace: NAMESPACE },
-          data: currentData,
-        },
-      });
+    if (content === null) {
+      delete currentData[filename];
     } else {
-      const configMapName = `${botName}-configs`;
-      let currentData: Record<string, string> = {};
-      let isCreate = false;
-      try {
-        const cm = await k8sCoreApi.readNamespacedConfigMap({ name: configMapName, namespace: NAMESPACE });
-        currentData = cm.data ?? {};
-      } catch (e: unknown) {
-        if (!isNotFound(e)) throw e;
-        isCreate = true;
-      }
+      currentData[filename] = content;
+    }
 
-      if (content === null) {
-        delete currentData[filename];
-      } else {
-        currentData[filename] = content;
-      }
+    const body = {
+      apiVersion: "v1",
+      kind: "ConfigMap",
+      metadata: { name: configMapName, namespace: NAMESPACE },
+      data: currentData,
+    };
 
-      const body = {
-        apiVersion: "v1",
-        kind: "ConfigMap",
-        metadata: { name: configMapName, namespace: NAMESPACE },
-        data: currentData,
-      };
-
-      if (isCreate) {
-        if (content === null) return { success: true }; // short-circuit deletes when missing
-        await k8sCoreApi.createNamespacedConfigMap({ namespace: NAMESPACE, body });
-      } else {
-        await k8sCoreApi.replaceNamespacedConfigMap({
-          name: configMapName,
-          namespace: NAMESPACE,
-          body,
-        });
-      }
+    if (isCreate) {
+      if (content === null) return { success: true }; // short-circuit deletes when missing
+      await k8sCoreApi.createNamespacedConfigMap({ namespace: NAMESPACE, body });
+    } else {
+      await k8sCoreApi.replaceNamespacedConfigMap({
+        name: configMapName,
+        namespace: NAMESPACE,
+        body,
+      });
     }
 
     revalidatePath(`/${botName}`);

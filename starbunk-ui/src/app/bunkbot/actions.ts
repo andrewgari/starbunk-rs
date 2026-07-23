@@ -35,7 +35,7 @@ export async function saveBunkBotConfig(yaml: string) {
     }
 
     // Only persist to Kubernetes Secret after the API accepted the config
-    const saveResult = await updateBotConfig("bunkbot", "botbot.yml", yaml);
+    const saveResult = await updateBotConfig("bunkbot", "bots.yml", yaml);
     if (!saveResult.success) {
       return saveResult;
     }

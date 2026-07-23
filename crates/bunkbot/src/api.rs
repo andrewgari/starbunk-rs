@@ -38,7 +38,7 @@ pub fn router(state: ApiState) -> Router {
 }
 
 async fn get_config(State(state): State<ApiState>) -> Result<String, axum::http::StatusCode> {
-    let path = format!("{}/botbot.yml", state.config_dir);
+    let path = format!("{}/bots.yml", state.config_dir);
     tokio::fs::read_to_string(&path).await.map_err(|e| {
         tracing::error!("failed to read config file {}: {}", path, e);
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
@@ -61,7 +61,7 @@ async fn post_config(
         }
     };
 
-    let path = format!("{}/botbot.yml", state.config_dir);
+    let path = format!("{}/bots.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &payload).await {
         if is_expected_write_error(&e) {
             tracing::warn!(
@@ -73,6 +73,10 @@ async fn post_config(
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
+    } else {
+        // Cleanup legacy config file if it exists to avoid double-loading
+        let legacy_path = format!("{}/botbot.yml", state.config_dir);
+        let _ = tokio::fs::remove_file(legacy_path).await;
     }
 
     reload_all_bots(&state).await
@@ -272,7 +276,7 @@ async fn put_bots(
         }
     };
 
-    let path = format!("{}/botbot.yml", state.config_dir);
+    let path = format!("{}/bots.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &yaml).await {
         if is_expected_write_error(&e) {
             tracing::warn!(
@@ -284,6 +288,10 @@ async fn put_bots(
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
+    } else {
+        // Cleanup legacy config file if it exists to avoid double-loading
+        let legacy_path = format!("{}/botbot.yml", state.config_dir);
+        let _ = tokio::fs::remove_file(legacy_path).await;
     }
 
     reload_all_bots(&state).await
@@ -333,7 +341,7 @@ mod tests {
     async fn test_get_config_returns_yaml() {
         let state = setup_test_state().await;
 
-        let path = format!("{}/botbot.yml", state.config_dir);
+        let path = format!("{}/bots.yml", state.config_dir);
         let dummy_yaml =
             "reply-bots:\n  - name: test_bot\n    triggers: []\n    identity:\n      type: random";
         tokio::fs::write(&path, dummy_yaml).await.unwrap();

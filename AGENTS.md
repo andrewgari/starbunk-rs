@@ -190,7 +190,7 @@ custom metrics. Standard counters to add to every bot:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTLP gRPC endpoint |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:4317` | OTLP gRPC endpoint |
 | `RUST_LOG` | `info` | tracing filter (e.g. `debug,serenity=warn`) |
 | `VERBOSE` | `false` | Verbose mode (`1` or `true`) |
 

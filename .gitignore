@@ -19,5 +19,5 @@ secrets/
 .claude/scheduled_tasks.lock
 
 # Bot Configuration (never commit)
-/config/bots.yml
-
+/config/bunkbot/bots.yml
+!/config/bots.example.yml
