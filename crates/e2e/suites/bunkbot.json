@@ -36,6 +36,13 @@
       "timeout_ms": 2500
     },
     {
+      "name": "spider-bot triggers on 'SpiderMan' (case-insensitive)",
+      "sender": "human",
+      "message": "SpiderMan is my favourite hero",
+      "expect": "Spider-Man",
+      "timeout_ms": 2500
+    },
+    {
       "name": "spider-bot silent when hyphen is present",
       "sender": "human",
       "message": "Spider-Man is my favourite hero",

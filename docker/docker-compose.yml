@@ -156,6 +156,8 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - ../config/bunkbot:/app/config/bunkbot:ro
     logging:
       driver: "json-file"
       options:
@@ -191,6 +193,8 @@ services:
       - LLM_TIER_MEDIUM_MODEL=${LLM_TIER_MEDIUM_MODEL:-gemini-1.5-flash}
       - LLM_TIER_LOW_PROVIDER=${LLM_TIER_LOW_PROVIDER:-openai}
       - LLM_TIER_LOW_MODEL=${LLM_TIER_LOW_MODEL:-text-embedding-3-small}
+    volumes:
+      - ../config/covabot:/app/config/covabot:ro
     logging:
       driver: "json-file"
       options:
