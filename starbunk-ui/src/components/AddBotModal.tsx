@@ -223,14 +223,6 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
               </div>
             )}
 
-
-            {identityType === "mimic" && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400">Discord User ID</label>
-                <input type="text" value={mimicUserId} onChange={e => setMimicUserId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white" />
-              </div>
-            )}
-
             <div className="flex flex-col gap-1 p-3 border border-slate-700 rounded-lg bg-slate-900/50">
               <label className="text-xs text-indigo-400 font-semibold mb-2">Logic Gate / Trigger Condition</label>
               <div className="flex gap-2">

@@ -29,6 +29,22 @@ interface SubBotCardProps {
 export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCardProps) {
   const [isEditingCode, setIsEditingCode] = useState(false);
   const [snippet, setSnippet] = useState(bot.yamlSnippet);
+  const [newResponse, setNewResponse] = useState("");
+
+  const handleAddResponse = () => {
+    const trimmed = newResponse.trim();
+    if (!trimmed) return;
+    const newResponses = [...bot.responses, trimmed];
+    const updatedConfig = { ...JSON.parse(bot.yamlSnippet), responses: newResponses };
+    onUpdateBot({ ...bot, responses: newResponses, yamlSnippet: JSON.stringify(updatedConfig, null, 2) });
+    setNewResponse("");
+  };
+
+  const handleRemoveResponse = (index: number) => {
+    const newResponses = bot.responses.filter((_, i) => i !== index);
+    const updatedConfig = { ...JSON.parse(bot.yamlSnippet), responses: newResponses };
+    onUpdateBot({ ...bot, responses: newResponses, yamlSnippet: JSON.stringify(updatedConfig, null, 2) });
+  };
 
   const [staticBotName, setStaticBotName] = useState(bot.bot_name || "");
   const [staticAvatarUrl, setStaticAvatarUrl] = useState(bot.avatar_url || "");
@@ -45,6 +61,7 @@ export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCard
       setSnippet(bot.yamlSnippet);
     }
   }, [bot.yamlSnippet, isEditingCode]);
+
   const handleIdentityDetailUpdate = (updates: Partial<SubBotData>) => {
     onUpdateBot({ ...bot, ...updates });
   };
@@ -215,6 +232,48 @@ export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCard
           />
         </div>
       )}
+
+      {/* Response Pool Editor */}
+      <div className="flex flex-col gap-2">
+        <span className="text-xs text-slate-400 font-medium">
+          Response Pool ({bot.responses.length})
+        </span>
+        {bot.responses.length > 0 && (
+          <ul className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+            {bot.responses.map((r, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 bg-slate-900/50 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-300"
+              >
+                <span className="truncate">{r}</span>
+                <button
+                  onClick={() => handleRemoveResponse(i)}
+                  className="text-red-400 hover:text-red-300 shrink-0 leading-none"
+                  title="Remove response"
+                >
+                  &times;
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={newResponse}
+            onChange={(e) => setNewResponse(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddResponse()}
+            placeholder="Add response…"
+            className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+          />
+          <button
+            onClick={handleAddResponse}
+            className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded"
+          >
+            Add
+          </button>
+        </div>
+      </div>
 
       {/* Code Snippet Drawer */}
       <div className="mt-1 border-t border-slate-800 pt-3">
