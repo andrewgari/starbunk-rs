@@ -33,6 +33,11 @@ impl TryFrom<ConditionNode> for CompiledNode {
                 Ok(CompiledNode::ContainsWord(Regex::new(&pattern)?))
             }
             ConditionNode::MatchesRegex(pattern) => {
+                let pattern = if pattern.starts_with("(?") {
+                    pattern
+                } else {
+                    format!("(?i){}", pattern)
+                };
                 Ok(CompiledNode::MatchesRegex(Regex::new(&pattern)?))
             }
             ConditionNode::FromUser(id) => Ok(CompiledNode::FromUser(id.0)),
@@ -187,6 +192,17 @@ mod tests {
             CompiledNode::try_from(crate::config::ConditionNode::MatchesRegex(r"\d+".into()))
                 .unwrap();
         assert!(!check(&node, "no digits here"));
+    }
+
+    #[test]
+    fn matches_regex_case_insensitive_by_default() {
+        let node = CompiledNode::try_from(crate::config::ConditionNode::MatchesRegex(
+            r"spider[^-]*man".into(),
+        ))
+        .unwrap();
+        assert!(check(&node, "SpiderMan"));
+        assert!(check(&node, "spiderman"));
+        assert!(!check(&node, "Spider-Man"));
     }
 
     #[test]
