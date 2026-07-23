@@ -17,7 +17,7 @@
 //!
 //! | Variable                         | Default                         | Effect                                   |
 //! |----------------------------------|---------------------------------|------------------------------------------|
-//! | `OTEL_EXPORTER_OTLP_ENDPOINT`   | `http://otel-collector:4317`   | gRPC endpoint for the OTEL collector     |
+//! | `OTEL_EXPORTER_OTLP_ENDPOINT`   | `http://127.0.0.1:4317`   | gRPC endpoint for the OTEL collector     |
 //! | `RUST_LOG`                       | `info` / `debug` in verbose    | tracing filter directives (e.g. `debug,serenity=warn`) |
 //! | `VERBOSE`                        | unset / `false`                | Enable verbose mode — see below          |
 //!

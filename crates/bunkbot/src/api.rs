@@ -73,6 +73,10 @@ async fn post_config(
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
+    } else {
+        // Cleanup legacy config file if it exists to avoid double-loading
+        let legacy_path = format!("{}/botbot.yml", state.config_dir);
+        let _ = tokio::fs::remove_file(legacy_path).await;
     }
 
     reload_all_bots(&state).await
@@ -284,6 +288,10 @@ async fn put_bots(
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
+    } else {
+        // Cleanup legacy config file if it exists to avoid double-loading
+        let legacy_path = format!("{}/botbot.yml", state.config_dir);
+        let _ = tokio::fs::remove_file(legacy_path).await;
     }
 
     reload_all_bots(&state).await
