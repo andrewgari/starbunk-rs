@@ -40,6 +40,11 @@ export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCard
     setMimicUserId(bot.user_id || "");
   }, [bot.bot_name, bot.avatar_url, bot.user_id]);
 
+  useEffect(() => {
+    if (!isEditingCode) {
+      setSnippet(bot.yamlSnippet);
+    }
+  }, [bot.yamlSnippet, isEditingCode]);
   const handleIdentityDetailUpdate = (updates: Partial<SubBotData>) => {
     onUpdateBot({ ...bot, ...updates });
   };
