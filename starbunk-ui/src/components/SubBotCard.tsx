@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export interface SubBotData {
   name: string;
@@ -29,6 +29,25 @@ interface SubBotCardProps {
 export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCardProps) {
   const [isEditingCode, setIsEditingCode] = useState(false);
   const [snippet, setSnippet] = useState(bot.yamlSnippet);
+
+  const [staticBotName, setStaticBotName] = useState(bot.bot_name || "");
+  const [staticAvatarUrl, setStaticAvatarUrl] = useState(bot.avatar_url || "");
+  const [mimicUserId, setMimicUserId] = useState(bot.user_id || "");
+
+  useEffect(() => {
+    setStaticBotName(bot.bot_name || "");
+    setStaticAvatarUrl(bot.avatar_url || "");
+    setMimicUserId(bot.user_id || "");
+  }, [bot.bot_name, bot.avatar_url, bot.user_id]);
+
+  useEffect(() => {
+    if (!isEditingCode) {
+      setSnippet(bot.yamlSnippet);
+    }
+  }, [bot.yamlSnippet, isEditingCode]);
+  const handleIdentityDetailUpdate = (updates: Partial<SubBotData>) => {
+    onUpdateBot({ ...bot, ...updates });
+  };
 
   const toggleEnabled = () => {
     onUpdateBot({ ...bot, enabled: !bot.enabled });
@@ -155,6 +174,47 @@ export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCard
           ))}
         </div>
       </div>
+
+      {bot.identityType === "static" && (
+        <>
+          <div className="flex flex-col gap-1.5 mt-2">
+            <span className="text-xs text-slate-400 font-medium">Bot Display Name</span>
+            <input
+              type="text"
+              value={staticBotName}
+              onChange={(e) => setStaticBotName(e.target.value)}
+              onBlur={() => handleIdentityDetailUpdate({ bot_name: staticBotName })}
+              className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. HelperBot"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 mt-2">
+            <span className="text-xs text-slate-400 font-medium">Avatar URL</span>
+            <input
+              type="text"
+              value={staticAvatarUrl}
+              onChange={(e) => setStaticAvatarUrl(e.target.value)}
+              onBlur={() => handleIdentityDetailUpdate({ avatar_url: staticAvatarUrl })}
+              className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              placeholder="https://..."
+            />
+          </div>
+        </>
+      )}
+
+      {bot.identityType === "mimic" && (
+        <div className="flex flex-col gap-1.5 mt-2">
+          <span className="text-xs text-slate-400 font-medium">Discord User ID</span>
+          <input
+            type="text"
+            value={mimicUserId}
+            onChange={(e) => setMimicUserId(e.target.value)}
+            onBlur={() => handleIdentityDetailUpdate({ user_id: mimicUserId })}
+            className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            placeholder="e.g. 123456789012345678"
+          />
+        </div>
+      )}
 
       {/* Code Snippet Drawer */}
       <div className="mt-1 border-t border-slate-800 pt-3">

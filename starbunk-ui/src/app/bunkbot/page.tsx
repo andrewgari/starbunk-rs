@@ -37,6 +37,9 @@ export default function BunkBotMagnumOpus() {
           ignore_humans: b.ignore_humans ?? false,
           ignore_self: b.ignore_self ?? true,
           identityType: b.identity.type,
+          bot_name: b.identity.bot_name,
+          avatar_url: b.identity.avatar_url,
+          user_id: b.identity.user_id,
           responses: b.responses || [],
           triggersCount: b.triggers?.length || 0,
           yamlSnippet: JSON.stringify(b, null, 2),
@@ -97,14 +100,52 @@ export default function BunkBotMagnumOpus() {
       });
     }
 
-    if (oldBot.yamlSnippet !== updated.yamlSnippet || oldBot.identityType !== updated.identityType || oldBot.ignore_bots !== updated.ignore_bots || oldBot.ignore_humans !== updated.ignore_humans || oldBot.ignore_self !== updated.ignore_self) {
+    if (
+      oldBot.yamlSnippet !== updated.yamlSnippet ||
+      oldBot.identityType !== updated.identityType ||
+      oldBot.ignore_bots !== updated.ignore_bots ||
+      oldBot.ignore_humans !== updated.ignore_humans ||
+      oldBot.ignore_self !== updated.ignore_self ||
+      oldBot.bot_name !== updated.bot_name ||
+      oldBot.avatar_url !== updated.avatar_url ||
+      oldBot.user_id !== updated.user_id
+    ) {
       try {
+        const snippetChanged = oldBot.yamlSnippet !== updated.yamlSnippet;
         let newBotConfig = JSON.parse(updated.yamlSnippet);
+
+        if (!newBotConfig.identity || typeof newBotConfig.identity !== "object") {
+          newBotConfig.identity = {};
+        }
+
+        if (snippetChanged) {
+          if (updated.identityType === "static") {
+            if (updated.bot_name == null) updated.bot_name = newBotConfig.identity.bot_name;
+            if (updated.avatar_url == null) updated.avatar_url = newBotConfig.identity.avatar_url;
+          } else if (updated.identityType === "mimic") {
+            if (updated.user_id == null) updated.user_id = newBotConfig.identity.user_id;
+          }
+        }
+
         // Also apply the UI toggled ignore rules & identity if they were modified from the UI directly
         newBotConfig.ignore_bots = updated.ignore_bots;
         newBotConfig.ignore_humans = updated.ignore_humans;
         newBotConfig.ignore_self = updated.ignore_self;
+
         newBotConfig.identity.type = updated.identityType;
+        if (updated.identityType === "static") {
+          newBotConfig.identity.bot_name = updated.bot_name || "";
+          newBotConfig.identity.avatar_url = updated.avatar_url || "";
+          delete newBotConfig.identity.user_id;
+        } else if (updated.identityType === "mimic") {
+          newBotConfig.identity.user_id = updated.user_id || "";
+          delete newBotConfig.identity.bot_name;
+          delete newBotConfig.identity.avatar_url;
+        } else {
+          delete newBotConfig.identity.bot_name;
+          delete newBotConfig.identity.avatar_url;
+          delete newBotConfig.identity.user_id;
+        }
 
         const updatedList = subBots.map(b =>
           b.name === updated.name ? newBotConfig : b.botConfig
