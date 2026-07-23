@@ -61,6 +61,7 @@ export default function SubBotCard({ bot, onUpdateBot, onDeleteBot }: SubBotCard
       setSnippet(bot.yamlSnippet);
     }
   }, [bot.yamlSnippet, isEditingCode]);
+
   const handleIdentityDetailUpdate = (updates: Partial<SubBotData>) => {
     onUpdateBot({ ...bot, ...updates });
   };
