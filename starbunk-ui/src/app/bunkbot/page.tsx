@@ -108,7 +108,8 @@ export default function BunkBotMagnumOpus() {
       oldBot.ignore_self !== updated.ignore_self ||
       oldBot.bot_name !== updated.bot_name ||
       oldBot.avatar_url !== updated.avatar_url ||
-      oldBot.user_id !== updated.user_id
+      oldBot.user_id !== updated.user_id ||
+      JSON.stringify(oldBot.responses) !== JSON.stringify(updated.responses)
     ) {
       try {
         const snippetChanged = oldBot.yamlSnippet !== updated.yamlSnippet;
@@ -146,6 +147,7 @@ export default function BunkBotMagnumOpus() {
           delete newBotConfig.identity.avatar_url;
           delete newBotConfig.identity.user_id;
         }
+        newBotConfig.responses = updated.responses;
 
         const updatedList = subBots.map(b =>
           b.name === updated.name ? newBotConfig : b.botConfig
