@@ -32,9 +32,9 @@ ${BOTNAME_TOKEN:-${STARBUNK_TOKEN}}
 
 BunkBot reads its reply bot routing and triggers configuration from a `bots.yml` file:
 
-- **Local Development**: Looks for `config/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
-- **Production (GKE)**: Mounted from the `starbunk-secrets` Kubernetes Secret (under the key `BOTS_CONFIG_YAML`) into the pod at `/app/config/bots.yml`.
-  - To update this configuration in production, edit your local `config/bots.yml` and run `./scripts/deploy_config.sh` from the workspace root. This script base64-encodes the file, patches the `starbunk-secrets` secret on GKE, and triggers a zero-downtime rollout restart for BunkBot.
+- **Local Development**: Looks for `config/bunkbot/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
+- **Production (GKE)**: Mounted from the `bunkbot-configs` Kubernetes ConfigMap into the pod at `/app/config/bunkbot/bots.yml`.
+  - To update this configuration in production, you should use the UI which calls Bunkbot's API to update the ConfigMap and triggers a reload. Alternatively, you can run `./scripts/deploy_config.sh` from the workspace root.
 
 ## Kubernetes Manifest Deployment (deploy_k8s.sh)
 
