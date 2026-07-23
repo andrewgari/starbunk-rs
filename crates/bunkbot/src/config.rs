@@ -45,11 +45,16 @@ fn default_frequency() -> u8 {
 pub enum IdentityConfig {
     /// Fixed display name and avatar.
     Static {
+        #[serde(alias = "botName")]
         bot_name: String,
+        #[serde(alias = "avatarUrl")]
         avatar_url: String,
     },
     /// Mirrors a specific Discord member by their user ID.
-    Mimic { user_id: Snowflake },
+    Mimic {
+        #[serde(alias = "as_member")]
+        user_id: Snowflake,
+    },
     /// Picks a random guild member each time the bot fires.
     Random,
     /// Adopts the identity of whoever sent the triggering message.

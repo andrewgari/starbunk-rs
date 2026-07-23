@@ -351,6 +351,48 @@ fn random_identity_parses() {
     assert_eq!(bot.identity, IdentityConfig::Random);
 }
 
+#[test]
+fn static_identity_parses_camel_case() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity:
+      type: static
+      botName: CoolBot
+      avatarUrl: https://example.com/avatar.png
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(
+        bot.identity,
+        IdentityConfig::Static {
+            bot_name: "CoolBot".into(),
+            avatar_url: "https://example.com/avatar.png".into(),
+        }
+    );
+}
+
+#[test]
+fn mimic_identity_parses_as_member() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity:
+      type: mimic
+      as_member: "999999999999999999"
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert_eq!(
+        bot.identity,
+        IdentityConfig::Mimic {
+            user_id: Snowflake("999999999999999999".into())
+        }
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Condition node — leaf types
 // ---------------------------------------------------------------------------

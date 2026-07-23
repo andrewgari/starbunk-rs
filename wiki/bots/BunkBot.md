@@ -31,6 +31,8 @@ identities using `src/shared/discord::MessageService`.
 
 BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup. See the [[../infrastructure/Configuration|Configuration]] wiki page for detailed instructions on managing this configuration file in development and production GKE environments.
 
+> **Note on `identity` fields:** The YAML parser accepts both `snake_case` (canonical) and `camelCase` for identity properties. For example, `bot_name` or `botName`, `avatar_url` or `avatarUrl`, and `user_id` or `as_member` (for `mimic` bots).
+
 ## Config Write Error Handling
 
 The HTTP API endpoints `POST /config` and `PUT /api/bots` attempt to persist the
