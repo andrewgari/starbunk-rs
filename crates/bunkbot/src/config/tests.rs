@@ -1494,6 +1494,55 @@ fn mimic_poster_identity_parses() {
 }
 
 // ---------------------------------------------------------------------------
+// Defaults: ignore_webhooks
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ignore_webhooks_defaults_to_true() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert!(
+        bot.ignore_webhooks,
+        "ignore_webhooks should default to true"
+    );
+}
+
+#[test]
+fn ignore_webhooks_explicit_false_parses() {
+    let bot = parse_one(&wrap(
+        r#"
+  - name: test
+    identity: { type: random }
+    ignore_webhooks: false
+    triggers:
+      - conditions: { always: true }
+"#,
+    ));
+    assert!(
+        !bot.ignore_webhooks,
+        "ignore_webhooks: false must parse correctly"
+    );
+}
+
+#[test]
+fn botbot_has_ignore_webhooks_true_by_default() {
+    // BotBot sets ignore_bots: false but does NOT set ignore_webhooks.
+    // The default must be true so it can't trigger on its own webhook responses.
+    let bots = parse_bots(PRODUCTION_BOTS_YAML).expect("parse");
+    let bot = bots.iter().find(|b| b.name == "botbot").unwrap();
+    assert!(
+        bot.ignore_webhooks,
+        "botbot must ignore webhooks by default to prevent infinite self-triggering"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Local config validation
 // ---------------------------------------------------------------------------
 

@@ -74,6 +74,10 @@ pub(super) struct CompiledBot {
     pub ignore_bots: bool,
     pub ignore_humans: bool,
     pub ignore_self: bool,
+    /// When true (default), discard any message that arrived via a webhook.
+    /// This prevents BotBot-style bots from triggering on their own webhook
+    /// responses and causing infinite loops.
+    pub ignore_webhooks: bool,
     pub frequency: u8,
     pub triggers: Vec<CompiledTrigger>,
 }
@@ -100,6 +104,7 @@ impl TryFrom<BotConfig> for CompiledBot {
             ignore_bots: c.ignore_bots,
             ignore_humans: c.ignore_humans,
             ignore_self: c.ignore_self,
+            ignore_webhooks: c.ignore_webhooks,
             frequency: c.frequency,
             triggers,
         })
