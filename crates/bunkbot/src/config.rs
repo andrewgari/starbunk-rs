@@ -24,6 +24,11 @@ pub struct BotConfig {
     /// When true (default), the bot ignores messages that came from itself.
     #[serde(default = "default_true")]
     pub ignore_self: bool,
+    /// When true (default), the bot ignores messages sent via any webhook.
+    /// Set to false only for bots that deliberately respond to webhook messages,
+    /// and ensure those bots cannot trigger themselves (e.g. via `ignore_self`).
+    #[serde(default = "default_true")]
+    pub ignore_webhooks: bool,
     /// Probability (0–100) that the bot fires on any given trigger match.
     /// 100 = always fire (default), 0 = never fire.
     #[serde(default = "default_frequency")]

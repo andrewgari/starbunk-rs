@@ -173,16 +173,8 @@ impl BunkBotEngine {
 
 /// Returns `true` if this bot should process the message.
 ///
-/// Applies `ignore_self`, `ignore_bots`, `ignore_humans`, and the `frequency`
-/// gate in that order.
-///
-/// **Webhook limitation**: `ignore_self` compares `msg.author.id` against
-/// `self_id` (the bot's own Discord user ID). Messages sent via
-/// `WebhookService::execute` carry the webhook's user ID instead of the bot's
-/// user ID, so `ignore_self: true` does not filter the bot's own webhook
-/// responses. When `ignore_bots: true` (the default), this is moot — webhook
-/// messages have `author.bot = true` and are caught by `ignore_bots`. Only
-/// bots that set `ignore_bots: false` are exposed to this edge case.
+/// Applies `ignore_self`, `ignore_bots`, `ignore_humans`, `ignore_webhooks`,
+/// and the `frequency` gate in that order.
 fn should_process(
     bot: &CompiledBot,
     msg: &Message,
@@ -199,6 +191,9 @@ fn should_process(
         return false;
     }
     if bot.ignore_humans && !msg.author.bot {
+        return false;
+    }
+    if bot.ignore_webhooks && msg.webhook_id.is_some() {
         return false;
     }
     // Clamp frequency so values like 200 don't silently bypass the gate.
@@ -323,6 +318,28 @@ mod tests {
         .expect("test message")
     }
 
+    fn build_webhook_msg(
+        content: &str,
+        is_bot: bool,
+        author_id: &str,
+        webhook_id: &str,
+    ) -> Message {
+        serde_json::from_value(serde_json::json!({
+            "id": "1", "channel_id": "1",
+            "author": {
+                "id": author_id, "username": "user",
+                "bot": is_bot, "discriminator": "0", "public_flags": 0
+            },
+            "content": content,
+            "webhook_id": webhook_id,
+            "timestamp": "2024-01-01T12:00:00+00:00",
+            "edited_timestamp": null, "tts": false, "mention_everyone": false,
+            "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
+            "pinned": false, "type": 0
+        }))
+        .expect("test webhook message")
+    }
+
     fn bot_cfg(
         ignore_self: bool,
         ignore_bots: bool,
@@ -336,6 +353,27 @@ mod tests {
             ignore_self,
             ignore_bots,
             ignore_humans,
+            ignore_webhooks: true,
+            frequency,
+            triggers: vec![],
+        }
+    }
+
+    fn bot_cfg_webhooks(
+        ignore_self: bool,
+        ignore_bots: bool,
+        ignore_humans: bool,
+        ignore_webhooks: bool,
+        frequency: u8,
+    ) -> CompiledBot {
+        CompiledBot {
+            name: "test".into(),
+            identity: IdentityConfig::Random,
+            responses: vec![],
+            ignore_self,
+            ignore_bots,
+            ignore_humans,
+            ignore_webhooks,
             frequency,
             triggers: vec![],
         }
@@ -439,6 +477,36 @@ mod tests {
         // Override to 100% (always fires)
         state.set_frequency(&bot.name, 100, "admin", 0);
 
+        assert!(should_process(&bot, &msg, SELF_ID, &state));
+    }
+
+    // --- ignore_webhooks ---
+
+    #[test]
+    fn ignore_webhooks_drops_webhook_message() {
+        // BotBot pattern: ignore_bots=false, ignore_webhooks=true (default)
+        // A webhook message must be discarded even though ignore_bots is off.
+        let bot = bot_cfg_webhooks(false, false, false, true, 100);
+        let msg = build_webhook_msg("hi", true, "2", "9999");
+        let state = InMemoryBotStateManager::new();
+        assert!(!should_process(&bot, &msg, SELF_ID, &state));
+    }
+
+    #[test]
+    fn ignore_webhooks_false_allows_webhook_message() {
+        // Opt-out: bot explicitly wants to see webhook messages.
+        let bot = bot_cfg_webhooks(false, false, false, false, 100);
+        let msg = build_webhook_msg("hi", true, "2", "9999");
+        let state = InMemoryBotStateManager::new();
+        assert!(should_process(&bot, &msg, SELF_ID, &state));
+    }
+
+    #[test]
+    fn ignore_webhooks_does_not_affect_regular_messages() {
+        // ignore_webhooks=true must not block messages with no webhook_id.
+        let bot = bot_cfg_webhooks(false, false, false, true, 100);
+        let msg = build_msg("hi", false, "1");
+        let state = InMemoryBotStateManager::new();
         assert!(should_process(&bot, &msg, SELF_ID, &state));
     }
 
@@ -591,6 +659,7 @@ mod tests {
             ignore_bots: true,
             ignore_humans: false,
             ignore_self: true,
+            ignore_webhooks: true,
             frequency: 100,
             triggers: vec![],
         };
