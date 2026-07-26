@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: deploy-test-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build_and_deploy:
