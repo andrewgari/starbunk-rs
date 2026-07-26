@@ -7,6 +7,27 @@ pub mod template;
 
 use async_trait::async_trait;
 use engine::BunkBotEngine;
+
+/// Returns `true` if `path` is a YAML bot-config file (`.yml` or `.yaml` extension).
+///
+/// Used by `start_config_watcher` to ignore editor temp files, swap files, and other
+/// filesystem noise that must not trigger a bot-config reload (issue #147).
+pub(crate) fn is_yml_config_path(path: &std::path::Path) -> bool {
+    // TODO(#147): stub — always returns true; implement real extension check in PR 2.
+    let _ = path;
+    true
+}
+
+/// Returns `true` when `status` represents a failed reload that should be logged.
+///
+/// A reload is considered failed when the HTTP status is not a 2xx success code.
+/// Used by `start_config_watcher` to surface reload errors instead of silently
+/// discarding the `StatusCode` returned by `reload_all_bots` (issue #149).
+pub(crate) fn is_reload_failure(status: axum::http::StatusCode) -> bool {
+    // TODO(#149): stub — always returns false; implement `!status.is_success()` in PR 2.
+    let _ = status;
+    false
+}
 use serenity::all::{Context, EventHandler, Interaction, Message, Ready};
 use starbunk::discord::{
     DiscordIdentityProvider, DiscordMessageService, MessageService, WebhookService,
@@ -226,11 +247,24 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
         while let Some(res) = rx.recv().await {
             match res {
                 Ok(events) => {
+                    // #147: only reload when at least one event path is a *.yml / *.yaml file.
+                    // TODO(#147): stub `is_yml_config_path` always returns true — replace with
+                    // real extension check in PR 2.
+                    let has_yml = events.iter().any(|e| is_yml_config_path(e.path.as_path()));
+                    if !has_yml {
+                        continue;
+                    }
                     tracing::info!(
                         event_count = events.len(),
                         "Config change detected, reloading bots."
                     );
-                    crate::api::reload_all_bots(&state).await;
+                    let status = crate::api::reload_all_bots(&state).await;
+                    // #149: log failures instead of silently discarding the StatusCode.
+                    // TODO(#149): stub `is_reload_failure` always returns false — replace with
+                    // `!status.is_success()` in PR 2.
+                    if is_reload_failure(status) {
+                        tracing::warn!(status = %status, "Config reload failed");
+                    }
                 }
                 Err(e) => {
                     tracing::error!(err = %e, "Config watcher error");
@@ -361,5 +395,71 @@ mod tests {
             bots[0].0, "test_bot_hot_reload",
             "Reloaded bot should match config"
         );
+    }
+
+    // ── issue #147: watcher should only fire for *.yml / *.yaml paths ────────
+
+    #[test]
+    fn yml_path_is_accepted() {
+        assert!(
+            is_yml_config_path(std::path::Path::new("/config/bots.yml")),
+            ".yml files must be accepted"
+        );
+    }
+
+    #[test]
+    fn yaml_path_is_accepted() {
+        assert!(
+            is_yml_config_path(std::path::Path::new("/config/bots.yaml")),
+            ".yaml files must be accepted"
+        );
+    }
+
+    #[test]
+    fn non_yml_paths_are_rejected() {
+        for name in &[
+            "bots.yml.tmp",
+            "bots.swp",
+            ".bots.yml.swx",
+            "bots.json",
+            "bots",
+        ] {
+            assert!(
+                !is_yml_config_path(std::path::Path::new(name)),
+                "non-yml path '{name}' must be rejected by is_yml_config_path"
+            );
+        }
+    }
+
+    // ── issue #149: failed reload status must be detectable ──────────────────
+
+    #[test]
+    fn success_status_is_not_a_failure() {
+        assert!(
+            !is_reload_failure(axum::http::StatusCode::OK),
+            "200 OK must not be reported as a reload failure"
+        );
+    }
+
+    #[test]
+    fn error_status_is_a_failure() {
+        assert!(
+            is_reload_failure(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+            "500 INTERNAL_SERVER_ERROR must be reported as a reload failure"
+        );
+    }
+
+    #[test]
+    fn other_non_2xx_statuses_are_failures() {
+        for status in &[
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+        ] {
+            assert!(
+                is_reload_failure(*status),
+                "{status} must be reported as a reload failure"
+            );
+        }
     }
 }
