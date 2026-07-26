@@ -82,7 +82,7 @@ async fn post_config(
     reload_all_bots(&state).await
 }
 
-async fn reload_all_bots(state: &ApiState) -> axum::http::StatusCode {
+pub(crate) async fn reload_all_bots(state: &ApiState) -> axum::http::StatusCode {
     let mut all_bots = Vec::new();
     let mut read_dir = match tokio::fs::read_dir(&state.config_dir).await {
         Ok(dir) => dir,
