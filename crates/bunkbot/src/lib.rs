@@ -172,6 +172,9 @@ pub async fn run() -> anyhow::Result<()> {
         engine: engine_ref.clone(),
         config_dir,
     };
+
+    crate::start_config_watcher(api_state.clone());
+
     let app = api::router(api_state);
 
     tokio::spawn(async move {
@@ -186,4 +189,161 @@ pub async fn run() -> anyhow::Result<()> {
         Handler::new(engine_ref, state_service, audit),
     )
     .await
+}
+
+pub fn start_config_watcher(state: crate::api::ApiState) {
+    let config_dir = state.config_dir.clone();
+
+    tokio::spawn(async move {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+
+        let mut debouncer = match notify_debouncer_mini::new_debouncer(
+            std::time::Duration::from_millis(500),
+            move |res: notify_debouncer_mini::DebounceEventResult| {
+                let _ = tx.blocking_send(res);
+            },
+        ) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::error!("Failed to create config watcher: {}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = debouncer.watcher().watch(
+            std::path::Path::new(&config_dir),
+            notify::RecursiveMode::Recursive,
+        ) {
+            tracing::error!("Failed to watch config dir: {}", e);
+            return;
+        }
+
+        // Keep the debouncer alive
+        let _debouncer = debouncer;
+
+        while let Some(res) = rx.recv().await {
+            match res {
+                Ok(events) => {
+                    tracing::info!(
+                        "Config change detected, reloading bots. Events: {:?}",
+                        events
+                    );
+                    crate::api::reload_all_bots(&state).await;
+                }
+                Err(e) => {
+                    tracing::error!("Config watcher error: {:?}", e);
+                }
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    struct DummySender;
+    #[async_trait::async_trait]
+    impl starbunk::discord::MessageService for DummySender {
+        async fn send(&self, _: serenity::all::ChannelId, _: &str) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn send_with_identity(
+            &self,
+            _: serenity::all::ChannelId,
+            _: &str,
+            _: starbunk::discord::Identity,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn reply(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn edit(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+            _: &str,
+        ) -> anyhow::Result<Message> {
+            unimplemented!()
+        }
+        async fn delete(
+            &self,
+            _: serenity::all::ChannelId,
+            _: serenity::all::MessageId,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+        async fn close(&self) {}
+    }
+    struct DummyProvider;
+    #[async_trait::async_trait]
+    impl starbunk::discord::IdentityProvider for DummyProvider {
+        async fn get_identity(
+            &self,
+            _: serenity::all::UserId,
+            _: Option<serenity::all::GuildId>,
+        ) -> anyhow::Result<starbunk::discord::Identity> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hot_reload_config_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "bunkbot_test_watch_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        tokio::fs::create_dir_all(&dir).await.unwrap();
+
+        let state_service = Arc::new(crate::state::InMemoryBotStateManager::new());
+        let engine = Arc::new(BunkBotEngine::new(
+            vec![],
+            Arc::new(DummySender),
+            Arc::new(DummyProvider),
+            state_service,
+            None,
+        ));
+        let engine_ref = Arc::new(RwLock::new(Some(engine)));
+
+        let api_state = crate::api::ApiState {
+            engine: engine_ref.clone(),
+            config_dir: dir.to_string_lossy().to_string(),
+        };
+
+        // Start watcher (the function to be implemented by The Artist)
+        crate::start_config_watcher(api_state.clone());
+
+        // Wait a bit for the watcher to initialize
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Write a new config file
+        let path = format!("{}/bots.yml", api_state.config_dir);
+        let dummy_yaml = "reply-bots:\n  - name: test_bot_hot_reload\n    triggers: []\n    identity:\n      type: random";
+        tokio::fs::write(&path, dummy_yaml).await.unwrap();
+
+        // Wait a bit for the watcher to detect and reload
+        tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+
+        // Check if the engine was updated
+        let engine_lock = engine_ref.read().await;
+        let loaded_engine = engine_lock.as_ref().unwrap();
+        let bots = loaded_engine.bot_configs();
+
+        assert_eq!(bots.len(), 1, "Engine should have reloaded 1 bot");
+        assert_eq!(
+            bots[0].0, "test_bot_hot_reload",
+            "Reloaded bot should match config"
+        );
+    }
 }
