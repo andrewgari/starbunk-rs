@@ -449,6 +449,7 @@ mod tests {
         for status in &[
             axum::http::StatusCode::BAD_REQUEST,
             axum::http::StatusCode::UNAUTHORIZED,
+            axum::http::StatusCode::FOUND,
             axum::http::StatusCode::SERVICE_UNAVAILABLE,
         ] {
             assert!(
