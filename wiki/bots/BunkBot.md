@@ -17,7 +17,7 @@ identities using `src/shared/discord::MessageService`.
   - `/ping` to verify bot responsiveness.
 - Dynamic bot state manager (`BotStateService` / `InMemoryBotStateManager`) to enable/disable bots and apply frequency overrides at runtime.
 - Local HTTP API (`127.0.0.1:9082/config`) to view and overwrite the active `bots.yml` configuration, automatically hot-reloading bot strategies.
-- Filesystem Hot Reloading: BunkBot utilizes `notify` to watch its configuration directory. Changes to `bots.yml` (e.g. via Kubernetes ConfigMap updates or manual edits) instantly trigger a bot configuration reload without requiring a restart.
+- Filesystem Hot Reloading: BunkBot utilizes `notify` to watch its configuration directory. Changes to `*.yml` or `*.yaml` files (e.g. via Kubernetes ConfigMap updates or manual edits) instantly trigger a bot configuration reload without requiring a restart. Only `.yml`/`.yaml` extension events are processed — editor temp files, swap files, and other filesystem noise are ignored. If a reload returns a non-2xx status, a `WARN` log entry is emitted with the status code rather than silently discarding the failure.
 - Config saves via `starbunk-ui` follow a two-phase write: the API must accept the config (HTTP 2xx) before it is persisted to the Kubernetes Secret, preventing corrupted or rejected configs from overwriting the stored state.
 - Webhook-based responses using `send_message_with_identity`.
 
