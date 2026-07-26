@@ -48,7 +48,9 @@ crates/sheeshbot/
 
 Health endpoint: `http://localhost:8086/health` (default port `8086`).
 
-Returns `{"status":"ok"}` once connected to the Discord gateway.
+Returns `{"status":"ok"}` at all times. SheeshBot uses `run_bot` (no
+`HealthMonitor`), so the endpoint reports `ok` immediately on startup —
+there is no `connecting` phase.
 
 ## DevOps registration
 

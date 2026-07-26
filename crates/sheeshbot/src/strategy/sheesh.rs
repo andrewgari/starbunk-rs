@@ -122,33 +122,58 @@ mod tests {
     }
 
     // ── Reply format ──────────────────────────────────────────────────────────
+    //
+    // These contract tests define the *expected* output of build_reply once
+    // the implementation lands in PR 2.  They are marked #[ignore] so that CI
+    // stays green while the stub still panics; remove #[ignore] in PR 2 after
+    // the real implementation is written.
 
     #[test]
-    #[should_panic]
-    fn build_reply_is_unimplemented_stub() {
-        // PR 1: stubs must panic to confirm tests fail before implementation
-        let _ = SheeshStrategy::build_reply(4);
-    }
-
-    // The following tests verify the *contract* of build_reply once implemented.
-    // They are written as doc-style assertions that will compile now but the
-    // real assertions are gated behind the implementation in PR 2.
-
-    #[test]
+    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_format_contract_n_2() {
-        // When implemented, build_reply(2) should return "shesh 😤"
-        // (2 e's between the sh's)
-        // Asserting the stub panics in PR 1; assertion added here for documentation.
-        // This test will be updated to a real assertion in PR 2.
-        let result = std::panic::catch_unwind(|| SheeshStrategy::build_reply(2));
-        assert!(result.is_err(), "stub must panic in PR 1");
+        let reply = SheeshStrategy::build_reply(2);
+        assert_eq!(
+            reply, "sheesh 😤",
+            "build_reply(2) must produce exactly 2 e's"
+        );
     }
 
     #[test]
+    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_format_contract_n_20() {
-        // When implemented, build_reply(20) should return "sh" + "e"*20 + "sh 😤"
-        let result = std::panic::catch_unwind(|| SheeshStrategy::build_reply(20));
-        assert!(result.is_err(), "stub must panic in PR 1");
+        let reply = SheeshStrategy::build_reply(20);
+        // "sh" + 20 × "e" + "sh 😤"
+        let expected = format!("sh{}sh 😤", "e".repeat(20));
+        assert_eq!(
+            reply, expected,
+            "build_reply(20) must produce exactly 20 e's"
+        );
+    }
+
+    #[test]
+    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
+    fn reply_starts_with_sh_and_ends_with_sh_emoji() {
+        let reply = SheeshStrategy::build_reply(5);
+        assert!(reply.starts_with("sh"), "reply must start with 'sh'");
+        assert!(reply.ends_with("sh 😤"), "reply must end with 'sh 😤'");
+    }
+
+    #[test]
+    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
+    fn reply_e_count_matches_n() {
+        for n in [2, 5, 10, 20] {
+            let reply = SheeshStrategy::build_reply(n);
+            let inner = &reply[2..reply.len() - "sh 😤".len()];
+            assert_eq!(
+                inner.len(),
+                n,
+                "build_reply({n}) should have exactly {n} e's in the middle"
+            );
+            assert!(
+                inner.chars().all(|c| c == 'e'),
+                "build_reply({n}) middle must be all 'e' characters"
+            );
+        }
     }
 
     // ── Strategy name ─────────────────────────────────────────────────────────
