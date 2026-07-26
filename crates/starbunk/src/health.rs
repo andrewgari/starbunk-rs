@@ -90,6 +90,7 @@ pub fn start_health_server(bot_name: &str, health_monitor: Option<Arc<HealthMoni
             "covabot" => 8083,
             "djcova" => 8084,
             "ratbot" => 8085,
+            "sheeshbot" => 8086,
             _ => 8080,
         });
 

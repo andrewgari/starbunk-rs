@@ -50,6 +50,8 @@ jobs:
               - 'crates/djcova/**'
             ratbot:
               - 'crates/ratbot/**'
+            sheeshbot:
+              - 'crates/sheeshbot/**'
             ui:
               - 'starbunk-ui/**'
             shared:
@@ -85,13 +87,14 @@ jobs:
           fi
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
-            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot" "sheeshbot")
           else
-            [[ "${{ steps.filter.outputs.bluebot }}" == "true" ]] && BOTS+=("bluebot")
-            [[ "${{ steps.filter.outputs.bunkbot }}" == "true" ]] && BOTS+=("bunkbot")
-            [[ "${{ steps.filter.outputs.covabot }}" == "true" ]] && BOTS+=("covabot")
-            [[ "${{ steps.filter.outputs.djcova }}"  == "true" ]] && BOTS+=("djcova")
-            [[ "${{ steps.filter.outputs.ratbot }}"  == "true" ]] && BOTS+=("ratbot")
+            [[ "${{ steps.filter.outputs.bluebot }}"   == "true" ]] && BOTS+=("bluebot")
+            [[ "${{ steps.filter.outputs.bunkbot }}"   == "true" ]] && BOTS+=("bunkbot")
+            [[ "${{ steps.filter.outputs.covabot }}"   == "true" ]] && BOTS+=("covabot")
+            [[ "${{ steps.filter.outputs.djcova }}"    == "true" ]] && BOTS+=("djcova")
+            [[ "${{ steps.filter.outputs.ratbot }}"    == "true" ]] && BOTS+=("ratbot")
+            [[ "${{ steps.filter.outputs.sheeshbot }}" == "true" ]] && BOTS+=("sheeshbot")
           fi
 
           if [ ${#BOTS[@]} -eq 0 ]; then
