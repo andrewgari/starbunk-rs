@@ -200,12 +200,14 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
         let mut debouncer = match notify_debouncer_mini::new_debouncer(
             std::time::Duration::from_millis(500),
             move |res: notify_debouncer_mini::DebounceEventResult| {
-                let _ = tx.blocking_send(res);
+                if let Err(e) = tx.try_send(res) {
+                    tracing::warn!(err = %e, "Dropped config reload event due to full channel");
+                }
             },
         ) {
             Ok(d) => d,
             Err(e) => {
-                tracing::error!("Failed to create config watcher: {}", e);
+                tracing::error!(err = %e, "Failed to create config watcher");
                 return;
             }
         };
@@ -214,7 +216,7 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
             std::path::Path::new(&config_dir),
             notify::RecursiveMode::Recursive,
         ) {
-            tracing::error!("Failed to watch config dir: {}", e);
+            tracing::error!(err = %e, "Failed to watch config dir");
             return;
         }
 
@@ -225,13 +227,13 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
             match res {
                 Ok(events) => {
                     tracing::info!(
-                        "Config change detected, reloading bots. Events: {:?}",
-                        events
+                        event_count = events.len(),
+                        "Config change detected, reloading bots."
                     );
                     crate::api::reload_all_bots(&state).await;
                 }
                 Err(e) => {
-                    tracing::error!("Config watcher error: {:?}", e);
+                    tracing::error!(err = %e, "Config watcher error");
                 }
             }
         }
@@ -332,15 +334,29 @@ mod tests {
         let dummy_yaml = "reply-bots:\n  - name: test_bot_hot_reload\n    triggers: []\n    identity:\n      type: random";
         tokio::fs::write(&path, dummy_yaml).await.unwrap();
 
-        // Wait a bit for the watcher to detect and reload
-        tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+        // Wait a bit for the watcher to detect and reload by polling
+        let timeout_duration = std::time::Duration::from_millis(5000);
+        let start = tokio::time::Instant::now();
+        let mut found = false;
 
-        // Check if the engine was updated
+        while start.elapsed() < timeout_duration {
+            let engine_lock = engine_ref.read().await;
+            if let Some(loaded_engine) = engine_lock.as_ref() {
+                if loaded_engine.bot_configs().len() == 1 {
+                    found = true;
+                    break;
+                }
+            }
+            drop(engine_lock);
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
+        assert!(found, "Engine should have reloaded 1 bot within timeout");
+
         let engine_lock = engine_ref.read().await;
         let loaded_engine = engine_lock.as_ref().unwrap();
         let bots = loaded_engine.bot_configs();
 
-        assert_eq!(bots.len(), 1, "Engine should have reloaded 1 bot");
         assert_eq!(
             bots[0].0, "test_bot_hot_reload",
             "Reloaded bot should match config"
