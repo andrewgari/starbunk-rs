@@ -5,11 +5,12 @@ edition = "2021"
 
 [dependencies]
 starbunk = { path = "../starbunk" }
-bluebot = { path = "../bluebot" }
-bunkbot = { path = "../bunkbot" }
-covabot = { path = "../covabot" }
-djcova = { path = "../djcova" }
-ratbot = { path = "../ratbot" }
+bluebot   = { path = "../bluebot" }
+bunkbot   = { path = "../bunkbot" }
+covabot   = { path = "../covabot" }
+djcova    = { path = "../djcova" }
+ratbot    = { path = "../ratbot" }
+sheeshbot = { path = "../sheeshbot" }
 
 serenity = { workspace = true }
 tokio = { workspace = true }

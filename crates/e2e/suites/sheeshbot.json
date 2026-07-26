@@ -1,0 +1,60 @@
+{
+  "tests": [
+    {
+      "name": "SheeshBot triggers on 'sheesh'",
+      "sender": "human",
+      "message": "sheesh",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot triggers on extended 'sheeeesh'",
+      "sender": "human",
+      "message": "sheeeesh that was close",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot triggers case-insensitively on 'SHEESH'",
+      "sender": "human",
+      "message": "SHEESH",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot triggers when sheesh is embedded in a sentence",
+      "sender": "human",
+      "message": "oh sheesh that's wild",
+      "expect": "sh",
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot does not trigger on 'she'",
+      "sender": "human",
+      "message": "she went to the store",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot does not trigger on 'shed'",
+      "sender": "human",
+      "message": "I painted the shed",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot does not trigger on 'shell'",
+      "sender": "human",
+      "message": "the shell was beautiful",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    },
+    {
+      "name": "SheeshBot ignores bot messages",
+      "sender": "bot",
+      "message": "sheesh",
+      "expect_no_response": true,
+      "timeout_ms": 2500
+    }
+  ]
+}

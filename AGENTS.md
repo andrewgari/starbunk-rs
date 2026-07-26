@@ -225,7 +225,7 @@ Run `bash scripts/devops-validate.sh` after any change and fix every `FAIL` befo
 
 ## Architecture
 
-**Rust Cargo workspace** — 5 independent Discord bots, each a crate under `crates/<botname>/`.
+**Rust Cargo workspace** — 6 independent Discord bots, each a crate under `crates/<botname>/`.
 
 ```
 Cargo.toml                  # workspace root
@@ -236,6 +236,7 @@ crates/
   covabot/                  # lib + bin
   djcova/                   # lib + bin
   ratbot/                   # lib + bin
+  sheeshbot/                # lib + bin
 ```
 
 Per-bot module layout: `lib.rs` (wiring only) · `strategy.rs` · `<concern>.rs` · `main.rs`
@@ -248,11 +249,12 @@ Discord intents: `GUILD_MESSAGES | MESSAGE_CONTENT`. DJCova also needs `GUILD_VO
 
 | Bot | Purpose | Wiki |
 |---|---|---|
-| `bluebot` | Pattern-matches "blue"/Blue Mage references, replies contextually | `wiki/bots/BlueBot.md` |
-| `bunkbot` | Admin backbone and general reply bot | `wiki/bots/BunkBot.md` |
-| `covabot` | LLM personality emulator, mimics a specific user's tone | `wiki/bots/CovaBot.md` |
-| `djcova` | Voice channel music streaming, YouTube queue per guild | `wiki/bots/DJCova.md` |
-| `ratbot` | Secret Santa organiser — sign-ups, matching, DM notifications | `wiki/bots/RatBot.md` |
+| `bluebot`   | Pattern-matches "blue"/Blue Mage references, replies contextually                | `wiki/bots/BlueBot.md`   |
+| `bunkbot`   | Admin backbone and general reply bot                                             | `wiki/bots/BunkBot.md`   |
+| `covabot`   | LLM personality emulator, mimics a specific user's tone                          | `wiki/bots/CovaBot.md`   |
+| `djcova`    | Voice channel music streaming, YouTube queue per guild                            | `wiki/bots/DJCova.md`    |
+| `ratbot`    | Secret Santa organiser — sign-ups, matching, DM notifications                    | `wiki/bots/RatBot.md`    |
+| `sheeshbot` | Replies to "sheesh"-like messages with a random `sh{2..20}sh 😤` response        | `wiki/bots/SheeshBot.md` |
 
 ---
 

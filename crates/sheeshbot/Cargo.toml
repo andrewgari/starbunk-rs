@@ -1,0 +1,25 @@
+[package]
+name    = "sheeshbot"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "sheeshbot"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sheeshbot"
+path = "src/main.rs"
+
+[dependencies]
+starbunk.workspace        = true
+serenity.workspace        = true
+tokio.workspace           = true
+async-trait.workspace     = true
+anyhow.workspace          = true
+tracing.workspace         = true
+regex.workspace           = true
+rand.workspace            = true
+
+[dev-dependencies]
+serde_json.workspace = true
