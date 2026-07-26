@@ -13,9 +13,10 @@ use engine::BunkBotEngine;
 /// Used by `start_config_watcher` to ignore editor temp files, swap files, and other
 /// filesystem noise that must not trigger a bot-config reload (issue #147).
 pub(crate) fn is_yml_config_path(path: &std::path::Path) -> bool {
-    // TODO(#147): stub — always returns true; implement real extension check in PR 2.
-    let _ = path;
-    true
+    matches!(
+        path.extension().and_then(|e| e.to_str()),
+        Some("yml") | Some("yaml")
+    )
 }
 
 /// Returns `true` when `status` represents a failed reload that should be logged.
@@ -24,9 +25,7 @@ pub(crate) fn is_yml_config_path(path: &std::path::Path) -> bool {
 /// Used by `start_config_watcher` to surface reload errors instead of silently
 /// discarding the `StatusCode` returned by `reload_all_bots` (issue #149).
 pub(crate) fn is_reload_failure(status: axum::http::StatusCode) -> bool {
-    // TODO(#149): stub — always returns false; implement `!status.is_success()` in PR 2.
-    let _ = status;
-    false
+    !status.is_success()
 }
 use serenity::all::{Context, EventHandler, Interaction, Message, Ready};
 use starbunk::discord::{
@@ -247,9 +246,8 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
         while let Some(res) = rx.recv().await {
             match res {
                 Ok(events) => {
-                    // #147: only reload when at least one event path is a *.yml / *.yaml file.
-                    // TODO(#147): stub `is_yml_config_path` always returns true — replace with
-                    // real extension check in PR 2.
+                    // Only reload when at least one changed path is a *.yml / *.yaml file.
+                    // Editor temp files, swap files, and other filesystem noise are ignored.
                     let has_yml = events.iter().any(|e| is_yml_config_path(e.path.as_path()));
                     if !has_yml {
                         continue;
@@ -259,9 +257,6 @@ pub fn start_config_watcher(state: crate::api::ApiState) {
                         "Config change detected, reloading bots."
                     );
                     let status = crate::api::reload_all_bots(&state).await;
-                    // #149: log failures instead of silently discarding the StatusCode.
-                    // TODO(#149): stub `is_reload_failure` always returns false — replace with
-                    // `!status.is_success()` in PR 2.
                     if is_reload_failure(status) {
                         tracing::warn!(status = %status, "Config reload failed");
                     }
