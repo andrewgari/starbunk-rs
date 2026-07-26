@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use rand::Rng;
 use regex::Regex;
 use serenity::all::{Context, Message};
 use starbunk::replybot::Strategy;
@@ -28,12 +29,16 @@ impl SheeshStrategy {
         SHEESH_PATTERN.is_match(content)
     }
 
-    /// Generates a reply of the form `sh{N}sh 😤` where N is a random
-    /// number of 'e' characters between 2 and 20 (inclusive).
-    #[allow(dead_code)] // implemented in PR 2
-    pub fn build_reply(_n: usize) -> String {
-        // Stub — real implementation in PR 2
-        unimplemented!("sheeshbot reply not yet implemented")
+    /// Generates a reply of the form `sh{N}sh 😤` where N is the given number
+    /// of 'e' characters between the outer `sh` tokens.
+    pub fn build_reply(n: usize) -> String {
+        format!("sh{}sh 😤", "e".repeat(n))
+    }
+
+    /// Chooses a random N in [2, 20] and returns the corresponding reply.
+    pub fn random_reply() -> String {
+        let n = rand::thread_rng().gen_range(2..=20);
+        Self::build_reply(n)
     }
 }
 
@@ -54,8 +59,7 @@ impl Strategy for SheeshStrategy {
     }
 
     async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
-        // Stub — real implementation in PR 2
-        unimplemented!("sheeshbot response not yet implemented")
+        Self::random_reply()
     }
 }
 
@@ -122,14 +126,8 @@ mod tests {
     }
 
     // ── Reply format ──────────────────────────────────────────────────────────
-    //
-    // These contract tests define the *expected* output of build_reply once
-    // the implementation lands in PR 2.  They are marked #[ignore] so that CI
-    // stays green while the stub still panics; remove #[ignore] in PR 2 after
-    // the real implementation is written.
 
     #[test]
-    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_format_contract_n_2() {
         let reply = SheeshStrategy::build_reply(2);
         assert_eq!(
@@ -139,10 +137,8 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_format_contract_n_20() {
         let reply = SheeshStrategy::build_reply(20);
-        // "sh" + 20 × "e" + "sh 😤"
         let expected = format!("sh{}sh 😤", "e".repeat(20));
         assert_eq!(
             reply, expected,
@@ -151,7 +147,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_starts_with_sh_and_ends_with_sh_emoji() {
         let reply = SheeshStrategy::build_reply(5);
         assert!(reply.starts_with("sh"), "reply must start with 'sh'");
@@ -159,7 +154,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "contract test — enable in PR 2 when build_reply is implemented"]
     fn reply_e_count_matches_n() {
         for n in [2, 5, 10, 20] {
             let reply = SheeshStrategy::build_reply(n);
@@ -173,6 +167,22 @@ mod tests {
                 inner.chars().all(|c| c == 'e'),
                 "build_reply({n}) middle must be all 'e' characters"
             );
+        }
+    }
+
+    #[test]
+    fn random_reply_is_in_range() {
+        // Run multiple times to exercise the random range check
+        for _ in 0..50 {
+            let reply = SheeshStrategy::random_reply();
+            // strip "sh" prefix and "sh 😤" suffix to count e's
+            let inner = &reply[2..reply.len() - "sh 😤".len()];
+            let e_count = inner.len();
+            assert!(
+                (2..=20).contains(&e_count),
+                "random_reply e-count {e_count} outside [2, 20]"
+            );
+            assert!(inner.chars().all(|c| c == 'e'), "middle must be all 'e'");
         }
     }
 
