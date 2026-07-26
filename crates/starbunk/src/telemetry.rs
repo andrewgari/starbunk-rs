@@ -163,10 +163,12 @@ fn otel_endpoint() -> String {
 }
 
 fn build_resource(service_name: &'static str) -> Resource {
+    let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "production".to_string());
     Resource::new([
         KeyValue::new("service.name", service_name),
         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
         KeyValue::new("service.namespace", "starbunk-rs"),
+        KeyValue::new("deployment.environment", environment),
     ])
 }
 

@@ -43,6 +43,8 @@ spec:
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bunkbot:latest
           imagePullPolicy: Always
           env:
+            - name: ENVIRONMENT
+              value: "production"
             - name: BUNKBOT_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:

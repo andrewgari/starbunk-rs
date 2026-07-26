@@ -64,6 +64,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: ENVIRONMENT
+              value: "production"
             - name: K8S_NAMESPACE
               value: "starbunk"
             - name: DATABASE_URL
