@@ -3,8 +3,7 @@ name: Deploy PR Test Build
 on:
   push:
     tags:
-      - 'test-*'
-      - 'debug-*'
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -39,8 +38,26 @@ jobs:
           # If not, we just checkout the current branch the dispatch ran on
           ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/merge', github.event.inputs.pr_number) || github.ref }}
 
-      - name: Set short SHA
-        run: echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+      - name: Set dynamic tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
+          
+          # If triggered by a tag push, find the associated PR
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Find the PR number associated with this commit
+            PR_NUMBER=$(gh pr list --search "${GITHUB_SHA}" --state all --json number --jq '.[0].number')
+            if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+              TAG_NAME="${GITHUB_REF_NAME}_pr${PR_NUMBER}"
+            else
+              TAG_NAME="${GITHUB_REF_NAME}"
+            fi
+          else
+            TAG_NAME="test-${SHORT_SHA}"
+          fi
+          echo "IMAGE_TAG=${TAG_NAME}" >> $GITHUB_ENV
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -63,7 +80,7 @@ jobs:
         with:
           context: ./starbunk-ui
           file: ./starbunk-ui/Dockerfile
-          tags: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-ui:test-${{ env.SHORT_SHA }}
+          tags: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-ui:${{ env.IMAGE_TAG }}
           push: true
           cache-from: type=gha,scope=starbunk-ui
           cache-to: type=gha,scope=starbunk-ui,mode=max
@@ -79,7 +96,7 @@ jobs:
               --cache-from type=gha,scope=bot-$BOT \
               --cache-to type=gha,scope=bot-$BOT,mode=max \
               -f docker/Dockerfile \
-              -t us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-$BOT:test-${{ env.SHORT_SHA }} \
+              -t us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-$BOT:${{ env.IMAGE_TAG }} \
               .
           done
 
@@ -95,7 +112,7 @@ jobs:
           kubectl apply -f kubernetes/
 
           REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
-          TAG="test-${{ env.SHORT_SHA }}"
+          TAG="${{ env.IMAGE_TAG }}"
 
           # Set image and ENVIRONMENT=debug for UI
           kubectl set image deployment/starbunk-ui starbunk-ui=${REGISTRY}/starbunk-ui:${TAG} -n starbunk
