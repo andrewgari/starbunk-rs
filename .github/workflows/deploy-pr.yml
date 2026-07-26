@@ -1,6 +1,10 @@
 name: Deploy PR Test Build
 
 on:
+  push:
+    tags:
+      - 'test-*'
+      - 'debug-*'
   workflow_dispatch:
     inputs:
       pr_number:
