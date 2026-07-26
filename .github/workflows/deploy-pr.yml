@@ -1,0 +1,113 @@
+name: Deploy PR Test Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR Number (e.g. 123)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+  id-token: write
+  packages: write
+  pull-requests: read
+
+concurrency:
+  group: deploy-test-build
+  cancel-in-progress: false
+
+jobs:
+  build_and_deploy:
+    name: Build & Deploy Test Build
+    runs-on: ubuntu-latest
+    environment:
+      name: test
+      url: https://console.cloud.google.com/kubernetes/workload/overview?project=starbunk-bot
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          # If pr_number is provided, we checkout refs/pull/PR/merge
+          # If not, we just checkout the current branch the dispatch ran on
+          ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/merge', github.event.inputs.pr_number) || github.ref }}
+
+      - name: Set short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build and push the UI
+      - name: Build and push UI
+        uses: docker/build-push-action@v6
+        with:
+          context: ./starbunk-ui
+          file: ./starbunk-ui/Dockerfile
+          tags: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-ui:test-${{ env.SHORT_SHA }}
+          push: true
+          cache-from: type=gha,scope=starbunk-ui
+          cache-to: type=gha,scope=starbunk-ui,mode=max
+
+      # Build and push the Bots
+      - name: Build and push Bots
+        run: |
+          for BOT in bluebot bunkbot covabot djcova ratbot; do
+            echo "Building $BOT..."
+            docker buildx build \
+              --push \
+              --build-arg BOT_NAME=$BOT \
+              --cache-from type=gha,scope=bot-$BOT \
+              --cache-to type=gha,scope=bot-$BOT,mode=max \
+              -f docker/Dockerfile \
+              -t us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-$BOT:test-${{ env.SHORT_SHA }} \
+              .
+          done
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: starbunk-gke-cluster
+          location: us-central1
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -f kubernetes/namespace.yaml
+          kubectl apply -f kubernetes/
+
+          REGISTRY="us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo"
+          TAG="test-${{ env.SHORT_SHA }}"
+
+          # Set image and ENVIRONMENT=debug for UI
+          kubectl set image deployment/starbunk-ui starbunk-ui=${REGISTRY}/starbunk-ui:${TAG} -n starbunk
+          kubectl set env deployment/starbunk-ui ENVIRONMENT=debug -n starbunk
+
+          # Set image and ENVIRONMENT=debug for Bots
+          for BOT in bluebot bunkbot covabot djcova ratbot; do
+            kubectl set image deployment/${BOT} ${BOT}=${REGISTRY}/starbunk-${BOT}:${TAG} -n starbunk
+            kubectl set env deployment/${BOT} ENVIRONMENT=debug -n starbunk
+          done
+
+      - name: Health check (Wait for Rollout)
+        run: |
+          kubectl rollout status deployment/starbunk-ui -n starbunk --timeout=3m
+          kubectl rollout status deployment/bluebot -n starbunk --timeout=3m
+          kubectl rollout status deployment/bunkbot -n starbunk --timeout=3m
+          kubectl rollout status deployment/covabot -n starbunk --timeout=3m
+          kubectl rollout status deployment/djcova -n starbunk --timeout=3m
+          kubectl rollout status deployment/ratbot -n starbunk --timeout=3m

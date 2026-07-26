@@ -22,6 +22,8 @@ spec:
           image: us-central1-docker.pkg.dev/starbunk-bot/starbunk-repo/starbunk-bluebot:latest
           imagePullPolicy: Always
           env:
+            - name: ENVIRONMENT
+              value: "production"
             - name: DISCORD_TOKEN
               valueFrom:
                 secretKeyRef:

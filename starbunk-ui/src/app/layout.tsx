@@ -22,7 +22,12 @@ export default function RootLayout({
       <body className={`${inter.className} flex h-screen overflow-hidden`}>
         {/* Sidebar */}
         <aside className="w-64 flex-shrink-0 glass-panel m-4 flex flex-col p-4 shadow-xl">
-          <div className="text-2xl font-bold mb-8 text-white tracking-tight">StarBunk</div>
+          <div className="text-2xl font-bold mb-2 text-white tracking-tight">StarBunk</div>
+          {process.env.ENVIRONMENT === "debug" && (
+            <div className="mb-6 px-2 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 text-center tracking-widest uppercase">
+              Debug Version
+            </div>
+          )}
           <nav className="flex flex-col gap-1">
             <Link href="/" className="p-2 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white">Dashboard</Link>
             <Link href="/history" className="p-2 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white">History & Audit</Link>
