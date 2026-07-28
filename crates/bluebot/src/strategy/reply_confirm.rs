@@ -1,7 +1,7 @@
 use crate::strategy::state::SharedState;
 use async_trait::async_trait;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
@@ -46,7 +46,11 @@ impl Strategy for ReplyConfirmStrategy {
         "ReplyConfirmStrategy"
     }
 
-    async fn should_trigger(&self, ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         let is_within_reply_window = self
             .state
             .read()
@@ -67,7 +71,7 @@ impl Strategy for ReplyConfirmStrategy {
         }
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, _msg: &starbunk::discord::StarbunkMessage) -> String {
         "Somebody definitely said Blu!".to_string()
     }
 }

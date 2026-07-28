@@ -25,7 +25,8 @@ impl EventHandler for RatBotHandler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot {
+        let msg = starbunk::discord::StarbunkMessage::from_serenity(msg);
+        if msg.sender.is_bot() {
             return;
         }
 

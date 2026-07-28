@@ -1,5 +1,5 @@
 use super::MessageFilter;
-use serenity::all::{Context, Message, RoleId, UserId};
+use serenity::all::{Context, RoleId, UserId};
 use std::sync::{Arc, LazyLock};
 
 /// Drops messages sent by the bot itself.
@@ -42,35 +42,35 @@ pub fn not_self_with_bot_id(bot_id: UserId) -> Arc<dyn MessageFilter> {
 
 struct NotSelfFilter;
 impl MessageFilter for NotSelfFilter {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         ctx.cache.current_user().id != msg.author.id
     }
 }
 
 struct NotBotFilter;
 impl MessageFilter for NotBotFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
-        !msg.author.bot
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
+        !msg.sender.is_bot()
     }
 }
 
 struct AuthorIdFilter(String);
 impl MessageFilter for AuthorIdFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.author.id.to_string() == self.0
     }
 }
 
 struct AuthorNamedFilter(String);
 impl MessageFilter for AuthorNamedFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.author.name == self.0
     }
 }
 
 struct AuthorHasRoleFilter(RoleId);
 impl MessageFilter for AuthorHasRoleFilter {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         let Some(guild_id) = msg.guild_id else {
             return false;
         };
@@ -87,7 +87,7 @@ impl MessageFilter for AuthorHasRoleFilter {
 
 struct NotSelfBotIdFilter(UserId);
 impl MessageFilter for NotSelfBotIdFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.author.id != self.0
     }
 }
@@ -98,62 +98,66 @@ mod tests {
 
     /// Builds a minimal valid [`Message`] from a JSON template. The author
     /// has id="1", username="testuser", bot=false.
-    fn build_msg() -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1",
-            "channel_id": "1",
-            "author": {
+    fn build_msg() -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "1",
-                "username": "testuser",
-                "bot": false,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": "hello",
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test message")
+                "channel_id": "1",
+                "author": {
+                    "id": "1",
+                    "username": "testuser",
+                    "bot": false,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "hello",
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
-    fn build_bot_msg() -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "2",
-            "channel_id": "1",
-            "author": {
+    fn build_bot_msg() -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "2",
-                "username": "somebot",
-                "bot": true,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": "bot message",
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test bot message")
+                "channel_id": "1",
+                "author": {
+                    "id": "2",
+                    "username": "somebot",
+                    "bot": true,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "bot message",
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test bot message"),
+        )
     }
 
     /// Creates a zeroed fake context. Only safe to pass to filters that never
     /// actually read from `ctx` (i.e., those with `_ctx` parameters).
     /// Uses `ManuallyDrop` to prevent calling `Context::drop` on null Arcs.
-    fn check_filter(filter: &dyn MessageFilter, msg: &Message) -> bool {
+    fn check_filter(filter: &dyn MessageFilter, msg: &crate::discord::StarbunkMessage) -> bool {
         // SAFETY: these filters declare `_ctx` and never dereference ctx.
         // A dangling pointer is used only to satisfy the type signature.
         let ctx_ptr = std::ptr::NonNull::<Context>::dangling();

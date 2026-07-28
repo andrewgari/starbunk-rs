@@ -1,6 +1,6 @@
 use crate::strategy::request_confirm::RequestConfirmStrategy;
 use async_trait::async_trait;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::env;
 
@@ -25,7 +25,11 @@ impl Strategy for RequestEnemyStrategy {
         "RequestEnemyStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        _ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         let extracted = RequestConfirmStrategy::extract_friend_name(&msg.content);
         let is_enemy = extracted
             .map(|name| name.eq_ignore_ascii_case(&self.enemy_name))
@@ -34,7 +38,7 @@ impl Strategy for RequestEnemyStrategy {
         Self::check_trigger(&msg.content, is_enemy)
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, _msg: &starbunk::discord::StarbunkMessage) -> String {
         "No way, they can suck my blue cane :unamused:".to_string()
     }
 }

@@ -13,13 +13,13 @@ pub mod content;
 pub mod context;
 pub mod random;
 
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use std::sync::Arc;
 
 /// Gate for an incoming Discord message. Returns `true` to allow processing,
 /// `false` to drop silently.
 pub trait MessageFilter: Send + Sync {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool;
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool;
 }
 
 /// Passes only when every child passes. Short-circuits on first failure.
@@ -53,36 +53,36 @@ struct AnyOf(Vec<Arc<dyn MessageFilter>>);
 struct Not(Arc<dyn MessageFilter>);
 
 impl MessageFilter for AllOf {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         self.0.iter().all(|f| f.check(ctx, msg))
     }
 }
 
 impl MessageFilter for AnyOf {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         self.0.iter().any(|f| f.check(ctx, msg))
     }
 }
 
 impl MessageFilter for Not {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         !self.0.check(ctx, msg)
     }
 }
 
 /// Helper: wrap a plain filter function as a [`MessageFilter`].
 pub fn filter_fn(
-    f: impl Fn(&Context, &Message) -> bool + Send + Sync + 'static,
+    f: impl Fn(&Context, &crate::discord::StarbunkMessage) -> bool + Send + Sync + 'static,
 ) -> Arc<dyn MessageFilter> {
     Arc::new(FnFilter(Box::new(f)))
 }
 
-type FilterFn = Box<dyn Fn(&Context, &Message) -> bool + Send + Sync>;
+type FilterFn = Box<dyn Fn(&Context, &crate::discord::StarbunkMessage) -> bool + Send + Sync>;
 
 struct FnFilter(FilterFn);
 
 impl MessageFilter for FnFilter {
-    fn check(&self, ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         (self.0)(ctx, msg)
     }
 }
@@ -91,8 +91,9 @@ impl MessageFilter for FnFilter {
 mod tests {
     use super::*;
 
-    fn build_msg(content: &str, bot: bool) -> Message {
-        serde_json::from_value(serde_json::json!({
+    fn build_msg(content: &str, bot: bool) -> crate::discord::StarbunkMessage {
+        use serenity::all::Message;
+        let inner: Message = serde_json::from_value(serde_json::json!({
             "id": "1",
             "channel_id": "1",
             "author": {
@@ -114,10 +115,11 @@ mod tests {
             "pinned": false,
             "type": 0
         }))
-        .expect("test message")
+        .expect("test message");
+        crate::discord::StarbunkMessage::from_serenity(inner)
     }
 
-    fn check_filter(filter: &dyn MessageFilter, msg: &Message) -> bool {
+    fn check_filter(filter: &dyn MessageFilter, msg: &crate::discord::StarbunkMessage) -> bool {
         // SAFETY: these filters declare `_ctx` and never dereference ctx.
         // A dangling pointer is used only to satisfy the type signature.
         let ctx_ptr = std::ptr::NonNull::<Context>::dangling();
@@ -212,7 +214,7 @@ mod tests {
 
     // --- complex compositions ---
 
-    fn guild_msg(content: &str) -> Message {
+    fn guild_msg(content: &str) -> crate::discord::StarbunkMessage {
         let mut val = serde_json::json!({
             "id": "1", "channel_id": "1",
             "author": { "id": "1", "username": "human", "bot": false, "discriminator": "0", "public_flags": 0 },
@@ -223,11 +225,13 @@ mod tests {
             "pinned": false, "type": 0
         });
         val["guild_id"] = serde_json::json!("42");
-        serde_json::from_value(val).expect("guild msg")
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(val).expect("guild msg"),
+        )
     }
 
-    fn bot_msg(content: &str) -> Message {
-        serde_json::from_value(serde_json::json!({
+    fn bot_msg(content: &str) -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(serde_json::from_value(serde_json::json!({
             "id": "2", "channel_id": "1",
             "author": { "id": "2", "username": "otherbot", "bot": true, "discriminator": "0", "public_flags": 0 },
             "content": content,
@@ -236,11 +240,15 @@ mod tests {
             "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
             "pinned": false, "type": 0
         }))
-        .expect("bot msg")
+        .expect("bot msg"))
     }
 
-    fn author_id_msg(author_id: &str, content: &str, is_bot: bool) -> Message {
-        serde_json::from_value(serde_json::json!({
+    fn author_id_msg(
+        author_id: &str,
+        content: &str,
+        is_bot: bool,
+    ) -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(serde_json::from_value(serde_json::json!({
             "id": "3", "channel_id": "1",
             "author": { "id": author_id, "username": "user", "bot": is_bot, "discriminator": "0", "public_flags": 0 },
             "content": content,
@@ -249,7 +257,7 @@ mod tests {
             "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
             "pinned": false, "type": 0
         }))
-        .expect("author_id msg")
+        .expect("author_id msg"))
     }
 
     #[test]
@@ -342,7 +350,7 @@ mod tests {
             is_bot: bool,
             timestamp: &str,
             guild_id: Option<&str>,
-        ) -> Message {
+        ) -> crate::discord::StarbunkMessage {
             let mut val = serde_json::json!({
                 "id": "1",
                 "channel_id": "1",
@@ -368,7 +376,9 @@ mod tests {
             if let Some(gid) = guild_id {
                 val["guild_id"] = serde_json::json!(gid);
             }
-            serde_json::from_value(val).expect("msg")
+            crate::discord::StarbunkMessage::from_serenity(
+                serde_json::from_value(val).expect("msg"),
+            )
         }
 
         let jeff_bot_on_friday =

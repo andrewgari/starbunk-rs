@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::sync::LazyLock;
 
@@ -49,11 +49,15 @@ impl Strategy for SheeshStrategy {
         "SheeshStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        _ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         Self::matches(&msg.content)
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, _msg: &starbunk::discord::StarbunkMessage) -> String {
         // Stub — real implementation in PR 2
         unimplemented!("sheeshbot response not yet implemented")
     }

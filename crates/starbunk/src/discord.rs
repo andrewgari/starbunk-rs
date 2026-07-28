@@ -1,11 +1,15 @@
 pub mod e2e;
 pub mod identity;
+pub mod message;
 pub mod message_service;
+pub mod sender;
 pub mod webhook_service;
 
 pub use e2e::E2eDebugHandler;
 pub use identity::Identity;
+pub use message::StarbunkMessage;
 pub use message_service::{DiscordMessageService, MessageService};
+pub use sender::SenderCategory;
 pub use webhook_service::WebhookService;
 
 use async_trait::async_trait;

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::sync::LazyLock;
 
@@ -33,11 +33,15 @@ impl Strategy for RequestConfirmStrategy {
         "RequestConfirmStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        _ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         Self::check_trigger(&msg.content)
     }
 
-    async fn response(&self, _ctx: &Context, msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, msg: &starbunk::discord::StarbunkMessage) -> String {
         if let Some(friend) = Self::extract_friend_name(&msg.content) {
             let author = if friend.to_lowercase() == "me" {
                 format!("<@{}>", msg.author.id.get())

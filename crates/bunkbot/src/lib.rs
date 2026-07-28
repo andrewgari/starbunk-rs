@@ -160,6 +160,7 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
+        let msg = starbunk::discord::StarbunkMessage::from_serenity(msg);
         if !self.filter.check(&ctx, &msg) {
             return;
         }
