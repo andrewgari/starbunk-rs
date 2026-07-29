@@ -1,0 +1,101 @@
+name: Manual E2E Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_bot:
+        description: 'Bot to test'
+        required: true
+        default: 'bunkbot'
+        type: choice
+        options:
+          - bunkbot
+          - bluebot
+          - covabot
+          - djcova
+          - ratbot
+          - sheeshbot
+      guild_id:
+        description: 'Target Guild ID for E2E tests'
+        required: true
+        type: string
+      channel_id:
+        description: 'Target Channel ID for E2E tests'
+        required: true
+        type: string
+      suite_file:
+        description: 'Test suite JSON file path (relative to crates/e2e/suites/)'
+        required: true
+        default: 'bunkbot.json'
+        type: string
+
+jobs:
+  e2e-test:
+    name: Run E2E Test for ${{ github.event.inputs.target_bot }}
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: starbunk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-e2e-
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Set Discord Token
+        id: set-token
+        run: |
+          if [ "${{ inputs.target_bot }}" == "bunkbot" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_BUNKBOT }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target_bot }}" == "bluebot" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_BLUEBOT }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target_bot }}" == "covabot" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_COVABOT }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target_bot }}" == "djcova" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_DJCOVA }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target_bot }}" == "ratbot" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_RATBOT }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target_bot }}" == "sheeshbot" ]; then
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_SHEESHBOT }}" >> $GITHUB_ENV
+          else
+            echo "Unknown bot specified for token mapping."
+            exit 1
+          fi
+
+      - name: Run E2E tests
+        env:
+          E2E_CHANNEL_ID: ${{ inputs.channel_id }}
+          E2E_GUILD_ID: ${{ inputs.guild_id }}
+          E2E_SUITE_PATH: crates/e2e/suites/${{ inputs.suite_file }}
+          E2E_START_BOTS: 'true'
+          E2E_TEST_BOTS: ${{ inputs.target_bot }}
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/starbunk
+          RUST_LOG: info,starbunk_e2e=debug
+        run: cargo run --release -p starbunk-e2e

@@ -1,7 +1,6 @@
 use crate::config::{BotConfig, ConditionNode, IdentityConfig};
 use rand::Rng;
 use regex::Regex;
-use serenity::all::Message;
 
 /// Mirrors `ConditionNode` with all regex patterns pre-compiled at load time.
 ///
@@ -113,7 +112,11 @@ impl TryFrom<BotConfig> for CompiledBot {
 
 /// Evaluate a compiled condition tree against a message.
 /// `stripped` is the URL-stripped message content (computed once per dispatch).
-pub(super) fn eval(node: &CompiledNode, msg: &Message, stripped: &str) -> bool {
+pub(super) fn eval(
+    node: &CompiledNode,
+    msg: &starbunk::discord::StarbunkMessage,
+    stripped: &str,
+) -> bool {
     match node {
         CompiledNode::ContainsPhrase(phrase) => {
             stripped.to_lowercase().contains(&phrase.to_lowercase())
@@ -134,20 +137,22 @@ pub(super) fn eval(node: &CompiledNode, msg: &Message, stripped: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn build_msg(content: &str, author_id: &str) -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1", "channel_id": "1",
-            "author": {
-                "id": author_id, "username": "testuser",
-                "bot": false, "discriminator": "0", "public_flags": 0
-            },
-            "content": content,
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null, "tts": false, "mention_everyone": false,
-            "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
-            "pinned": false, "type": 0
-        }))
-        .expect("test message")
+    fn build_msg(content: &str, author_id: &str) -> starbunk::discord::StarbunkMessage {
+        starbunk::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
+                "id": "1", "channel_id": "1",
+                "author": {
+                    "id": author_id, "username": "testuser",
+                    "bot": false, "discriminator": "0", "public_flags": 0
+                },
+                "content": content,
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null, "tts": false, "mention_everyone": false,
+                "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
+                "pinned": false, "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
     fn check(node: &CompiledNode, content: &str) -> bool {

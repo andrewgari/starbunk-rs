@@ -1,6 +1,6 @@
 use super::MessageFilter;
 use chrono::{Datelike, Weekday};
-use serenity::all::{ChannelId, Context, Message};
+use serenity::all::{ChannelId, Context};
 use std::collections::HashSet;
 use std::sync::{Arc, LazyLock};
 
@@ -25,28 +25,28 @@ pub fn on_weekdays(days: impl IntoIterator<Item = Weekday>) -> Arc<dyn MessageFi
 
 struct GuildOnlyFilter;
 impl MessageFilter for GuildOnlyFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.guild_id.is_some()
     }
 }
 
 struct DmOnlyFilter;
 impl MessageFilter for DmOnlyFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.guild_id.is_none()
     }
 }
 
 struct InChannelFilter(ChannelId);
 impl MessageFilter for InChannelFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.channel_id == self.0
     }
 }
 
 struct OnWeekdaysFilter(HashSet<Weekday>);
 impl MessageFilter for OnWeekdaysFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         let secs = msg.timestamp.unix_timestamp();
         if let Some(dt) = chrono::DateTime::from_timestamp(secs, 0) {
             let dt_utc: chrono::DateTime<chrono::Utc> = dt;
@@ -61,7 +61,11 @@ impl MessageFilter for OnWeekdaysFilter {
 mod tests {
     use super::*;
 
-    fn build_msg_with_opts(timestamp: &str, guild_id: Option<&str>, channel_id: &str) -> Message {
+    fn build_msg_with_opts(
+        timestamp: &str,
+        guild_id: Option<&str>,
+        channel_id: &str,
+    ) -> crate::discord::StarbunkMessage {
         let mut val = serde_json::json!({
             "id": "1",
             "channel_id": channel_id,
@@ -87,10 +91,12 @@ mod tests {
         if let Some(gid) = guild_id {
             val["guild_id"] = serde_json::json!(gid);
         }
-        serde_json::from_value(val).expect("test message")
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(val).expect("test message"),
+        )
     }
 
-    fn check_filter(filter: &dyn MessageFilter, msg: &Message) -> bool {
+    fn check_filter(filter: &dyn MessageFilter, msg: &crate::discord::StarbunkMessage) -> bool {
         // SAFETY: these filters declare `_ctx` and never dereference ctx.
         // A dangling pointer is used only to satisfy the type signature.
         let ctx_ptr = std::ptr::NonNull::<Context>::dangling();

@@ -1,7 +1,7 @@
 use crate::strategy::state::SharedState;
 use async_trait::async_trait;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
@@ -39,7 +39,11 @@ impl Strategy for ConfirmEnemyStrategy {
         "ConfirmEnemyStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        _ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         let now = chrono::Utc::now();
         let (is_reply, is_murder, enemy_id) = {
             let state = self.state.read().await;
@@ -62,7 +66,7 @@ impl Strategy for ConfirmEnemyStrategy {
         }
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, _msg: &starbunk::discord::StarbunkMessage) -> String {
         "I will fucking murder you".to_string()
     }
 }

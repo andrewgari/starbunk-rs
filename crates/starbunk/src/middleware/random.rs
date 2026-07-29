@@ -1,6 +1,6 @@
 use super::MessageFilter;
 use rand::Rng;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use std::sync::Arc;
 
 /// Passes with the given probability in `[0.0, 1.0]`.
@@ -12,7 +12,7 @@ pub fn chance(probability: f64) -> Arc<dyn MessageFilter> {
 struct ChanceFilter(f64);
 
 impl MessageFilter for ChanceFilter {
-    fn check(&self, _ctx: &Context, _msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, _msg: &crate::discord::StarbunkMessage) -> bool {
         rand::thread_rng().gen::<f64>() < self.0
     }
 }
@@ -21,33 +21,35 @@ impl MessageFilter for ChanceFilter {
 mod tests {
     use super::*;
 
-    fn build_msg() -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1",
-            "channel_id": "1",
-            "author": {
+    fn build_msg() -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "1",
-                "username": "testuser",
-                "bot": false,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": "hello",
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test message")
+                "channel_id": "1",
+                "author": {
+                    "id": "1",
+                    "username": "testuser",
+                    "bot": false,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "hello",
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
-    fn check_filter(filter: &dyn MessageFilter, msg: &Message) -> bool {
+    fn check_filter(filter: &dyn MessageFilter, msg: &crate::discord::StarbunkMessage) -> bool {
         // SAFETY: these filters declare `_ctx` and never dereference ctx.
         // A dangling pointer is used only to satisfy the type signature.
         let ctx_ptr = std::ptr::NonNull::<Context>::dangling();

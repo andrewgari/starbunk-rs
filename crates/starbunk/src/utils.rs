@@ -70,7 +70,7 @@ async fn run_bot_inner(
             .parse::<u64>()
             .map_err(|e| anyhow::anyhow!("invalid E2E_GUILD_ID: {}", e))?;
 
-        let webhook_id = if let Ok(wh_str) = std::env::var("E2E_WEBHOOK_ID") {
+        let _webhook_id = if let Ok(wh_str) = std::env::var("E2E_WEBHOOK_ID") {
             let wh_val = wh_str
                 .parse::<u64>()
                 .map_err(|e| anyhow::anyhow!("invalid E2E_WEBHOOK_ID: {}", e))?;
@@ -82,7 +82,6 @@ async fn run_bot_inner(
         let e2e_handler = crate::discord::e2e::E2eDebugHandler::new(
             handler,
             serenity::all::GuildId::new(guild_id),
-            webhook_id,
         );
         client_builder.event_handler(e2e_handler).await
     } else {

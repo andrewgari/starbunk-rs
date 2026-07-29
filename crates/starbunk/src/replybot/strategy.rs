@@ -1,7 +1,7 @@
 use crate::discord::Identity;
 use crate::middleware::MessageFilter;
 use async_trait::async_trait;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use std::sync::Arc;
 
 /// Core extensibility seam for reply bots. Implement this to add a trigger
@@ -12,10 +12,10 @@ pub trait Strategy: Send + Sync {
     fn name(&self) -> &str;
 
     /// Returns true when this strategy wants to respond to `msg`.
-    async fn should_trigger(&self, ctx: &Context, msg: &Message) -> bool;
+    async fn should_trigger(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool;
 
     /// Returns the text to send. Only called after `should_trigger` returns true.
-    async fn response(&self, ctx: &Context, msg: &Message) -> String;
+    async fn response(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> String;
 
     /// Optional pre-condition. When Some, the Bot checks this before
     /// `should_trigger`. Messages that fail are silently skipped.
@@ -25,7 +25,11 @@ pub trait Strategy: Send + Sync {
 
     /// Optional persona. When Some, the response is sent via webhook with
     /// the returned identity instead of the bot's own account.
-    async fn identity(&self, _ctx: &Context, _msg: &Message) -> Option<Identity> {
+    async fn identity(
+        &self,
+        _ctx: &Context,
+        _msg: &crate::discord::StarbunkMessage,
+    ) -> Option<Identity> {
         None
     }
 }
@@ -54,15 +58,19 @@ impl<S: Strategy + 'static> Strategy for WithCondition<S> {
         Some(&*self.condition)
     }
 
-    async fn should_trigger(&self, ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         self.inner.should_trigger(ctx, msg).await
     }
 
-    async fn response(&self, ctx: &Context, msg: &Message) -> String {
+    async fn response(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) -> String {
         self.inner.response(ctx, msg).await
     }
 
-    async fn identity(&self, ctx: &Context, msg: &Message) -> Option<Identity> {
+    async fn identity(
+        &self,
+        ctx: &Context,
+        msg: &crate::discord::StarbunkMessage,
+    ) -> Option<Identity> {
         self.inner.identity(ctx, msg).await
     }
 }

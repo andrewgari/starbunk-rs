@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use serenity::all::{Context, EventHandler, GuildId, Message, Ready, WebhookId};
+use serenity::all::{Context, EventHandler, GuildId, Message, Ready};
 
 /// A wrapper EventHandler used in E2E/debugging mode.
 /// It filters out all events from non-whitelisted guilds and intercepts
@@ -7,15 +7,13 @@ use serenity::all::{Context, EventHandler, GuildId, Message, Ready, WebhookId};
 pub struct E2eDebugHandler<H: EventHandler> {
     inner: H,
     debug_guild_id: GuildId,
-    e2e_webhook_id: Option<WebhookId>,
 }
 
 impl<H: EventHandler> E2eDebugHandler<H> {
-    pub fn new(inner: H, debug_guild_id: GuildId, e2e_webhook_id: Option<WebhookId>) -> Self {
+    pub fn new(inner: H, debug_guild_id: GuildId) -> Self {
         Self {
             inner,
             debug_guild_id,
-            e2e_webhook_id,
         }
     }
 }
@@ -30,7 +28,7 @@ impl<H: EventHandler> EventHandler for E2eDebugHandler<H> {
         self.inner.ready(ctx, data).await;
     }
 
-    async fn message(&self, ctx: Context, mut msg: Message) {
+    async fn message(&self, ctx: Context, msg: Message) {
         // 1. Whitelist filter: ignore any message from other guilds
         if let Some(guild_id) = msg.guild_id {
             if guild_id != self.debug_guild_id {
@@ -41,31 +39,9 @@ impl<H: EventHandler> EventHandler for E2eDebugHandler<H> {
             return;
         }
 
-        // 2. Webhook simulation check
-        if let Some(webhook_id) = msg.webhook_id {
-            let matches_webhook = match self.e2e_webhook_id {
-                Some(wh_id) => webhook_id == wh_id,
-                None => false, // No webhook ID configured — do not match any webhook
-            };
-
-            if matches_webhook {
-                if msg.content.starts_with("[E2E_HUMAN]") {
-                    msg.content = msg.content["[E2E_HUMAN]".len()..].trim().to_string();
-                    msg.author.bot = false;
-                    tracing::debug!(
-                        "E2E: Intercepted webhook message, simulated human author. Content: {:?}",
-                        msg.content
-                    );
-                } else if msg.content.starts_with("[E2E_BOT]") {
-                    msg.content = msg.content["[E2E_BOT]".len()..].trim().to_string();
-                    msg.author.bot = true;
-                    tracing::debug!(
-                        "E2E: Intercepted webhook message, simulated bot author. Content: {:?}",
-                        msg.content
-                    );
-                }
-            }
-        }
+        // 2. We no longer intercept and mutate the webhook messages here.
+        // That logic has been moved to StarbunkMessage::from_serenity where it translates
+        // to a SenderCategory enum without mutating the Serenity Message's author field.
 
         self.inner.message(ctx, msg).await;
     }

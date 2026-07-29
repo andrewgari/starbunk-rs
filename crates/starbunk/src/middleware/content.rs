@@ -1,6 +1,6 @@
 use super::MessageFilter;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use std::sync::{Arc, LazyLock};
 
 /// Drops messages with empty or whitespace-only content.
@@ -25,28 +25,28 @@ pub fn content_matches(re: Regex) -> Arc<dyn MessageFilter> {
 
 struct HasContentFilter;
 impl MessageFilter for HasContentFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         !msg.content.trim().is_empty()
     }
 }
 
 struct HasAttachmentFilter;
 impl MessageFilter for HasAttachmentFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         !msg.attachments.is_empty()
     }
 }
 
 struct ContentContainsFilter(String);
 impl MessageFilter for ContentContainsFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         msg.content.contains(&self.0)
     }
 }
 
 struct ContentMatchesFilter(Regex);
 impl MessageFilter for ContentMatchesFilter {
-    fn check(&self, _ctx: &Context, msg: &Message) -> bool {
+    fn check(&self, _ctx: &Context, msg: &crate::discord::StarbunkMessage) -> bool {
         self.0.is_match(&msg.content)
     }
 }
@@ -55,34 +55,37 @@ impl MessageFilter for ContentMatchesFilter {
 mod tests {
     use super::*;
     use regex::Regex;
+    use serenity::all::Message;
 
-    fn build_msg(content: &str) -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1",
-            "channel_id": "1",
-            "author": {
+    fn build_msg(content: &str) -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "1",
-                "username": "testuser",
-                "bot": false,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": content,
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test message")
+                "channel_id": "1",
+                "author": {
+                    "id": "1",
+                    "username": "testuser",
+                    "bot": false,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": content,
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
-    fn check_filter(filter: &dyn MessageFilter, msg: &Message) -> bool {
+    fn check_filter(filter: &dyn MessageFilter, msg: &crate::discord::StarbunkMessage) -> bool {
         // SAFETY: these filters declare `_ctx` and never dereference ctx.
         // A dangling pointer is used only to satisfy the type signature.
         let ctx_ptr = std::ptr::NonNull::<Context>::dangling();
@@ -139,6 +142,7 @@ mod tests {
             "proxy_url": "https://example.com/file.png"
         }]);
         let msg: Message = serde_json::from_value(val).expect("test message with attachment");
+        let msg = crate::discord::StarbunkMessage::from_serenity(msg);
         assert!(check_filter(&**HAS_ATTACHMENT, &msg));
     }
 

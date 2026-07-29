@@ -1,7 +1,7 @@
 use super::strategy::Strategy;
 use crate::audit::AuditStore;
 use crate::discord::MessageService;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use std::sync::Arc;
 
 /// Dispatches incoming Discord messages through an ordered list of strategies.
@@ -30,7 +30,7 @@ impl ReplyBot {
         self
     }
 
-    pub async fn handle(&self, ctx: &Context, msg: &Message) {
+    pub async fn handle(&self, ctx: &Context, msg: &crate::discord::StarbunkMessage) {
         for strategy in &self.strategies {
             // Check optional per-strategy condition.
             if let Some(cond) = strategy.condition() {
@@ -90,30 +90,32 @@ mod tests {
 
     // --- helpers ---
 
-    fn build_msg() -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1",
-            "channel_id": "99",
-            "author": {
+    fn build_msg() -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "1",
-                "username": "testuser",
-                "bot": false,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": "hello",
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test message")
+                "channel_id": "99",
+                "author": {
+                    "id": "1",
+                    "username": "testuser",
+                    "bot": false,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "hello",
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
     /// Returns a dangling pointer to a Context. Only safe to pass to handlers
@@ -140,13 +142,39 @@ mod tests {
         }
     }
 
-    fn stub_message() -> Message {
-        build_msg()
+    fn stub_message() -> serenity::all::Message {
+        serde_json::from_value(serde_json::json!({
+            "id": "1",
+            "channel_id": "99",
+            "author": {
+                "id": "1",
+                "username": "testuser",
+                "bot": false,
+                "discriminator": "0",
+                "public_flags": 0
+            },
+            "content": "hello",
+            "timestamp": "2024-01-01T12:00:00+00:00",
+            "edited_timestamp": null,
+            "tts": false,
+            "mention_everyone": false,
+            "mentions": [],
+            "mention_roles": [],
+            "attachments": [],
+            "embeds": [],
+            "pinned": false,
+            "type": 0
+        }))
+        .expect("test message")
     }
 
     #[async_trait]
     impl MessageService for MockSender {
-        async fn send(&self, _channel_id: ChannelId, content: &str) -> anyhow::Result<Message> {
+        async fn send(
+            &self,
+            _channel_id: ChannelId,
+            content: &str,
+        ) -> anyhow::Result<serenity::all::Message> {
             self.send_count.fetch_add(1, Ordering::SeqCst);
             *self.last_content.lock().unwrap() = content.to_string();
             Ok(stub_message())
@@ -156,7 +184,7 @@ mod tests {
             _channel_id: ChannelId,
             content: &str,
             _identity: Identity,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             self.identity_count.fetch_add(1, Ordering::SeqCst);
             *self.last_content.lock().unwrap() = content.to_string();
             Ok(stub_message())
@@ -166,7 +194,7 @@ mod tests {
             _channel_id: ChannelId,
             _message_id: MessageId,
             _content: &str,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             Ok(stub_message())
         }
         async fn edit(
@@ -174,7 +202,7 @@ mod tests {
             _channel_id: ChannelId,
             _message_id: MessageId,
             _content: &str,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             Ok(stub_message())
         }
         async fn delete(
@@ -220,16 +248,24 @@ mod tests {
             self.name
         }
 
-        async fn should_trigger(&self, _ctx: &Context, _msg: &Message) -> bool {
+        async fn should_trigger(
+            &self,
+            _ctx: &Context,
+            _msg: &crate::discord::StarbunkMessage,
+        ) -> bool {
             self.trigger_count.fetch_add(1, Ordering::SeqCst);
             self.trigger
         }
 
-        async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+        async fn response(&self, _ctx: &Context, _msg: &crate::discord::StarbunkMessage) -> String {
             self.response.to_string()
         }
 
-        async fn identity(&self, _ctx: &Context, _msg: &Message) -> Option<Identity> {
+        async fn identity(
+            &self,
+            _ctx: &Context,
+            _msg: &crate::discord::StarbunkMessage,
+        ) -> Option<Identity> {
             if self.use_identity {
                 Some(Identity {
                     username: "TestBot".to_string(),
@@ -316,7 +352,7 @@ mod tests {
 
         struct AlwaysFail;
         impl MessageFilter for AlwaysFail {
-            fn check(&self, _ctx: &Context, _msg: &Message) -> bool {
+            fn check(&self, _ctx: &Context, _msg: &crate::discord::StarbunkMessage) -> bool {
                 false
             }
         }
@@ -371,45 +407,51 @@ mod tests {
             self.name
         }
 
-        async fn should_trigger(&self, _ctx: &Context, _msg: &Message) -> bool {
+        async fn should_trigger(
+            &self,
+            _ctx: &Context,
+            _msg: &crate::discord::StarbunkMessage,
+        ) -> bool {
             self.trigger_count.fetch_add(1, Ordering::SeqCst);
             self.trigger
         }
 
-        async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+        async fn response(&self, _ctx: &Context, _msg: &crate::discord::StarbunkMessage) -> String {
             self.response.to_string()
         }
     }
 
     // --- extra message helpers ---
 
-    fn build_bot_msg() -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "2",
-            "channel_id": "99",
-            "author": {
+    fn build_bot_msg() -> crate::discord::StarbunkMessage {
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
                 "id": "2",
-                "username": "otherbot",
-                "bot": true,
-                "discriminator": "0",
-                "public_flags": 0
-            },
-            "content": "bot says hello",
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null,
-            "tts": false,
-            "mention_everyone": false,
-            "mentions": [],
-            "mention_roles": [],
-            "attachments": [],
-            "embeds": [],
-            "pinned": false,
-            "type": 0
-        }))
-        .expect("test bot message")
+                "channel_id": "99",
+                "author": {
+                    "id": "2",
+                    "username": "otherbot",
+                    "bot": true,
+                    "discriminator": "0",
+                    "public_flags": 0
+                },
+                "content": "bot says hello",
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null,
+                "tts": false,
+                "mention_everyone": false,
+                "mentions": [],
+                "mention_roles": [],
+                "attachments": [],
+                "embeds": [],
+                "pinned": false,
+                "type": 0
+            }))
+            .expect("test bot message"),
+        )
     }
 
-    fn build_bot_guild_msg() -> Message {
+    fn build_bot_guild_msg() -> crate::discord::StarbunkMessage {
         let mut val = serde_json::json!({
             "id": "4",
             "channel_id": "99",
@@ -433,7 +475,9 @@ mod tests {
             "type": 0
         });
         val["guild_id"] = serde_json::json!("42");
-        serde_json::from_value(val).expect("test bot guild message")
+        crate::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(val).expect("test bot guild message"),
+        )
     }
 
     // --- new parity tests ---
@@ -476,7 +520,7 @@ mod tests {
 
         struct AlwaysPass;
         impl MessageFilter for AlwaysPass {
-            fn check(&self, _ctx: &Context, _msg: &Message) -> bool {
+            fn check(&self, _ctx: &Context, _msg: &crate::discord::StarbunkMessage) -> bool {
                 true
             }
         }

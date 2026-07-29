@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use regex::Regex;
-use serenity::all::{Context, Message};
+use serenity::all::Context;
 use starbunk::replybot::Strategy;
 use std::sync::LazyLock;
 
@@ -35,7 +35,11 @@ impl Strategy for BlueStrategy {
         "BlueStrategy"
     }
 
-    async fn should_trigger(&self, _ctx: &Context, msg: &Message) -> bool {
+    async fn should_trigger(
+        &self,
+        _ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+    ) -> bool {
         if BLUE_PATTERN.is_match(&msg.content) {
             self.state
                 .write()
@@ -47,7 +51,7 @@ impl Strategy for BlueStrategy {
         }
     }
 
-    async fn response(&self, _ctx: &Context, _msg: &Message) -> String {
+    async fn response(&self, _ctx: &Context, _msg: &starbunk::discord::StarbunkMessage) -> String {
         Self::response_text().to_string()
     }
 }

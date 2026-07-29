@@ -6,7 +6,7 @@ use crate::template::resolve_template;
 use compiled::{eval, CompiledBot};
 use rand::Rng;
 use regex::Regex;
-use serenity::all::{Context, Message, UserId};
+use serenity::all::{Context, UserId};
 use starbunk::discord::{Identity, IdentityProvider, MessageService};
 use std::sync::{Arc, LazyLock};
 
@@ -106,7 +106,12 @@ impl BunkBotEngine {
     }
 
     #[tracing::instrument(skip(self, ctx, msg), fields(channel = %msg.channel_id))]
-    pub async fn handle(&self, ctx: &Context, msg: &Message, self_id: UserId) {
+    pub async fn handle(
+        &self,
+        ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+        self_id: UserId,
+    ) {
         for bot in &self.bots {
             if !should_process(bot, msg, self_id, &*self.state_service) {
                 continue;
@@ -115,7 +120,12 @@ impl BunkBotEngine {
         }
     }
 
-    async fn dispatch_bot(&self, ctx: &Context, msg: &Message, bot: &CompiledBot) {
+    async fn dispatch_bot(
+        &self,
+        ctx: &Context,
+        msg: &starbunk::discord::StarbunkMessage,
+        bot: &CompiledBot,
+    ) {
         // Strip URLs once per dispatch, not per trigger.
         let stripped = strip_urls(&msg.content);
 
@@ -177,7 +187,7 @@ impl BunkBotEngine {
 /// and the `frequency` gate in that order.
 fn should_process(
     bot: &CompiledBot,
-    msg: &Message,
+    msg: &starbunk::discord::StarbunkMessage,
     self_id: UserId,
     state_service: &dyn BotStateService,
 ) -> bool {
@@ -187,10 +197,10 @@ fn should_process(
     if bot.ignore_self && msg.author.id == self_id {
         return false;
     }
-    if bot.ignore_bots && msg.author.bot {
+    if bot.ignore_bots && msg.sender.is_bot() {
         return false;
     }
-    if bot.ignore_humans && !msg.author.bot {
+    if bot.ignore_humans && msg.sender.is_human() {
         return false;
     }
     if bot.ignore_webhooks && msg.webhook_id.is_some() {
@@ -245,7 +255,7 @@ fn pick_human_member_index(is_bot_flags: &[bool]) -> Option<usize> {
 async fn resolve_identity(
     identity: &IdentityConfig,
     ctx: &Context,
-    msg: &Message,
+    msg: &starbunk::discord::StarbunkMessage,
     provider: &dyn IdentityProvider,
 ) -> Option<Identity> {
     match identity {
@@ -302,20 +312,26 @@ mod tests {
     use super::*;
     use crate::config::IdentityConfig;
 
-    fn build_msg(content: &str, is_bot: bool, author_id: &str) -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1", "channel_id": "1",
-            "author": {
-                "id": author_id, "username": "user",
-                "bot": is_bot, "discriminator": "0", "public_flags": 0
-            },
-            "content": content,
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null, "tts": false, "mention_everyone": false,
-            "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
-            "pinned": false, "type": 0
-        }))
-        .expect("test message")
+    fn build_msg(
+        content: &str,
+        is_bot: bool,
+        author_id: &str,
+    ) -> starbunk::discord::StarbunkMessage {
+        starbunk::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
+                "id": "1", "channel_id": "1",
+                "author": {
+                    "id": author_id, "username": "user",
+                    "bot": is_bot, "discriminator": "0", "public_flags": 0
+                },
+                "content": content,
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null, "tts": false, "mention_everyone": false,
+                "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
+                "pinned": false, "type": 0
+            }))
+            .expect("test message"),
+        )
     }
 
     fn build_webhook_msg(
@@ -323,21 +339,23 @@ mod tests {
         is_bot: bool,
         author_id: &str,
         webhook_id: &str,
-    ) -> Message {
-        serde_json::from_value(serde_json::json!({
-            "id": "1", "channel_id": "1",
-            "author": {
-                "id": author_id, "username": "user",
-                "bot": is_bot, "discriminator": "0", "public_flags": 0
-            },
-            "content": content,
-            "webhook_id": webhook_id,
-            "timestamp": "2024-01-01T12:00:00+00:00",
-            "edited_timestamp": null, "tts": false, "mention_everyone": false,
-            "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
-            "pinned": false, "type": 0
-        }))
-        .expect("test webhook message")
+    ) -> starbunk::discord::StarbunkMessage {
+        starbunk::discord::StarbunkMessage::from_serenity(
+            serde_json::from_value(serde_json::json!({
+                "id": "1", "channel_id": "1",
+                "author": {
+                    "id": author_id, "username": "user",
+                    "bot": is_bot, "discriminator": "0", "public_flags": 0
+                },
+                "content": content,
+                "webhook_id": webhook_id,
+                "timestamp": "2024-01-01T12:00:00+00:00",
+                "edited_timestamp": null, "tts": false, "mention_everyone": false,
+                "mentions": [], "mention_roles": [], "attachments": [], "embeds": [],
+                "pinned": false, "type": 0
+            }))
+            .expect("test webhook message"),
+        )
     }
 
     fn bot_cfg(
@@ -590,7 +608,11 @@ mod tests {
     struct DummySender;
     #[async_trait::async_trait]
     impl starbunk::discord::MessageService for DummySender {
-        async fn send(&self, _: serenity::all::ChannelId, _: &str) -> anyhow::Result<Message> {
+        async fn send(
+            &self,
+            _: serenity::all::ChannelId,
+            _: &str,
+        ) -> anyhow::Result<serenity::all::Message> {
             unimplemented!()
         }
         async fn send_with_identity(
@@ -598,7 +620,7 @@ mod tests {
             _: serenity::all::ChannelId,
             _: &str,
             _: Identity,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             unimplemented!()
         }
         async fn reply(
@@ -606,7 +628,7 @@ mod tests {
             _: serenity::all::ChannelId,
             _: serenity::all::MessageId,
             _: &str,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             unimplemented!()
         }
         async fn edit(
@@ -614,7 +636,7 @@ mod tests {
             _: serenity::all::ChannelId,
             _: serenity::all::MessageId,
             _: &str,
-        ) -> anyhow::Result<Message> {
+        ) -> anyhow::Result<serenity::all::Message> {
             unimplemented!()
         }
         async fn delete(
