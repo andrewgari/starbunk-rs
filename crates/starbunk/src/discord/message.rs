@@ -5,17 +5,12 @@ use std::ops::Deref;
 #[derive(Debug, Clone)]
 pub struct StarbunkMessage {
     pub inner: Message,
-    pub content: String,
     pub sender: SenderCategory,
 }
 
 impl StarbunkMessage {
-    pub fn new(inner: Message, content: String, sender: SenderCategory) -> Self {
-        Self {
-            inner,
-            content,
-            sender,
-        }
+    pub fn new(inner: Message, sender: SenderCategory) -> Self {
+        Self { inner, sender }
     }
 
     pub fn from_serenity(mut inner: Message) -> Self {
@@ -45,12 +40,7 @@ impl StarbunkMessage {
             }
         }
 
-        let content = inner.content.clone();
-        Self {
-            inner,
-            content,
-            sender,
-        }
+        Self { inner, sender }
     }
 }
 

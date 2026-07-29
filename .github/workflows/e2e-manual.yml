@@ -29,6 +29,9 @@ on:
         default: 'bunkbot.json'
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   e2e-test:
     name: Run E2E Test for ${{ github.event.inputs.target_bot }}
