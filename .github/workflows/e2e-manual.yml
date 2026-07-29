@@ -92,6 +92,16 @@ jobs:
             exit 1
           fi
 
+      - name: Inject Secret Configurations
+        run: |
+          mkdir -p config
+          echo "${{ secrets.BUNKBOT_BOTS_YML }}" > config/bots.yml
+          echo "${{ secrets.BUNKBOT_E2E_SUITE_JSON }}" > crates/e2e/suites/bunkbot-secret.json
+        if: env.BUNKBOT_BOTS_YML != ''
+        env:
+          BUNKBOT_BOTS_YML: ${{ secrets.BUNKBOT_BOTS_YML }}
+          BUNKBOT_E2E_SUITE_JSON: ${{ secrets.BUNKBOT_E2E_SUITE_JSON }}
+
       - name: Run E2E tests
         env:
           E2E_CHANNEL_ID: ${{ inputs.channel_id }}
