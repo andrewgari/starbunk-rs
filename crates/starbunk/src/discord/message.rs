@@ -35,6 +35,15 @@ impl StarbunkMessage {
                     } else if inner.content.starts_with("[E2E_BOT]") {
                         inner.content = inner.content["[E2E_BOT]".len()..].trim().to_string();
                         sender = SenderCategory::E2eBot;
+                    } else if inner.content.starts_with("[E2E_MOCK_USER:") {
+                        if let Some(end_idx) = inner.content.find(']') {
+                            let id_str = &inner.content["[E2E_MOCK_USER:".len()..end_idx];
+                            if let Ok(id) = id_str.parse::<u64>() {
+                                inner.author.id = serenity::all::UserId::new(id);
+                                inner.content = inner.content[end_idx + 1..].trim().to_string();
+                                sender = SenderCategory::E2eUser;
+                            }
+                        }
                     }
                 }
             }

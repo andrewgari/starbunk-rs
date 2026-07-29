@@ -16,6 +16,8 @@ struct TestCase {
     expect_no_response: Option<bool>,
     expect_any_response: Option<bool>,
     timeout_ms: Option<u64>,
+    mock_user_id: Option<u64>,
+    isolate_bot: Option<String>,
 }
 
 struct TestListener {
@@ -346,9 +348,68 @@ async fn main() -> anyhow::Result<()> {
         // Flush any lingering message events
         while msg_rx.try_recv().is_ok() {}
 
+        // 1. Bot isolation setup
+        if let Some(target_bot) = &test.isolate_bot {
+            tracing::info!("E2E Runner: Isolating bot '{}'", target_bot);
+            let token = std::env::var("BUNKBOT_ADMIN_TOKEN").unwrap_or_default();
+
+            // Get all bots
+            let status_res = reqwest_client
+                .get("http://127.0.0.1:8082/api/bots/status")
+                .send()
+                .await;
+
+            if let Ok(resp) = status_res {
+                if let Ok(bots) = resp.json::<Vec<serde_json::Value>>().await {
+                    for bot in bots {
+                        if let Some(name) = bot["name"].as_str() {
+                            if name == target_bot {
+                                // Enable target bot
+                                let _ = reqwest_client
+                                    .post(format!("http://127.0.0.1:8082/api/bots/{}/enable", name))
+                                    .header("Authorization", format!("Bearer {}", token))
+                                    .send()
+                                    .await;
+
+                                // Set frequency to 100
+                                let _ = reqwest_client
+                                    .post(format!(
+                                        "http://127.0.0.1:8082/api/bots/{}/frequency",
+                                        name
+                                    ))
+                                    .header("Authorization", format!("Bearer {}", token))
+                                    .json(&serde_json::json!({"frequency": 100}))
+                                    .send()
+                                    .await;
+                            } else {
+                                // Disable all other bots
+                                let _ = reqwest_client
+                                    .post(format!(
+                                        "http://127.0.0.1:8082/api/bots/{}/disable",
+                                        name
+                                    ))
+                                    .header("Authorization", format!("Bearer {}", token))
+                                    .send()
+                                    .await;
+                            }
+                        }
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    "E2E Runner: Failed to contact BunkBot API to isolate bot. Test may fail."
+                );
+            }
+        }
+
         // Format E2E payload prefix to flag simulated bot/human authors
         let payload_content = match test.sender.as_str() {
             "bot" => format!("[E2E_BOT] {}", test.message),
+            "mock_user" => format!(
+                "[E2E_MOCK_USER:{}] {}",
+                test.mock_user_id.unwrap_or(0),
+                test.message
+            ),
             _ => format!("[E2E_HUMAN] {}", test.message),
         };
 

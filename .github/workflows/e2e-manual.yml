@@ -101,4 +101,5 @@ jobs:
           E2E_TEST_BOTS: ${{ inputs.target_bot }}
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/starbunk
           RUST_LOG: info,starbunk_e2e=debug
+          BUNKBOT_ADMIN_TOKEN: ${{ secrets.BUNKBOT_ADMIN_TOKEN }}
         run: cargo run --release -p starbunk-e2e
