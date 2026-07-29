@@ -14,6 +14,7 @@ struct TestCase {
     message: String,
     expect: Option<String>,
     expect_no_response: Option<bool>,
+    expect_any_response: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -398,6 +399,9 @@ async fn main() -> anyhow::Result<()> {
                             } else {
                                 got_unexpected = true;
                             }
+                        } else if test.expect_any_response.unwrap_or(false) {
+                            got_expected = true;
+                            break;
                         } else if test.expect_no_response.unwrap_or(false) {
                             got_unexpected = true;
                         }
@@ -410,6 +414,8 @@ async fn main() -> anyhow::Result<()> {
 
         let success = if test.expect_no_response.unwrap_or(false) {
             !got_unexpected
+        } else if test.expect_any_response.unwrap_or(false) {
+            got_expected
         } else {
             got_expected && !got_unexpected
         };
