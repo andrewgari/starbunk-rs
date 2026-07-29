@@ -21,3 +21,4 @@ secrets/
 # Bot Configuration (never commit)
 /config/bunkbot/bots.yml
 !/config/bots.example.yml
+crates/e2e/suites/bunkbot-secret.json
