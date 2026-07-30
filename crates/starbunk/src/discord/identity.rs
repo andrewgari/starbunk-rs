@@ -2,7 +2,7 @@ use serenity::all::Http;
 use std::collections::HashMap;
 
 /// The persona a bot or poster assumes when sending messages.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct Identity {
     pub nickname: String,
     pub username: String,
