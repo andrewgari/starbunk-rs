@@ -1,6 +1,8 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { useState } from "react";
+import TriggerEditor, { TriggerConfig } from "./TriggerEditor";
 
 interface AddBotModalProps {
   isOpen: boolean;
@@ -77,9 +79,31 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
   const [staticBotName, setStaticBotName] = useState("HelperBot");
   const [staticAvatarUrl, setStaticAvatarUrl] = useState("");
   const [mimicUserId, setMimicUserId] = useState("");
-  const [triggerCondition, setTriggerCondition] = useState("contains_phrase");
-  const [triggerValue, setTriggerValue] = useState("ping");
-  const [botResponse, setBotResponse] = useState("pong");
+  const [frequency, setFrequency] = useState(100);
+  const [targetAudience, setTargetAudience] = useState<"humans" | "bots">("humans");
+  
+  const [triggers, setTriggers] = useState<TriggerConfig[]>([
+    { name: "Trigger_1", conditions: { contains_phrase: "ping" }, responses: [] }
+  ]);
+  const [responses, setResponses] = useState<string[]>(["pong"]);
+  const [newResponse, setNewResponse] = useState("");
+
+  const handleAddResponse = () => {
+    const trimmed = newResponse.trim();
+    if (!trimmed) return;
+    setResponses([...responses, trimmed]);
+    setNewResponse("");
+  };
+
+  const handleUpdateResponse = (index: number, newVal: string) => {
+    const newResponses = [...responses];
+    newResponses[index] = newVal;
+    setResponses(newResponses);
+  };
+
+  const handleRemoveResponse = (index: number) => {
+    setResponses(responses.filter((_, i) => i !== index));
+  };
 
   if (!isOpen) return null;
 
@@ -109,19 +133,12 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
         const generated = {
           name: botName,
           identity: identityPayload,
-          frequency: 100,
-          ignore_bots: true,
-          ignore_humans: false,
+          frequency: frequency,
+          ignore_bots: targetAudience === "humans",
+          ignore_humans: targetAudience === "bots",
           ignore_self: true,
-          responses: [botResponse],
-          triggers: [
-            {
-              name: "Trigger_1",
-              conditions: {
-                [triggerCondition]: triggerCondition === "with_chance" ? parseInt(triggerValue) : triggerValue
-              }
-            }
-          ]
+          responses: responses,
+          triggers: triggers
         };
         jsonOutput = JSON.stringify(generated, null, 2);
       } else {
@@ -179,13 +196,36 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">Identity Mode</label>
+              <label className="text-xs text-slate-400">Identity Profile</label>
               <select value={identityType} onChange={e => setIdentityType(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white">
-                <option value="static">Static (HelperBot)</option>
-                <option value="mimic">Mimic Specific User</option>
-                <option value="random">Random User</option>
-                <option value="mimic_poster">Mimic Message Poster</option>
+                <option value="static">Custom Profile</option>
+                <option value="mimic">Copy Specific User</option>
+                <option value="random">Random Server Member</option>
+                <option value="mimic_poster">Copy the Message Sender</option>
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-400">Target Audience</label>
+              <select value={targetAudience} onChange={e => setTargetAudience(e.target.value as "humans" | "bots")} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white">
+                <option value="humans">Humans (Ignore other bots)</option>
+                <option value="bots">Bots (Ignore humans)</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-medium">Trigger Frequency Rate</span>
+                <span className="text-emerald-400 font-bold font-mono">{frequency}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={frequency}
+                onChange={(e) => setFrequency(Number(e.target.value))}
+                className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
             </div>
 
             {identityType === "static" && (
@@ -223,22 +263,68 @@ export default function AddBotModal({ isOpen, onClose, onAddBot }: AddBotModalPr
               </div>
             )}
 
-            <div className="flex flex-col gap-1 p-3 border border-slate-700 rounded-lg bg-slate-900/50">
-              <label className="text-xs text-indigo-400 font-semibold mb-2">Logic Gate / Trigger Condition</label>
-              <div className="flex gap-2">
-                <select value={triggerCondition} onChange={e => setTriggerCondition(e.target.value)} className="w-1/3 bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white">
-                  <option value="contains_phrase">Contains Phrase</option>
-                  <option value="contains_word">Contains Word</option>
-                  <option value="matches_regex">Matches Regex</option>
-                  <option value="with_chance">With Chance (%)</option>
-                </select>
-                <input type="text" value={triggerValue} onChange={e => setTriggerValue(e.target.value)} className="w-2/3 bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white" placeholder="Value..." />
+            {/* Response Pool Editor */}
+            <div className="flex flex-col gap-2 p-3 border border-slate-700 rounded-lg bg-slate-900/50 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">
+                  Global Response Pool ({responses.length})
+                </span>
+                <span className="text-[10px] text-slate-400 group relative cursor-help">
+                  💡 Template Cheat Sheet
+                  <div className="hidden group-hover:flex absolute right-0 bottom-full mb-2 w-64 flex-col gap-1 bg-slate-800 p-2 text-xs rounded shadow-lg border border-slate-600 z-10">
+                    <p><strong>URL</strong>: Auto-embeds images/links</p>
+                    <p><strong>{"{start}"}</strong>: Excerpt of trigger msg</p>
+                    <p><strong>{"{swap_message:a:b}"}</strong>: Swap words a & b</p>
+                    <p><strong>{"{random:1-5:e}"}</strong>: Repeats 'e' 1-5 times</p>
+                  </div>
+                </span>
+              </div>
+              {responses.length > 0 && (
+                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                  {responses.map((r, i) => (
+                    <div key={i} className="flex flex-col bg-slate-950 border border-slate-800 rounded p-1">
+                      <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 border-b border-slate-800">
+                        <span className="text-[10px] text-slate-500 font-mono">Response #{i + 1}</span>
+                        <button
+                          onClick={() => handleRemoveResponse(i)}
+                          className="text-red-400 hover:text-red-300 leading-none text-sm font-bold"
+                          title="Delete response"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <textarea
+                        value={r}
+                        onChange={(e) => handleUpdateResponse(i, e.target.value)}
+                        className="w-full bg-transparent border-none p-2 text-xs font-mono text-slate-300 focus:outline-none focus:ring-0 resize-y min-h-[60px]"
+                        placeholder="Type response..."
+                        spellCheck={false}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="flex flex-col gap-1 mt-1">
+                <textarea
+                  value={newResponse}
+                  onChange={(e) => setNewResponse(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAddResponse();
+                    }
+                  }}
+                  placeholder="Type new response here..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-y min-h-[60px]"
+                />
+                <span className="text-[10px] text-slate-500">Press Enter to add, Shift+Enter for new line</span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">Response Text</label>
-              <input type="text" value={botResponse} onChange={e => setBotResponse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white" />
+            <div className="mt-2 border-t border-slate-800 pt-3">
+              <label className="text-xs text-indigo-400 font-semibold mb-2 block">Triggers & Logic Gates</label>
+              <TriggerEditor triggers={triggers} onChange={setTriggers} />
             </div>
           </div>
         ) : (

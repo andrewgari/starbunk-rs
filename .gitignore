@@ -22,3 +22,5 @@ secrets/
 /config/bunkbot/bots.yml
 !/config/bots.example.yml
 crates/e2e/suites/bunkbot-secret.json
+
+crates/bunkbot/config/bots.yml

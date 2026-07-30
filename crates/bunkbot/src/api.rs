@@ -24,6 +24,7 @@ use crate::engine::BunkBotEngine;
 pub struct ApiState {
     pub engine: Arc<RwLock<Option<Arc<BunkBotEngine>>>>,
     pub config_dir: String,
+    pub config_store: Arc<dyn starbunk::config_store::ConfigStore>,
 }
 
 pub fn router(state: ApiState) -> Router {
@@ -34,15 +35,20 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/bots/:name/enable", post(enable_bot))
         .route("/api/bots/:name/disable", post(disable_bot))
         .route("/api/bots/:name/frequency", post(set_bot_frequency))
+        .route("/api/user/:id", get(get_discord_user))
         .with_state(state)
 }
 
 async fn get_config(State(state): State<ApiState>) -> Result<String, axum::http::StatusCode> {
     let path = format!("{}/bots.yml", state.config_dir);
-    tokio::fs::read_to_string(&path).await.map_err(|e| {
-        tracing::error!("failed to read config file {}: {}", path, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
-    })
+    match tokio::fs::read_to_string(&path).await {
+        Ok(content) => Ok(content),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok("reply-bots:\n".to_string()),
+        Err(e) => {
+            tracing::error!("failed to read config file {}: {}", path, e);
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn post_config(
@@ -53,13 +59,46 @@ async fn post_config(
     if !is_authorized(&headers) {
         return axum::http::StatusCode::UNAUTHORIZED;
     }
-    let _parsed_bots = match config::parse_bots(&payload) {
+    let parsed_bots = match config::parse_bots(&payload) {
         Ok(b) => b,
         Err(e) => {
             tracing::error!("invalid yaml submitted: {}", e);
             return axum::http::StatusCode::BAD_REQUEST;
         }
     };
+
+    // Full sync: delete bots not in payload, upsert the rest
+    let current_db_bots = match state.config_store.get_all_bots().await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!("failed to read db bots for sync: {}", e);
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    };
+
+    let new_names: std::collections::HashSet<_> =
+        parsed_bots.iter().map(|b| b.name.clone()).collect();
+    for db_bot in current_db_bots {
+        if !new_names.contains(&db_bot.name) {
+            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
+                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
+            }
+        }
+    }
+
+    for bot in &parsed_bots {
+        let json_val = match serde_json::to_value(bot) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("failed to serialize bot {}: {}", bot.name, e);
+                return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        };
+        if let Err(e) = state.config_store.upsert_bot(&bot.name, json_val).await {
+            tracing::error!("failed to upsert bot {}: {}", bot.name, e);
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
 
     let path = format!("{}/bots.yml", state.config_dir);
     if let Err(e) = tokio::fs::write(&path, &payload).await {
@@ -84,33 +123,20 @@ async fn post_config(
 
 pub(crate) async fn reload_all_bots(state: &ApiState) -> axum::http::StatusCode {
     let mut all_bots = Vec::new();
-    let mut read_dir = match tokio::fs::read_dir(&state.config_dir).await {
-        Ok(dir) => dir,
+
+    let db_bots = match state.config_store.get_all_bots().await {
+        Ok(bots) => bots,
         Err(e) => {
-            tracing::error!(err = %e, "failed to read config directory");
+            tracing::error!("failed to read from db store: {}", e);
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
 
-    while let Ok(Some(entry)) = read_dir.next_entry().await {
-        let p = entry.path();
-        if p.is_file()
-            && (p.extension().unwrap_or_default() == "yml"
-                || p.extension().unwrap_or_default() == "yaml")
-        {
-            let yaml = match tokio::fs::read_to_string(&p).await {
-                Ok(content) => content,
-                Err(e) => {
-                    tracing::error!(err = %e, file = %p.display(), "failed to read config file");
-                    return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
-                }
-            };
-            match config::parse_bots(&yaml) {
-                Ok(mut parsed) => all_bots.append(&mut parsed),
-                Err(e) => {
-                    tracing::error!(err = %e, file = %p.display(), "failed to parse config file");
-                    return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
-                }
+    for record in db_bots {
+        match serde_json::from_value::<BotConfig>(record.config) {
+            Ok(parsed) => all_bots.push(parsed),
+            Err(e) => {
+                tracing::error!("failed to parse bot {}: {}", record.name, e);
             }
         }
     }
@@ -128,29 +154,20 @@ async fn get_bots(
     State(state): State<ApiState>,
 ) -> Result<Json<Vec<BotConfig>>, axum::http::StatusCode> {
     let mut all_bots = Vec::new();
-    let mut read_dir = match tokio::fs::read_dir(&state.config_dir).await {
-        Ok(dir) => dir,
+    let db_bots = match state.config_store.get_all_bots().await {
+        Ok(bots) => bots,
         Err(e) => {
-            tracing::error!(err = %e, "failed to read config directory");
+            tracing::error!("failed to get bots from db: {}", e);
             return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
-    while let Ok(Some(entry)) = read_dir.next_entry().await {
-        let p = entry.path();
-        if p.is_file()
-            && (p.extension().unwrap_or_default() == "yml"
-                || p.extension().unwrap_or_default() == "yaml")
-        {
-            let yaml = match tokio::fs::read_to_string(&p).await {
-                Ok(content) => content,
-                Err(_) => continue,
-            };
-            if let Ok(mut parsed) = config::parse_bots(&yaml) {
-                all_bots.append(&mut parsed);
-            }
+    for record in db_bots {
+        if let Ok(parsed) = serde_json::from_value::<BotConfig>(record.config) {
+            all_bots.push(parsed);
         }
     }
+
     Ok(Json(all_bots))
 }
 
@@ -267,6 +284,39 @@ async fn put_bots(
     if !is_authorized(&headers) {
         return axum::http::StatusCode::UNAUTHORIZED;
     }
+
+    // Full sync: delete bots not in payload, upsert the rest
+    let current_db_bots = match state.config_store.get_all_bots().await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!("failed to read db bots for sync: {}", e);
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    };
+
+    let new_names: std::collections::HashSet<_> = bots.iter().map(|b| b.name.clone()).collect();
+    for db_bot in current_db_bots {
+        if !new_names.contains(&db_bot.name) {
+            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
+                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
+            }
+        }
+    }
+
+    for bot in &bots {
+        let json_val = match serde_json::to_value(bot) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("failed to serialize bot {}: {}", bot.name, e);
+                return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        };
+        if let Err(e) = state.config_store.upsert_bot(&bot.name, json_val).await {
+            tracing::error!("failed to upsert bot {}: {}", bot.name, e);
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+
     let file = config::ReplyBotsFile { reply_bots: bots };
     let yaml = match serde_yaml::to_string(&file) {
         Ok(y) => y,
@@ -312,6 +362,27 @@ fn is_authorized(headers: &axum::http::HeaderMap) -> bool {
     false
 }
 
+async fn get_discord_user(
+    State(state): State<ApiState>,
+    Path(user_id): Path<u64>,
+) -> Result<Json<starbunk::discord::Identity>, axum::http::StatusCode> {
+    let engine_lock = state.engine.read().await;
+    let engine = engine_lock
+        .as_ref()
+        .ok_or(axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
+
+    let identity = engine
+        .identity_provider()
+        .get_identity(serenity::all::UserId::new(user_id), None)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to fetch user {}: {}", user_id, e);
+            axum::http::StatusCode::NOT_FOUND
+        })?;
+
+    Ok(Json(identity))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,6 +392,20 @@ mod tests {
     };
     use http_body_util::BodyExt;
     use tower::ServiceExt;
+
+    struct DummyConfigStore;
+    #[async_trait::async_trait]
+    impl starbunk::config_store::ConfigStore for DummyConfigStore {
+        async fn upsert_bot(&self, _: &str, _: serde_json::Value) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn get_all_bots(&self) -> anyhow::Result<Vec<starbunk::config_store::ConfigRecord>> {
+            Ok(vec![])
+        }
+        async fn delete_bot(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
 
     async fn setup_test_state() -> ApiState {
         let dir = std::env::temp_dir().join(format!(
@@ -334,6 +419,7 @@ mod tests {
         ApiState {
             engine: Arc::new(RwLock::new(None)),
             config_dir: dir.to_string_lossy().to_string(),
+            config_store: Arc::new(DummyConfigStore),
         }
     }
 
@@ -415,6 +501,7 @@ mod tests {
         let state = ApiState {
             engine: Arc::new(RwLock::new(None)),
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
+            config_store: Arc::new(DummyConfigStore),
         };
 
         let valid_yaml =
@@ -449,6 +536,7 @@ mod tests {
         let state = ApiState {
             engine: Arc::new(RwLock::new(None)),
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
+            config_store: Arc::new(DummyConfigStore),
         };
 
         let bots_json = serde_json::json!([{
@@ -477,6 +565,32 @@ mod tests {
             response.status(),
             StatusCode::INTERNAL_SERVER_ERROR,
             "Unexpected write error should return 500"
+        );
+    }
+    #[tokio::test]
+    async fn get_discord_user_returns_503_when_engine_missing() {
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/tmp".to_string(),
+            config_store: Arc::new(DummyConfigStore),
+        };
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/user/123456789")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Missing engine should return 503"
         );
     }
 }

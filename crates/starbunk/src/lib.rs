@@ -1,5 +1,6 @@
 pub mod api;
 pub mod audit;
+pub mod config_store;
 pub mod discord;
 pub mod health;
 pub mod llm;

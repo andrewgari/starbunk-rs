@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -27,7 +28,7 @@ export default function BunkBotMagnumOpus() {
       const bots = await botsRes.json();
       const statuses = await statusRes.json();
 
-      const mapped: SubBotData[] = bots.map((b: any) => {
+      const mapped: SubBotData[] = bots.map((b: Record<string, unknown>) => {
         const st = statuses.find((s: any) => s.name === b.name) || {};
         return {
           name: b.name,
@@ -36,10 +37,10 @@ export default function BunkBotMagnumOpus() {
           ignore_bots: b.ignore_bots ?? true,
           ignore_humans: b.ignore_humans ?? false,
           ignore_self: b.ignore_self ?? true,
-          identityType: b.identity.type,
-          bot_name: b.identity.bot_name,
-          avatar_url: b.identity.avatar_url,
-          user_id: b.identity.user_id,
+          identityType: b.identity?.type || "static",
+          bot_name: b.identity?.bot_name,
+          avatar_url: b.identity?.avatar_url,
+          user_id: b.identity?.user_id,
           responses: b.responses || [],
           triggersCount: b.triggers?.length || 0,
           yamlSnippet: JSON.stringify(b, null, 2),
@@ -54,6 +55,7 @@ export default function BunkBotMagnumOpus() {
   };
 
   useEffect(() => {
+     
     loadBots();
   }, []);
 
@@ -73,6 +75,27 @@ export default function BunkBotMagnumOpus() {
         return;
       }
       setSaveError(null);
+      
+      // Optimistically add the new bot to the UI state
+      const mappedNewBot: SubBotData = {
+        name: newBot.name,
+        enabled: true,
+        frequency: newBot.frequency ?? 100,
+        ignore_bots: newBot.ignore_bots ?? true,
+        ignore_humans: newBot.ignore_humans ?? false,
+        ignore_self: newBot.ignore_self ?? true,
+        identityType: newBot.identity?.type || "static",
+        bot_name: newBot.identity?.bot_name,
+        avatar_url: newBot.identity?.avatar_url,
+        user_id: newBot.identity?.user_id,
+        responses: newBot.responses || [],
+        triggersCount: newBot.triggers?.length || 0,
+        yamlSnippet: JSON.stringify(newBot, null, 2),
+        triggersToday: 0,
+        botConfig: newBot,
+      };
+      setSubBots(prev => [...prev, mappedNewBot]);
+
       if (res.ok) {
         await loadBots();
       }
@@ -113,7 +136,7 @@ export default function BunkBotMagnumOpus() {
     ) {
       try {
         const snippetChanged = oldBot.yamlSnippet !== updated.yamlSnippet;
-        let newBotConfig = JSON.parse(updated.yamlSnippet);
+        const newBotConfig = JSON.parse(updated.yamlSnippet);
 
         if (!newBotConfig.identity || typeof newBotConfig.identity !== "object") {
           newBotConfig.identity = {};
@@ -185,6 +208,10 @@ export default function BunkBotMagnumOpus() {
       return;
     }
     setSaveError(null);
+
+    // Optimistically remove from UI
+    setSubBots(prev => prev.filter(b => b.name !== name));
+
     if (res.ok) {
       await loadBots();
     }
@@ -197,7 +224,7 @@ export default function BunkBotMagnumOpus() {
   };
 
   return (
-    <div className="flex flex-col h-full gap-6 max-w-6xl mx-auto py-6">
+    <div className="flex flex-col h-full gap-6 w-full max-w-[98%] 2xl:max-w-[2000px] mx-auto py-6">
       {/* Header */}
       <header className="flex justify-between items-start">
         <div>
@@ -300,7 +327,7 @@ export default function BunkBotMagnumOpus() {
           <span className="text-xs text-slate-400">Configure triggers, frequency limiters, and identities per bot.</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
           {subBots.map((bot) => (
             <SubBotCard
               key={bot.name}

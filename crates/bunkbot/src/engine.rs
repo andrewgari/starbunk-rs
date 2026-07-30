@@ -101,6 +101,10 @@ impl BunkBotEngine {
             .collect()
     }
 
+    pub fn identity_provider(&self) -> Arc<dyn IdentityProvider> {
+        self.identity_provider.clone()
+    }
+
     pub fn state_service(&self) -> Arc<dyn BotStateService> {
         self.state_service.clone()
     }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/bots")) {
+  if (request.nextUrl.pathname.startsWith("/api/bots") || request.nextUrl.pathname.startsWith("/api/user")) {
     const requestHeaders = new Headers(request.headers);
     const token = process.env.BUNKBOT_ADMIN_TOKEN || "";
     if (token) {
@@ -24,5 +24,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/bots/:path*",
+  matcher: ["/api/bots/:path*", "/api/user/:path*"],
 };

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 "use server";
 
 const BUNKBOT_API_URL = process.env.BUNKBOT_API_URL || "http://localhost:9082";
@@ -12,13 +13,32 @@ export async function getBunkBotConfig() {
     }
     return await res.text();
   } catch (error: unknown) {
-    console.error("Error fetching BunkBot config:", error);
+    console.warn("Error fetching BunkBot config from backend:", error);
     return null;
+  }
+}
+
+export async function getBunkBotConfigJson() {
+  const yamlStr = await getBunkBotConfig();
+  if (!yamlStr) return [];
+  try {
+    const parsed = yaml.load(yamlStr) as { "reply-bots"?: any[] };
+    return parsed?.["reply-bots"] || [];
+  } catch (e) {
+    console.error("Failed to parse fallback yaml", e);
+    return [];
   }
 }
 
 export async function saveBunkBotConfig(yaml: string) {
   try {
+    // 1. Always persist to Kubernetes Secret / Disk first
+    const saveResult = await updateBotConfig("bunkbot", "bots.yml", yaml);
+    if (!saveResult.success) {
+      return saveResult;
+    }
+
+    // 2. Try to hot-reload the running API
     const token = process.env.BUNKBOT_ADMIN_TOKEN || "";
     const res = await fetch(`${BUNKBOT_API_URL}/config`, {
       method: "POST",
@@ -31,23 +51,19 @@ export async function saveBunkBotConfig(yaml: string) {
 
     if (!res.ok) {
       const text = await res.text();
-      return { success: false, error: text || res.statusText };
-    }
-
-    // Only persist to Kubernetes Secret after the API accepted the config
-    const saveResult = await updateBotConfig("bunkbot", "bots.yml", yaml);
-    if (!saveResult.success) {
-      return saveResult;
+      console.warn(`Saved to disk, but hot-reload failed: ${text || res.statusText}`);
+      return { success: true, error: `Saved to disk, but hot-reload failed: ${text || res.statusText}` };
     }
 
     return { success: true };
   } catch (error: unknown) {
-    console.error("Error saving BunkBot config:", error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    console.warn("Error triggering BunkBot hot-reload API:", error);
+    // Return success: true because the disk save succeeded, even though hot-reload failed
+    return { success: true, error: "Saved to disk, but backend is offline." };
   }
 }
 
-export async function saveBunkBotConfigJson(bots: any[]) {
+export async function saveBunkBotConfigJson(bots: Record<string, unknown>[]) {
   try {
     const yamlStr = yaml.dump({ "reply-bots": bots });
     

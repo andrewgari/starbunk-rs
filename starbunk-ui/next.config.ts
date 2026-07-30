@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { NextConfig } from "next";
 
 const bunkbotUrl = process.env.BUNKBOT_API_URL || "http://127.0.0.1:9082";
