@@ -546,6 +546,32 @@ mod tests {
             "Unexpected write error should return 500"
         );
     }
+    #[tokio::test]
+    async fn get_discord_user_returns_503_when_engine_missing() {
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/tmp".to_string(),
+            config_store: Arc::new(DummyConfigStore),
+        };
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/user/123456789")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Missing engine should return 503"
+        );
+    }
 }
 
 async fn get_discord_user(
