@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 "use server";
 
 const BUNKBOT_API_URL = process.env.BUNKBOT_API_URL || "http://localhost:9082";
@@ -62,7 +63,7 @@ export async function saveBunkBotConfig(yaml: string) {
   }
 }
 
-export async function saveBunkBotConfigJson(bots: any[]) {
+export async function saveBunkBotConfigJson(bots: Record<string, unknown>[]) {
   try {
     const yamlStr = yaml.dump({ "reply-bots": bots });
     

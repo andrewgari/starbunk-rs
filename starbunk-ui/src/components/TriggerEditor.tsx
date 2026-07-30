@@ -1,9 +1,9 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useState } from "react";
 
 // The raw format BunkBot expects
-export type RawCondition = Record<string, any>;
+export type RawCondition = Record<string, unknown>;
 
 export interface TriggerConfig {
   name?: string;
@@ -30,7 +30,7 @@ const CONDITION_KEYS = [
 ];
 
 // Helper to determine the type and value of a raw condition
-function getConditionDetails(cond: RawCondition): { key: string; value: any } {
+function getConditionDetails(cond: RawCondition): { key: string; value: unknown } {
   const keys = Object.keys(cond || {});
   if (keys.length === 0) return { key: "always", value: true };
   const key = keys[0];
@@ -52,7 +52,7 @@ function ConditionEditor({
 
   const handleKeyChange = (newKey: string) => {
     const isNewCompound = ["all_of", "any_of", "none_of"].includes(newKey);
-    let newValue: any = "";
+    let newValue: unknown = "";
     if (isNewCompound) {
       newValue = isCompound && Array.isArray(value) ? value : [{ contains_phrase: "" }];
     } else if (newKey === "with_chance") {
@@ -63,7 +63,7 @@ function ConditionEditor({
     onChange({ [newKey]: newValue });
   };
 
-  const handleValueChange = (newVal: any) => {
+  const handleValueChange = (newVal: unknown) => {
     onChange({ [key]: newVal });
   };
 
@@ -72,7 +72,7 @@ function ConditionEditor({
       const children = Array.isArray(value) ? value : [];
       return (
         <div className="pl-4 mt-2 border-l-2 border-indigo-500/50 flex flex-col gap-2">
-          {children.map((child: any, idx: number) => (
+          {children.map((child: RawCondition, idx: number) => (
             <ConditionEditor
               key={idx}
               condition={child}

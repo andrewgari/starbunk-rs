@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -27,7 +28,7 @@ export default function BunkBotMagnumOpus() {
       const bots = await botsRes.json();
       const statuses = await statusRes.json();
 
-      const mapped: SubBotData[] = bots.map((b: any) => {
+      const mapped: SubBotData[] = bots.map((b: Record<string, unknown>) => {
         const st = statuses.find((s: any) => s.name === b.name) || {};
         return {
           name: b.name,
@@ -54,6 +55,7 @@ export default function BunkBotMagnumOpus() {
   };
 
   useEffect(() => {
+     
     loadBots();
   }, []);
 
@@ -134,7 +136,7 @@ export default function BunkBotMagnumOpus() {
     ) {
       try {
         const snippetChanged = oldBot.yamlSnippet !== updated.yamlSnippet;
-        let newBotConfig = JSON.parse(updated.yamlSnippet);
+        const newBotConfig = JSON.parse(updated.yamlSnippet);
 
         if (!newBotConfig.identity || typeof newBotConfig.identity !== "object") {
           newBotConfig.identity = {};

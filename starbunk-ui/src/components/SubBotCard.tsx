@@ -18,7 +18,7 @@ export interface SubBotData {
   triggersCount: number;
   yamlSnippet: string;
   triggersToday?: number;
-  botConfig?: any;
+  botConfig?: Record<string, unknown>;
 }
 
 interface SubBotCardProps {
