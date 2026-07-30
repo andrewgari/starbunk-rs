@@ -152,7 +152,6 @@ const getDisplayName = () => {
               &quot;{bot.responses[0]}&quot; {bot.responses.length > 1 && `(+${bot.responses.length - 1} more)`}
             </div>
           )}
-
           {/* Volume Bar / Chance Slider */}
           <div className={`mt-3 flex items-center gap-3 transition-opacity duration-200 ${
             bot.frequency < 100 ? "opacity-100" : "opacity-0 group-hover:opacity-100"
