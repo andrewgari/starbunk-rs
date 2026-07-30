@@ -70,7 +70,7 @@ const getDisplayName = () => {
 
   return (
     <>
-      <div className={`glass-panel p-5 flex flex-col gap-3 border transition-all ${
+      <div className={`group glass-panel p-5 flex flex-col gap-3 border transition-all ${
         bot.enabled ? "border-slate-700/60" : "border-slate-800/40 opacity-60"
       }`}>
         {/* Header */}
@@ -109,12 +109,9 @@ const getDisplayName = () => {
                 </span>
               </div>
               
-              {/* Display Name (Large) with Hover Percent Change */}
-              <h3 className="text-xl font-bold text-white flex items-center gap-2 group cursor-default h-7 w-full overflow-hidden">
+              {/* Display Name (Large) */}
+              <h3 className="text-xl font-bold text-white flex items-center gap-2 h-7 w-full overflow-hidden">
                 <span className="truncate flex-shrink">{getDisplayName()}</span>
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-0.5 rounded bg-slate-800/50 font-mono text-emerald-400 border border-emerald-500/20">
-                  {bot.frequency}% Chance
-                </span>
               </h3>
             </div>
           </div>
@@ -155,6 +152,24 @@ const getDisplayName = () => {
               &quot;{bot.responses[0]}&quot; {bot.responses.length > 1 && `(+${bot.responses.length - 1} more)`}
             </div>
           )}
+
+          {/* Volume Bar / Chance Slider */}
+          <div className={`mt-3 flex items-center gap-3 transition-opacity duration-200 ${
+            bot.frequency < 100 ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}>
+            <span className="text-xs text-slate-400" title="Reply Chance">🎲</span>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={bot.frequency}
+              onChange={(e) => onUpdateBot({ ...bot, frequency: parseInt(e.target.value) })}
+              className="flex-grow accent-emerald-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <span className="text-xs font-mono text-emerald-400 w-10 text-right">
+              {bot.frequency}%
+            </span>
+          </div>
         </div>
       </div>
 
