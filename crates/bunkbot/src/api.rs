@@ -362,6 +362,27 @@ fn is_authorized(headers: &axum::http::HeaderMap) -> bool {
     false
 }
 
+async fn get_discord_user(
+    State(state): State<ApiState>,
+    Path(user_id): Path<u64>,
+) -> Result<Json<starbunk::discord::Identity>, axum::http::StatusCode> {
+    let engine_lock = state.engine.read().await;
+    let engine = engine_lock
+        .as_ref()
+        .ok_or(axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
+
+    let identity = engine
+        .identity_provider()
+        .get_identity(serenity::all::UserId::new(user_id), None)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to fetch user {}: {}", user_id, e);
+            axum::http::StatusCode::NOT_FOUND
+        })?;
+
+    Ok(Json(identity))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -572,25 +593,4 @@ mod tests {
             "Missing engine should return 503"
         );
     }
-}
-
-async fn get_discord_user(
-    State(state): State<ApiState>,
-    Path(user_id): Path<u64>,
-) -> Result<Json<starbunk::discord::Identity>, axum::http::StatusCode> {
-    let engine_lock = state.engine.read().await;
-    let engine = engine_lock
-        .as_ref()
-        .ok_or(axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
-
-    let identity = engine
-        .identity_provider()
-        .get_identity(serenity::all::UserId::new(user_id), None)
-        .await
-        .map_err(|e| {
-            tracing::error!("failed to fetch user {}: {}", user_id, e);
-            axum::http::StatusCode::NOT_FOUND
-        })?;
-
-    Ok(Json(identity))
 }
