@@ -146,6 +146,16 @@ const getDisplayName = () => {
             {bot.triggersToday ?? 0} Triggers Today
           </div>
           
+          <div className="mt-2 flex flex-col gap-1">
+            <span className="text-[10px] uppercase font-bold text-amber-500 tracking-widest flex items-center gap-1">
+              <span className="text-amber-500 bg-amber-500/20 w-3 h-3 flex items-center justify-center rounded-sm border border-amber-500/50">⚠️</span>
+              Target Channels
+            </span>
+            <div className="flex flex-wrap gap-1">
+              <span className="px-1.5 py-0.5 bg-[repeating-linear-gradient(45deg,#000,#000_5px,#333_5px,#333_10px)] border border-amber-500/50 text-amber-400 text-[10px] rounded shadow-[0_0_5px_rgba(245,158,11,0.5)] font-mono">ALL CHANNELS</span>
+            </div>
+          </div>
+          
           {/* Quick Preview of Responses */}
           {bot.responses.length > 0 && (
             <div className="mt-2 bg-slate-900/50 border border-slate-800 rounded p-2 text-xs text-slate-400 font-mono italic truncate">

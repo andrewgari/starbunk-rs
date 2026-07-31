@@ -130,6 +130,19 @@ export default function EditBotModal({ bot, isOpen, onClose, onSave }: EditBotMo
                 <option value="bots">Bots (Ignore humans)</option>
               </select>
             </div>
+
+            <div className="flex flex-col gap-1 col-span-2">
+              <label className="text-[10px] uppercase font-bold text-amber-500 tracking-widest flex items-center gap-1">
+                <span className="text-amber-500 bg-amber-500/20 w-3 h-3 flex items-center justify-center rounded-sm border border-amber-500/50">⚠️</span>
+                Target Channels
+              </label>
+              <select className="w-full bg-[repeating-linear-gradient(45deg,#000,#000_10px,#1a1a1a_10px,#1a1a1a_20px)] border border-amber-500/50 rounded p-2 text-sm text-amber-400 focus:border-amber-400 outline-none shadow-[0_0_10px_rgba(245,158,11,0.2)] font-mono">
+                <option value="all">ALL CHANNELS (Global Broadcast)</option>
+                <option value="general">#general</option>
+                <option value="bot-spam">#bot-spam</option>
+                <option value="admin">#admin</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1">

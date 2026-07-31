@@ -1,28 +1,19 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { auth } from "@/auth"
+import { NextResponse } from "next/server"
 
-export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/bots") || request.nextUrl.pathname.startsWith("/api/user")) {
-    const requestHeaders = new Headers(request.headers);
-    const token = process.env.BUNKBOT_ADMIN_TOKEN || "";
-    if (token) {
-      requestHeaders.set("Authorization", `Bearer ${token}`);
+export default auth((req) => {
+  const isProtectedApi = req.nextUrl.pathname.startsWith('/api/bots')
+  
+  if (!req.auth) {
+    if (isProtectedApi) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    const bunkbotUrl = process.env.BUNKBOT_API_URL || "http://127.0.0.1:9082";
-    const targetUrl = new URL(
-      request.nextUrl.pathname + request.nextUrl.search,
-      bunkbotUrl
-    );
-
-    return NextResponse.rewrite(targetUrl, {
-      request: {
-        headers: requestHeaders,
-      },
-    });
+    // We let the client-side UI component handle the unauthenticated state 
+    // so it can render the flashy "RESTRICTED ACCESS" login screen in app/bunkbot/page.tsx
   }
-}
+  return NextResponse.next()
+})
 
 export const config = {
-  matcher: ["/api/bots/:path*", "/api/user/:path*"],
-};
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)', '/api/bots/:path*'],
+}

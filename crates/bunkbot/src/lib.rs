@@ -13,6 +13,7 @@ use starbunk::discord::{
     DiscordIdentityProvider, DiscordMessageService, MessageService, WebhookService,
 };
 use starbunk::middleware::{MessageFilter, HAS_CONTENT};
+use starbunk::tracking::{BotTrackingHandler, PgBotTrackingStore};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -26,6 +27,7 @@ struct Handler {
     engine: Arc<tokio::sync::RwLock<Option<Arc<BunkBotEngine>>>>,
     state_service: Arc<dyn state::BotStateService>,
     audit: Arc<starbunk::audit::AuditStore>,
+    tracking_handler: Arc<BotTrackingHandler>,
 }
 
 impl Handler {
@@ -33,12 +35,14 @@ impl Handler {
         engine: Arc<tokio::sync::RwLock<Option<Arc<BunkBotEngine>>>>,
         state_service: Arc<dyn state::BotStateService>,
         audit: Arc<starbunk::audit::AuditStore>,
+        tracking_handler: Arc<BotTrackingHandler>,
     ) -> Self {
         Self {
             filter: HAS_CONTENT.clone(),
             engine,
             state_service,
             audit,
+            tracking_handler,
         }
     }
 }
@@ -46,6 +50,9 @@ impl Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
+        self.tracking_handler
+            .ready(ctx.clone(), ready.clone())
+            .await;
         tracing::info!("BunkBot connected as {}", ready.user.name);
 
         let ws = Arc::new(WebhookService::new(ctx.http.clone()));
@@ -157,6 +164,36 @@ impl EventHandler for Handler {
             engine.handle(&ctx, &msg, self_id).await;
         }
     }
+
+    async fn guild_create(&self, ctx: Context, guild: serenity::all::Guild, is_new: Option<bool>) {
+        self.tracking_handler.guild_create(ctx, guild, is_new).await;
+    }
+
+    async fn guild_delete(
+        &self,
+        ctx: Context,
+        incomplete: serenity::all::UnavailableGuild,
+        full: Option<serenity::all::Guild>,
+    ) {
+        self.tracking_handler
+            .guild_delete(ctx, incomplete, full)
+            .await;
+    }
+
+    async fn channel_create(&self, ctx: Context, channel: serenity::all::GuildChannel) {
+        self.tracking_handler.channel_create(ctx, channel).await;
+    }
+
+    async fn channel_delete(
+        &self,
+        ctx: Context,
+        channel: serenity::all::GuildChannel,
+        messages: Option<Vec<serenity::all::Message>>,
+    ) {
+        self.tracking_handler
+            .channel_delete(ctx, channel, messages)
+            .await;
+    }
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -181,11 +218,17 @@ pub async fn run() -> anyhow::Result<()> {
             .await
             .expect("Failed to init config store"),
     );
+    let tracking_store = Arc::new(PgBotTrackingStore::new(pool.clone()).await?);
+    let tracking_handler = Arc::new(BotTrackingHandler {
+        bot_name: "BunkBot".to_string(),
+        store: tracking_store.clone(),
+    });
 
     let api_state = api::ApiState {
         engine: engine_ref.clone(),
         config_dir,
         config_store,
+        tracking_store,
     };
 
     let app = api::router(api_state);
@@ -198,8 +241,8 @@ pub async fn run() -> anyhow::Result<()> {
 
     starbunk::utils::run_bot(
         "BunkBot",
-        starbunk::utils::default_intents(),
-        Handler::new(engine_ref, state_service, audit),
+        starbunk::utils::default_intents() | serenity::all::GatewayIntents::GUILDS,
+        Handler::new(engine_ref, state_service, audit, tracking_handler),
     )
     .await
 }
