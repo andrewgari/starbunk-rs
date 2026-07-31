@@ -100,6 +100,7 @@ mod tests {
     // is possible since setup_store initializes it.
 
     #[tokio::test]
+    #[ignore = "requires a live Postgres connection"]
     async fn router_can_be_created() {
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()

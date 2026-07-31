@@ -276,6 +276,7 @@ relationships:
     }
 
     #[tokio::test]
+    #[ignore = "requires a live Postgres connection"]
     async fn db_crud_personality_all() {
         let store = setup_store().await;
 
