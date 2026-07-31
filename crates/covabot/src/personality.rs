@@ -259,11 +259,7 @@ relationships:
         assert!(yaml.contains("- Test Pattern"));
     }
 
-    use tokio::sync::Mutex;
-    static DB_LOCK: Mutex<()> = Mutex::const_new(());
-
-    async fn setup_store() -> (PersonalityStore, tokio::sync::MutexGuard<'static, ()>) {
-        let guard = DB_LOCK.lock().await;
+    async fn setup_store() -> PersonalityStore {
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
         });
@@ -275,52 +271,29 @@ relationships:
 
         let store = PersonalityStore::new(p);
         store.init_schema().await.unwrap();
-
-        (store, guard)
+        store
     }
 
     #[tokio::test]
-    async fn db_crud_personality_get() {
-        let (store, _guard) = setup_store().await;
+    async fn db_crud_personality_all() {
+        let store = setup_store().await;
+
+        // Test basic get
         store.get_personality().await.unwrap();
-    }
 
-    #[tokio::test]
-    async fn db_crud_personality_update() {
-        let (store, _guard) = setup_store().await;
+        // Test update full personality
         store
             .update_personality(&CovabotPersonalityYml::default())
             .await
             .unwrap();
-    }
 
-    #[tokio::test]
-    async fn db_crud_personality_update_identity() {
-        let (store, _guard) = setup_store().await;
+        // Test atomic updates
         store.update_identity("New Identity").await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn db_crud_personality_add_speech_pattern() {
-        let (store, _guard) = setup_store().await;
         store.add_speech_pattern("pattern").await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn db_crud_personality_add_affinity() {
-        let (store, _guard) = setup_store().await;
         store.add_affinity("affinity").await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn db_crud_personality_set_relationship() {
-        let (store, _guard) = setup_store().await;
         store.set_relationship("user_id", "friend").await.unwrap();
-    }
 
-    #[tokio::test]
-    async fn db_crud_personality_sync_from_yaml() {
-        let (store, _guard) = setup_store().await;
+        // Test sync from/to yaml
         let yaml_content = r#"
 identity: "Test"
 speech_patterns: []
@@ -328,11 +301,6 @@ affinities: []
 relationships: {}
 "#;
         store.sync_from_yaml(yaml_content).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn db_crud_personality_sync_to_yaml() {
-        let (store, _guard) = setup_store().await;
         store.sync_to_yaml().await.unwrap();
     }
 }
