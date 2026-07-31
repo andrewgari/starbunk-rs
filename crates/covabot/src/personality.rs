@@ -260,24 +260,27 @@ relationships:
     }
 
     use tokio::sync::OnceCell;
-    static INIT: OnceCell<()> = OnceCell::const_new();
+    static POOL: OnceCell<sqlx::PgPool> = OnceCell::const_new();
 
     async fn setup_store() -> PersonalityStore {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
-        });
-        let store = PersonalityStore::new(
-            sqlx::postgres::PgPoolOptions::new()
-                .max_connections(2)
-                .connect(&db_url)
-                .await
-                .unwrap(),
-        );
-        INIT.get_or_init(|| async {
-            store.init_schema().await.unwrap();
-        })
-        .await;
-        store
+        let pool = POOL
+            .get_or_init(|| async {
+                let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                    "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
+                });
+                let p = sqlx::postgres::PgPoolOptions::new()
+                    .max_connections(5)
+                    .connect(&db_url)
+                    .await
+                    .unwrap();
+
+                let store = PersonalityStore::new(p.clone());
+                store.init_schema().await.unwrap();
+                p
+            })
+            .await;
+
+        PersonalityStore::new(pool.clone())
     }
 
     #[tokio::test]
