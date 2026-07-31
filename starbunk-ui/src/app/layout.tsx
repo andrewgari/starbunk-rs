@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import { Providers } from "./Providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -56,7 +57,7 @@ export default function RootLayout({
         
         {/* Main Content */}
         <main className="flex-1 p-4 overflow-y-auto">
-          {children}
+          <Providers>{children}</Providers>
         </main>
       </body>
     </html>

@@ -8,4 +8,5 @@ pub mod memory;
 pub mod middleware;
 pub mod replybot;
 pub mod telemetry;
+pub mod tracking;
 pub mod utils;

@@ -25,6 +25,7 @@ pub struct ApiState {
     pub engine: Arc<RwLock<Option<Arc<BunkBotEngine>>>>,
     pub config_dir: String,
     pub config_store: Arc<dyn starbunk::config_store::ConfigStore>,
+    pub tracking_store: Arc<dyn starbunk::tracking::BotTrackingStore>,
 }
 
 pub fn router(state: ApiState) -> Router {
@@ -35,6 +36,8 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/bots/:name/enable", post(enable_bot))
         .route("/api/bots/:name/disable", post(disable_bot))
         .route("/api/bots/:name/frequency", post(set_bot_frequency))
+        .route("/api/discovery/servers", get(get_servers))
+        .route("/api/discovery/channels", get(get_channels))
         .route("/api/user/:id", get(get_discord_user))
         .with_state(state)
 }
@@ -383,6 +386,36 @@ async fn get_discord_user(
     Ok(Json(identity))
 }
 
+async fn get_servers(
+    State(state): State<ApiState>,
+) -> Result<
+    Json<std::collections::HashMap<String, Vec<starbunk::tracking::GuildInfo>>>,
+    axum::http::StatusCode,
+> {
+    match state.tracking_store.get_all_guilds().await {
+        Ok(guilds) => Ok(Json(guilds)),
+        Err(e) => {
+            tracing::error!("failed to fetch guilds: {}", e);
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_channels(
+    State(state): State<ApiState>,
+) -> Result<
+    Json<std::collections::HashMap<String, Vec<starbunk::tracking::ChannelInfo>>>,
+    axum::http::StatusCode,
+> {
+    match state.tracking_store.get_all_channels().await {
+        Ok(channels) => Ok(Json(channels)),
+        Err(e) => {
+            tracing::error!("failed to fetch channels: {}", e);
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,10 +449,42 @@ mod tests {
                 .as_nanos()
         ));
         tokio::fs::create_dir_all(&dir).await.unwrap();
+
+        struct DummyTrackingStore;
+        #[async_trait::async_trait]
+        impl starbunk::tracking::BotTrackingStore for DummyTrackingStore {
+            async fn upsert_guild(&self, _: &str, _: u64, _: &str) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn remove_guild(&self, _: &str, _: u64) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn upsert_channel(&self, _: &str, _: u64, _: u64, _: &str) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn remove_channel(&self, _: &str, _: u64) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn get_all_guilds(
+                &self,
+            ) -> anyhow::Result<std::collections::HashMap<String, Vec<starbunk::tracking::GuildInfo>>>
+            {
+                Ok(std::collections::HashMap::new())
+            }
+            async fn get_all_channels(
+                &self,
+            ) -> anyhow::Result<
+                std::collections::HashMap<String, Vec<starbunk::tracking::ChannelInfo>>,
+            > {
+                Ok(std::collections::HashMap::new())
+            }
+        }
+
         ApiState {
             engine: Arc::new(RwLock::new(None)),
             config_dir: dir.to_string_lossy().to_string(),
             config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
         }
     }
 
@@ -502,6 +567,7 @@ mod tests {
             engine: Arc::new(RwLock::new(None)),
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
             config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
         };
 
         let valid_yaml =
@@ -537,6 +603,7 @@ mod tests {
             engine: Arc::new(RwLock::new(None)),
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
             config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
         };
 
         let bots_json = serde_json::json!([{
@@ -573,6 +640,7 @@ mod tests {
             engine: Arc::new(RwLock::new(None)),
             config_dir: "/tmp".to_string(),
             config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
         };
 
         let app = router(state);
