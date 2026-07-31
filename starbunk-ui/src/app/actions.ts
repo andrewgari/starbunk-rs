@@ -233,3 +233,31 @@ export async function updateBotConfig(
     return { success: false, error: errMsg(error) };
   }
 }
+
+export async function getPersonality() {
+  try {
+    const res = await fetch("http://localhost:9083/api/personality", {
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("Failed to fetch personality");
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching personality:", error);
+    return null;
+  }
+}
+
+export async function patchPersonality(update: any) {
+  try {
+    const res = await fetch("http://localhost:9083/api/personality", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    });
+    if (!res.ok) throw new Error("Failed to update personality");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating personality:", error);
+    return { success: false, error: errMsg(error) };
+  }
+}

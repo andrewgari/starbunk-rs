@@ -115,7 +115,7 @@ function ConditionEditor({
             onChange={(e) => handleValueChange(Number(e.target.value))}
             className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
           />
-          <span className="text-xs text-slate-300 font-mono w-8 text-right">{value}%</span>
+          <span className="text-xs text-slate-300 font-mono w-8 text-right">{String(value)}%</span>
         </div>
       );
     }

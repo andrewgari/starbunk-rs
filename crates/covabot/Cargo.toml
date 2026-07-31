@@ -27,3 +27,4 @@ serde_json.workspace         = true
 rand.workspace               = true
 serde_yaml.workspace = true
 schemars = "1.2.1"
+notify.workspace = true

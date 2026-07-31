@@ -1,7 +1,9 @@
+pub mod api;
 pub mod conversation;
 pub mod engagement;
 pub mod personality;
 pub mod tagger;
+pub mod watcher;
 
 pub use conversation::{LlmTracker, Tracker};
 pub use engagement::{GateEnergy, GateReason, Manager as EngagementManager, MessageInput};
@@ -318,15 +320,41 @@ impl EventHandler for Handler {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/starbunk_memory".to_string());
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
+    });
 
     let pool = PgPoolOptions::new()
         .connect(&db_url)
         .await
         .expect("Failed to connect to DB");
 
-    let audit = Arc::new(AuditStore::new(pool).await?);
+    let audit = Arc::new(AuditStore::new(pool.clone()).await?);
+
+    let store = Arc::new(personality::PersonalityStore::new(pool.clone()));
+    if let Err(e) = store.init_schema().await {
+        tracing::warn!("Failed to init schema for personality store: {}", e);
+    }
+
+    // Spawn API
+    let api_router = crate::api::router(store.clone());
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3004".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    tokio::spawn(async move {
+        tracing::info!("CovaBot API listening on {}", addr);
+        if let Err(e) = axum::serve(listener, api_router).await {
+            tracing::error!("CovaBot API server error: {}", e);
+        }
+    });
+
+    // Spawn watcher
+    if let Err(e) =
+        crate::watcher::watch_personality_file(store.clone(), "config/covabot-personality.yml")
+            .await
+    {
+        tracing::warn!("Failed to start personality file watcher: {}", e);
+    }
 
     starbunk::utils::run_bot(
         "CovaBot",
