@@ -30,7 +30,7 @@ export default function BunkBotMagnumOpus() {
       const bots = await botsRes.json();
       const statuses = await statusRes.json();
 
-      const mapped: SubBotData[] = bots.map((b: Record<string, unknown>) => {
+      const mapped: SubBotData[] = bots.map((b: any) => {
         const st = statuses.find((s: any) => s.name === b.name) || {};
         return {
           name: b.name,
@@ -137,7 +137,7 @@ export default function BunkBotMagnumOpus() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedList),
       });
-      const result = await saveBunkBotConfigJson(updatedList);
+      const result = await saveBunkBotConfigJson(updatedList as any);
       if (!result.success) {
         setSaveError(result.error || "Failed to save configuration");
         return;
@@ -248,7 +248,7 @@ export default function BunkBotMagnumOpus() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updatedList),
         });
-        const result = await saveBunkBotConfigJson(updatedList);
+        const result = await saveBunkBotConfigJson(updatedList as any);
         if (!result.success) {
           setSaveError(result.error || "Failed to save configuration");
           return;
@@ -270,7 +270,7 @@ export default function BunkBotMagnumOpus() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updatedList),
     });
-    const result = await saveBunkBotConfigJson(updatedList);
+    const result = await saveBunkBotConfigJson(updatedList as any);
     if (!result.success) {
       setSaveError(result.error || "Failed to save configuration");
       return;

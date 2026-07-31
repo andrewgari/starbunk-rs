@@ -115,7 +115,7 @@ export default function EditBotModal({ bot, isOpen, onClose, onSave }: EditBotMo
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-400">Identity Profile</label>
-              <select value={identityType} onChange={e => setIdentityType(e.target.value as string)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-indigo-500 outline-none">
+              <select value={identityType} onChange={e => setIdentityType(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm text-white focus:border-indigo-500 outline-none">
                 <option value="static">Custom Profile</option>
                 <option value="mimic">Copy Specific User</option>
                 <option value="random">Random Server Member</option>
