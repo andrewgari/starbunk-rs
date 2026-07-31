@@ -57,21 +57,28 @@ export default function BunkBotMagnumOpus() {
   };
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && session) {
       loadBots();
-      loadRadar();
+      loadRadar(session);
     }
-  }, [status]);
+  }, [status, session]);
 
   const [fleetRadar, setFleetRadar] = useState<any[]>([]);
 
-  const loadRadar = async () => {
+  const loadRadar = async (currentSession: any) => {
     try {
       // Mocked endpoint as requested
       // const res = await fetch("/api/discovery/servers");
       // const data = await res.json();
       const data = [{ bot_name: "bluebot", guilds: [{ id: "123", name: "Starbunk", channels: [{id: "456", name: "general"}] }] }];
-      setFleetRadar(data);
+      
+      const allowedGuildIds = currentSession?.admin_guild_ids || [];
+      const filteredData = data.map((radar: any) => ({
+        ...radar,
+        guilds: radar.guilds.filter((g: any) => allowedGuildIds.includes(g.id))
+      })).filter((radar: any) => radar.guilds.length > 0);
+      
+      setFleetRadar(filteredData);
     } catch (e) {
       console.error(e);
     }
@@ -93,6 +100,27 @@ export default function BunkBotMagnumOpus() {
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all uppercase tracking-widest"
           >
             Authenticate via Discord
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // @ts-ignore
+  const adminGuildIds: string[] = session?.admin_guild_ids || [];
+
+  if (status === "authenticated" && adminGuildIds.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-6">
+        <div className="glass-panel p-10 max-w-md text-center border-red-500/50 shadow-2xl shadow-red-500/20 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-[repeating-linear-gradient(45deg,#ef4444,#ef4444_10px,#000_10px,#000_20px)]"></div>
+          <h1 className="text-3xl font-bold text-red-400 mb-4">ACCESS DENIED</h1>
+          <p className="text-slate-400 mb-8">You lack ADMINISTRATOR permissions in any active BunkBot deployment zones.</p>
+          <button 
+            onClick={() => signOut()} 
+            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded border border-slate-600 transition-all uppercase tracking-widest"
+          >
+            Sign Out
           </button>
         </div>
       </div>
