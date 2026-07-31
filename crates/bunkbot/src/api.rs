@@ -440,6 +440,35 @@ mod tests {
         }
     }
 
+    struct DummyTrackingStore;
+    #[async_trait::async_trait]
+    impl starbunk::tracking::BotTrackingStore for DummyTrackingStore {
+        async fn upsert_guild(&self, _: &str, _: u64, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn remove_guild(&self, _: &str, _: u64) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn upsert_channel(&self, _: &str, _: u64, _: u64, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn remove_channel(&self, _: &str, _: u64) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn get_all_guilds(
+            &self,
+        ) -> anyhow::Result<std::collections::HashMap<String, Vec<starbunk::tracking::GuildInfo>>>
+        {
+            Ok(std::collections::HashMap::new())
+        }
+        async fn get_all_channels(
+            &self,
+        ) -> anyhow::Result<std::collections::HashMap<String, Vec<starbunk::tracking::ChannelInfo>>>
+        {
+            Ok(std::collections::HashMap::new())
+        }
+    }
+
     async fn setup_test_state() -> ApiState {
         let dir = std::env::temp_dir().join(format!(
             "bunkbot_test_{}",
@@ -449,36 +478,6 @@ mod tests {
                 .as_nanos()
         ));
         tokio::fs::create_dir_all(&dir).await.unwrap();
-
-        struct DummyTrackingStore;
-        #[async_trait::async_trait]
-        impl starbunk::tracking::BotTrackingStore for DummyTrackingStore {
-            async fn upsert_guild(&self, _: &str, _: u64, _: &str) -> anyhow::Result<()> {
-                Ok(())
-            }
-            async fn remove_guild(&self, _: &str, _: u64) -> anyhow::Result<()> {
-                Ok(())
-            }
-            async fn upsert_channel(&self, _: &str, _: u64, _: u64, _: &str) -> anyhow::Result<()> {
-                Ok(())
-            }
-            async fn remove_channel(&self, _: &str, _: u64) -> anyhow::Result<()> {
-                Ok(())
-            }
-            async fn get_all_guilds(
-                &self,
-            ) -> anyhow::Result<std::collections::HashMap<String, Vec<starbunk::tracking::GuildInfo>>>
-            {
-                Ok(std::collections::HashMap::new())
-            }
-            async fn get_all_channels(
-                &self,
-            ) -> anyhow::Result<
-                std::collections::HashMap<String, Vec<starbunk::tracking::ChannelInfo>>,
-            > {
-                Ok(std::collections::HashMap::new())
-            }
-        }
 
         ApiState {
             engine: Arc::new(RwLock::new(None)),

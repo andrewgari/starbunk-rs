@@ -266,50 +266,93 @@ mod tests {
 
     // Mock store for testing
     pub struct MockTrackingStore {
-        // Not used in tests since they panic anyway, but we need it to compile the impl
+        pub guilds: std::sync::Mutex<HashMap<(String, u64), String>>,
+        pub channels: std::sync::Mutex<HashMap<(String, u64), (u64, String)>>,
+    }
+
+    impl MockTrackingStore {
+        pub fn new() -> Self {
+            Self {
+                guilds: std::sync::Mutex::new(HashMap::new()),
+                channels: std::sync::Mutex::new(HashMap::new()),
+            }
+        }
     }
 
     #[async_trait::async_trait]
     impl BotTrackingStore for MockTrackingStore {
         async fn upsert_guild(
             &self,
-            _bot_name: &str,
-            _guild_id: u64,
-            _guild_name: &str,
+            bot_name: &str,
+            guild_id: u64,
+            guild_name: &str,
         ) -> anyhow::Result<()> {
-            unimplemented!()
+            let mut guilds = self.guilds.lock().unwrap();
+            guilds.insert((bot_name.to_string(), guild_id), guild_name.to_string());
+            Ok(())
         }
 
-        async fn remove_guild(&self, _bot_name: &str, _guild_id: u64) -> anyhow::Result<()> {
-            unimplemented!()
+        async fn remove_guild(&self, bot_name: &str, guild_id: u64) -> anyhow::Result<()> {
+            let mut guilds = self.guilds.lock().unwrap();
+            guilds.remove(&(bot_name.to_string(), guild_id));
+            Ok(())
         }
 
         async fn upsert_channel(
             &self,
-            _bot_name: &str,
-            _guild_id: u64,
-            _channel_id: u64,
-            _channel_name: &str,
+            bot_name: &str,
+            guild_id: u64,
+            channel_id: u64,
+            channel_name: &str,
         ) -> anyhow::Result<()> {
-            unimplemented!()
+            let mut channels = self.channels.lock().unwrap();
+            channels.insert(
+                (bot_name.to_string(), channel_id),
+                (guild_id, channel_name.to_string()),
+            );
+            Ok(())
         }
 
-        async fn remove_channel(&self, _bot_name: &str, _channel_id: u64) -> anyhow::Result<()> {
-            unimplemented!()
+        async fn remove_channel(&self, bot_name: &str, channel_id: u64) -> anyhow::Result<()> {
+            let mut channels = self.channels.lock().unwrap();
+            channels.remove(&(bot_name.to_string(), channel_id));
+            Ok(())
         }
 
         async fn get_all_guilds(&self) -> anyhow::Result<HashMap<String, Vec<GuildInfo>>> {
-            unimplemented!()
+            let guilds = self.guilds.lock().unwrap();
+            let mut result: HashMap<String, Vec<GuildInfo>> = HashMap::new();
+            for ((bot_name, guild_id), guild_name) in guilds.iter() {
+                result.entry(bot_name.clone()).or_default().push(GuildInfo {
+                    bot_name: bot_name.clone(),
+                    guild_id: *guild_id,
+                    guild_name: guild_name.clone(),
+                });
+            }
+            Ok(result)
         }
 
         async fn get_all_channels(&self) -> anyhow::Result<HashMap<String, Vec<ChannelInfo>>> {
-            unimplemented!()
+            let channels = self.channels.lock().unwrap();
+            let mut result: HashMap<String, Vec<ChannelInfo>> = HashMap::new();
+            for ((bot_name, channel_id), (guild_id, channel_name)) in channels.iter() {
+                result
+                    .entry(bot_name.clone())
+                    .or_default()
+                    .push(ChannelInfo {
+                        bot_name: bot_name.clone(),
+                        guild_id: *guild_id,
+                        channel_id: *channel_id,
+                        channel_name: channel_name.clone(),
+                    });
+            }
+            Ok(result)
         }
     }
 
     #[tokio::test]
     async fn test_upsert_and_get_guilds() {
-        let store = MockTrackingStore {};
+        let store = MockTrackingStore::new();
         store
             .upsert_guild("test_bot", 123, "Test Guild")
             .await
@@ -325,7 +368,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remove_guild() {
-        let store = MockTrackingStore {};
+        let store = MockTrackingStore::new();
         store
             .upsert_guild("test_bot", 123, "Test Guild")
             .await
@@ -338,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_upsert_and_get_channels() {
-        let store = MockTrackingStore {};
+        let store = MockTrackingStore::new();
         store
             .upsert_channel("test_bot", 123, 456, "Test Channel")
             .await
@@ -354,7 +397,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remove_channel() {
-        let store = MockTrackingStore {};
+        let store = MockTrackingStore::new();
         store
             .upsert_channel("test_bot", 123, 456, "Test Channel")
             .await
