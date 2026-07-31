@@ -266,7 +266,13 @@ relationships:
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
         });
-        let store = PersonalityStore::new(sqlx::PgPool::connect(&db_url).await.unwrap());
+        let store = PersonalityStore::new(
+            sqlx::postgres::PgPoolOptions::new()
+                .max_connections(2)
+                .connect(&db_url)
+                .await
+                .unwrap(),
+        );
         INIT.get_or_init(|| async {
             store.init_schema().await.unwrap();
         })

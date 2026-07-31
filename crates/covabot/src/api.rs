@@ -104,7 +104,11 @@ mod tests {
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
         });
-        let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&db_url)
+            .await
+            .unwrap();
         let store = Arc::new(PersonalityStore::new(pool));
 
         let app = router(store);
