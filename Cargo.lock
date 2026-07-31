@@ -506,6 +506,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "notify",
  "opentelemetry",
  "rand 0.8.6",
  "schemars",
