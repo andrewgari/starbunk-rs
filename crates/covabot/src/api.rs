@@ -105,7 +105,8 @@ mod tests {
             "postgresql://starbunk:starbunk@localhost:5432/starbunk_memory".to_string()
         });
         let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(2)
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_secs(120))
             .connect(&db_url)
             .await
             .unwrap();
