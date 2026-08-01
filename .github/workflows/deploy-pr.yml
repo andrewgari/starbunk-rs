@@ -47,8 +47,8 @@ jobs:
           
           # If triggered by a tag push, find the associated PR
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Find the PR number associated with this commit
-            PR_NUMBER=$(gh pr list --search "${GITHUB_SHA}" --state all --json number --jq '.[0].number')
+            # Find the PR number associated with this commit via the GitHub API
+            PR_NUMBER=$(gh api /repos/${{ github.repository }}/commits/${GITHUB_SHA}/pulls --jq '.[0].number')
             if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
               TAG_NAME="${GITHUB_REF_NAME}_pr${PR_NUMBER}"
             else
