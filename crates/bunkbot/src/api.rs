@@ -86,7 +86,7 @@ async fn post_config(
     for db_bot in current_db_bots {
         if !new_names.contains(&db_bot.name) {
             if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
-                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
+tracing::error!(bot = %db_bot.name, err = %e, "failed to delete removed bot");
                 return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
             }
         }
