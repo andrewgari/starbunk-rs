@@ -38,10 +38,21 @@ impl StarbunkMessage {
                     } else if inner.content.starts_with("[E2E_MOCK_USER:") {
                         if let Some(end_idx) = inner.content.find(']') {
                             let id_str = &inner.content["[E2E_MOCK_USER:".len()..end_idx];
-                            if let Ok(id) = id_str.parse::<u64>() {
-                                inner.author.id = serenity::all::UserId::new(id);
-                                inner.content = inner.content[end_idx + 1..].trim().to_string();
-                                sender = SenderCategory::E2eUser;
+                            match id_str.parse::<u64>() {
+                                Ok(id) => {
+                                    inner.author.id = serenity::all::UserId::new(id);
+                                    inner.content = inner.content[end_idx + 1..].trim().to_string();
+                                    sender = SenderCategory::E2eUser;
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        id_str = %id_str,
+                                        err = %e,
+                                        "E2E_MOCK_USER prefix has non-numeric id; stripping prefix and treating as E2eUser"
+                                    );
+                                    inner.content = inner.content[end_idx + 1..].trim().to_string();
+                                    sender = SenderCategory::E2eUser;
+                                }
                             }
                         }
                     }
