@@ -81,8 +81,6 @@ async fn post_config(
         }
     };
 
-    // Phase 1: upsert all bots in the new payload. If any fail, bail out
-    // before any deletions so the original store remains intact.
     for bot in &parsed_bots {
         let json_val = match serde_json::to_value(bot) {
             Ok(v) => v,
@@ -304,8 +302,6 @@ async fn put_bots(
         }
     };
 
-    // Phase 1: upsert all bots in the new payload. If any fail, bail out
-    // before any deletions so the original store remains intact.
     for bot in &bots {
         let json_val = match serde_json::to_value(bot) {
             Ok(v) => v,
