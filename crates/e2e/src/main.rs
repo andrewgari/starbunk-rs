@@ -368,7 +368,9 @@ async fn main() -> anyhow::Result<()> {
                         if let Some(name) = bot["name"].as_str() {
                             // Save original state before modifying
                             let was_enabled = bot["enabled"].as_bool().unwrap_or(true);
-                            let orig_frequency = bot["frequency"].as_u64();
+                            let orig_frequency = bot["current_frequency"]
+                                .as_u64()
+                                .or_else(|| bot["original_frequency"].as_u64());
                             original_bot_states.push((
                                 name.to_string(),
                                 was_enabled,
