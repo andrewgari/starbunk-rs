@@ -339,10 +339,13 @@ async fn main() -> anyhow::Result<()> {
         // Flush any lingering message events
         while msg_rx.try_recv().is_ok() {}
 
-        // 1. Bot isolation setup
+        // 1. Bot isolation setup — save original states so they can be restored after the test
+        // Each entry is (bot_name, was_enabled, original_frequency)
+        let mut original_bot_states: Vec<(String, bool, Option<u64>)> = Vec::new();
+        let admin_token = std::env::var("BUNKBOT_ADMIN_TOKEN").unwrap_or_default();
+
         if let Some(target_bot) = &test.isolate_bot {
             tracing::info!("E2E Runner: Isolating bot '{}'", target_bot);
-            let token = std::env::var("BUNKBOT_ADMIN_TOKEN").unwrap_or_default();
 
             // Get all bots
             let status_res = reqwest_client
@@ -352,13 +355,24 @@ async fn main() -> anyhow::Result<()> {
 
             if let Ok(resp) = status_res {
                 if let Ok(bots) = resp.json::<Vec<serde_json::Value>>().await {
-                    for bot in bots {
+                    for bot in &bots {
                         if let Some(name) = bot["name"].as_str() {
+                            // Save original state before modifying
+                            let was_enabled = bot["enabled"].as_bool().unwrap_or(true);
+                            let orig_frequency = bot["current_frequency"]
+                                .as_u64()
+                                .or_else(|| bot["original_frequency"].as_u64());
+                            original_bot_states.push((
+                                name.to_string(),
+                                was_enabled,
+                                orig_frequency,
+                            ));
+
                             if name == target_bot {
                                 // Enable target bot
                                 let _ = reqwest_client
                                     .post(format!("http://127.0.0.1:8082/api/bots/{}/enable", name))
-                                    .header("Authorization", format!("Bearer {}", token))
+                                    .header("Authorization", format!("Bearer {}", admin_token))
                                     .send()
                                     .await;
 
@@ -368,7 +382,7 @@ async fn main() -> anyhow::Result<()> {
                                         "http://127.0.0.1:8082/api/bots/{}/frequency",
                                         name
                                     ))
-                                    .header("Authorization", format!("Bearer {}", token))
+                                    .header("Authorization", format!("Bearer {}", admin_token))
                                     .json(&serde_json::json!({"frequency": 100}))
                                     .send()
                                     .await;
@@ -379,7 +393,7 @@ async fn main() -> anyhow::Result<()> {
                                         "http://127.0.0.1:8082/api/bots/{}/disable",
                                         name
                                     ))
-                                    .header("Authorization", format!("Bearer {}", token))
+                                    .header("Authorization", format!("Bearer {}", admin_token))
                                     .send()
                                     .await;
                             }
@@ -417,80 +431,116 @@ async fn main() -> anyhow::Result<()> {
             .await
             .and_then(|r| r.error_for_status());
 
+        // Track whether this test passed or failed; always run teardown at the end
+        let mut test_failed_early = false;
         if let Err(e) = send_res {
             tracing::error!("FAILED: Webhook request failed: {}", e);
             failed += 1;
-            continue;
+            test_failed_early = true;
         }
 
-        // Wait for bot response with configured timeout
-        let timeout_ms = test.timeout_ms.unwrap_or(2500);
-        let timeout_dur = tokio::time::Duration::from_millis(timeout_ms);
-        let start = tokio::time::Instant::now();
+        if !test_failed_early {
+            // Wait for bot response with configured timeout
+            let timeout_ms = test.timeout_ms.unwrap_or(2500);
+            let timeout_dur = tokio::time::Duration::from_millis(timeout_ms);
+            let start = tokio::time::Instant::now();
 
-        let mut got_expected = false;
-        let mut got_unexpected = false;
-        let mut last_response = String::new();
+            let mut got_expected = false;
+            let mut got_unexpected = false;
+            let mut last_response = String::new();
 
-        loop {
-            let elapsed = start.elapsed();
-            if elapsed >= timeout_dur {
-                break;
-            }
+            loop {
+                let elapsed = start.elapsed();
+                if elapsed >= timeout_dur {
+                    break;
+                }
 
-            let remaining = timeout_dur - elapsed;
-            match tokio::time::timeout(remaining, msg_rx.recv()).await {
-                Ok(Some(msg)) => {
-                    // Check if the message is from our bot's user account (bot under test)
-                    if msg.author.id == bot_user_id {
-                        last_response = msg.content.clone();
-                        if let Some(ref expected) = test.expect {
-                            if msg.content.contains(expected) {
+                let remaining = timeout_dur - elapsed;
+                match tokio::time::timeout(remaining, msg_rx.recv()).await {
+                    Ok(Some(msg)) => {
+                        // Check if the message is from our bot's user account (bot under test)
+                        if msg.author.id == bot_user_id {
+                            last_response = msg.content.clone();
+                            if let Some(ref expected) = test.expect {
+                                if msg.content.contains(expected) {
+                                    got_expected = true;
+                                    break;
+                                } else {
+                                    got_unexpected = true;
+                                }
+                            } else if test.expect_any_response.unwrap_or(false) {
                                 got_expected = true;
                                 break;
-                            } else {
+                            } else if test.expect_no_response.unwrap_or(false) {
                                 got_unexpected = true;
                             }
-                        } else if test.expect_any_response.unwrap_or(false) {
-                            got_expected = true;
-                            break;
-                        } else if test.expect_no_response.unwrap_or(false) {
-                            got_unexpected = true;
                         }
                     }
+                    Ok(None) => break,
+                    Err(_) => break, // Timeout elapsed
                 }
-                Ok(None) => break,
-                Err(_) => break, // Timeout elapsed
+            }
+
+            let success = if test.expect_no_response.unwrap_or(false) {
+                !got_unexpected
+            } else if test.expect_any_response.unwrap_or(false) {
+                got_expected
+            } else {
+                got_expected && !got_unexpected
+            };
+
+            if success {
+                tracing::info!("PASSED: {}", test.name);
+                passed += 1;
+            } else {
+                if test.expect_no_response.unwrap_or(false) {
+                    tracing::error!(
+                        "FAILED: {}. Expected no reply, but bot sent a message: {:?}",
+                        test.name,
+                        last_response
+                    );
+                } else {
+                    tracing::error!(
+                        "FAILED: {}. Expected matching: {:?}. Got response: {:?}",
+                        test.name,
+                        test.expect,
+                        last_response
+                    );
+                }
+                failed += 1;
             }
         }
 
-        let success = if test.expect_no_response.unwrap_or(false) {
-            !got_unexpected
-        } else if test.expect_any_response.unwrap_or(false) {
-            got_expected
-        } else {
-            got_expected && !got_unexpected
-        };
+        // 2. Bot isolation teardown — restore original bot states after the test
+        if !original_bot_states.is_empty() {
+            tracing::info!("E2E Runner: Restoring bot states after isolation");
+            for (name, was_enabled, orig_frequency) in &original_bot_states {
+                // Restore enabled/disabled state
+                if *was_enabled {
+                    let _ = reqwest_client
+                        .post(format!("http://127.0.0.1:8082/api/bots/{}/enable", name))
+                        .header("Authorization", format!("Bearer {}", admin_token))
+                        .send()
+                        .await;
+                } else {
+                    let _ = reqwest_client
+                        .post(format!("http://127.0.0.1:8082/api/bots/{}/disable", name))
+                        .header("Authorization", format!("Bearer {}", admin_token))
+                        .send()
+                        .await;
+                }
 
-        if success {
-            tracing::info!("PASSED: {}", test.name);
-            passed += 1;
-        } else {
-            if test.expect_no_response.unwrap_or(false) {
-                tracing::error!(
-                    "FAILED: {}. Expected no reply, but bot sent a message: {:?}",
-                    test.name,
-                    last_response
-                );
-            } else {
-                tracing::error!(
-                    "FAILED: {}. Expected matching: {:?}. Got response: {:?}",
-                    test.name,
-                    test.expect,
-                    last_response
-                );
+                // Restore original frequency if it was recorded
+                if let Some(freq) = orig_frequency {
+                    let _ = reqwest_client
+                        .post(format!("http://127.0.0.1:8082/api/bots/{}/frequency", name))
+                        .header("Authorization", format!("Bearer {}", admin_token))
+                        .json(&serde_json::json!({"frequency": freq}))
+                        .send()
+                        .await;
+                }
             }
-            failed += 1;
+            tracing::info!("E2E Runner: Bot states restored");
         }
     }
 
