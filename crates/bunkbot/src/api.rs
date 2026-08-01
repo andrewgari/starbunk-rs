@@ -81,17 +81,6 @@ async fn post_config(
         }
     };
 
-    let new_names: std::collections::HashSet<_> =
-        parsed_bots.iter().map(|b| b.name.clone()).collect();
-    for db_bot in current_db_bots {
-        if !new_names.contains(&db_bot.name) {
-            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
-tracing::error!(bot = %db_bot.name, err = %e, "failed to delete removed bot");
-                return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
-            }
-        }
-    }
-
     for bot in &parsed_bots {
         let json_val = match serde_json::to_value(bot) {
             Ok(v) => v,
@@ -312,16 +301,6 @@ async fn put_bots(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
-
-    let new_names: std::collections::HashSet<_> = bots.iter().map(|b| b.name.clone()).collect();
-    for db_bot in current_db_bots {
-        if !new_names.contains(&db_bot.name) {
-            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
-                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
-                return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
-            }
-        }
-    }
 
     for bot in &bots {
         let json_val = match serde_json::to_value(bot) {
