@@ -10,7 +10,6 @@ bunkbot   = { path = "../bunkbot" }
 covabot   = { path = "../covabot" }
 djcova    = { path = "../djcova" }
 ratbot    = { path = "../ratbot" }
-sheeshbot = { path = "../sheeshbot" }
 
 serenity = { workspace = true }
 tokio = { workspace = true }

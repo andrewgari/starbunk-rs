@@ -6,7 +6,6 @@ members = [
     "crates/covabot",
     "crates/djcova",
     "crates/ratbot",
-    "crates/sheeshbot",
     "crates/e2e",
 ]
 resolver = "2"

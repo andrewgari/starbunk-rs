@@ -14,7 +14,6 @@ on:
           - covabot
           - djcova
           - ratbot
-          - sheeshbot
       guild_id:
         description: 'Target Guild ID for E2E tests'
         required: true
@@ -85,8 +84,6 @@ jobs:
             echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_DJCOVA }}" >> $GITHUB_ENV
           elif [ "${{ inputs.target_bot }}" == "ratbot" ]; then
             echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_RATBOT }}" >> $GITHUB_ENV
-          elif [ "${{ inputs.target_bot }}" == "sheeshbot" ]; then
-            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN_SHEESHBOT }}" >> $GITHUB_ENV
           else
             echo "Unknown bot specified for token mapping."
             exit 1
