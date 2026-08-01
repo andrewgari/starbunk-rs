@@ -70,7 +70,9 @@ async fn post_config(
         }
     };
 
-    // Full sync: delete bots not in payload, upsert the rest
+    // Atomic sync: upsert all new bots first, then delete removed ones.
+    // This order ensures that if any write fails, the original bots are
+    // still intact (deletions only happen after all upserts succeed).
     let current_db_bots = match state.config_store.get_all_bots().await {
         Ok(b) => b,
         Err(e) => {
@@ -101,6 +103,17 @@ async fn post_config(
         if let Err(e) = state.config_store.upsert_bot(&bot.name, json_val).await {
             tracing::error!("failed to upsert bot {}: {}", bot.name, e);
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    // Phase 2: now that all upserts succeeded, delete bots removed from payload.
+    let new_names: std::collections::HashSet<_> =
+        parsed_bots.iter().map(|b| b.name.clone()).collect();
+    for db_bot in current_db_bots {
+        if !new_names.contains(&db_bot.name) {
+            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
+                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
+            }
         }
     }
 
@@ -289,7 +302,9 @@ async fn put_bots(
         return axum::http::StatusCode::UNAUTHORIZED;
     }
 
-    // Full sync: delete bots not in payload, upsert the rest
+    // Atomic sync: upsert all new bots first, then delete removed ones.
+    // This order ensures that if any write fails, the original bots are
+    // still intact (deletions only happen after all upserts succeed).
     let current_db_bots = match state.config_store.get_all_bots().await {
         Ok(b) => b,
         Err(e) => {
@@ -319,6 +334,16 @@ async fn put_bots(
         if let Err(e) = state.config_store.upsert_bot(&bot.name, json_val).await {
             tracing::error!("failed to upsert bot {}: {}", bot.name, e);
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    // Phase 2: now that all upserts succeeded, delete bots removed from payload.
+    let new_names: std::collections::HashSet<_> = bots.iter().map(|b| b.name.clone()).collect();
+    for db_bot in current_db_bots {
+        if !new_names.contains(&db_bot.name) {
+            if let Err(e) = state.config_store.delete_bot(&db_bot.name).await {
+                tracing::error!("failed to delete removed bot {}: {}", db_bot.name, e);
+            }
         }
     }
 
