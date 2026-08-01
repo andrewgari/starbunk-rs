@@ -40,8 +40,6 @@ jobs:
               - 'crates/djcova/**'
             ratbot:
               - 'crates/ratbot/**'
-            sheeshbot:
-              - 'crates/sheeshbot/**'
             shared_discord:
               - 'crates/starbunk/src/discord/**'
             shared_llm:
@@ -101,8 +99,8 @@ jobs:
           fi
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
-            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot" "sheeshbot")
-            for p in starbunk bluebot bunkbot covabot djcova ratbot sheeshbot; do
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
+            for p in starbunk bluebot bunkbot covabot djcova ratbot; do
               add_pkg "$p"
             done
           else
@@ -111,7 +109,6 @@ jobs:
             COVABOT_CHANGED="${{ steps.filter.outputs.covabot }}"
             DJCOVA_CHANGED="${{ steps.filter.outputs.djcova }}"
             RATBOT_CHANGED="${{ steps.filter.outputs.ratbot }}"
-            SHEESHBOT_CHANGED="${{ steps.filter.outputs.sheeshbot }}"
 
             # shared_replybot only affects bluebot
             if [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
@@ -131,7 +128,6 @@ jobs:
             [[ "$COVABOT_CHANGED"   == "true" ]] && BOTS+=("covabot")   && add_pkg "covabot"
             [[ "$DJCOVA_CHANGED"    == "true" ]] && BOTS+=("djcova")    && add_pkg "djcova"
             [[ "$RATBOT_CHANGED"    == "true" ]] && BOTS+=("ratbot")    && add_pkg "ratbot"
-            [[ "$SHEESHBOT_CHANGED" == "true" ]] && BOTS+=("sheeshbot") && add_pkg "sheeshbot"
           fi
 
           if [ ${#BOTS[@]} -eq 0 ]; then
@@ -187,7 +183,6 @@ jobs:
              [ "${{ steps.filter.outputs.shared_memory }}" == "true" ] || \
              [ "${{ steps.filter.outputs.djcova }}" == "true" ] || \
              [ "${{ steps.filter.outputs.ratbot }}" == "true" ] || \
-             [ "${{ steps.filter.outputs.sheeshbot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_health }}" == "true" ]; then
             RUN_E2E="true"

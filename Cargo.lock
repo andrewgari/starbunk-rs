@@ -4026,21 +4026,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sheeshbot"
-version = "2026.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "rand 0.8.6",
- "regex",
- "serde_json",
- "serenity",
- "starbunk",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4444,7 +4429,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serenity",
- "sheeshbot",
  "starbunk",
  "tokio",
  "tracing",

@@ -245,28 +245,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  sheeshbot:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      args:
-        BOT_NAME: sheeshbot
-    container_name: starbunk-sheeshbot
-    restart: unless-stopped
-    depends_on:
-      otel-collector:
-        condition: service_healthy
-    environment:
-      - DISCORD_TOKEN=${SHEESHBOT_TOKEN:-${STARBUNK_TOKEN}}
-      - RUST_LOG=${RUST_LOG:-info}
-      - VERBOSE=${VERBOSE:-false}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   postgres:
     image: pgvector/pgvector:pg16
     container_name: starbunk-postgres

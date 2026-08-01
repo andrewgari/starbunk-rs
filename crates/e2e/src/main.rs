@@ -229,13 +229,6 @@ async fn main() -> anyhow::Result<()> {
                         }
                     });
                 }
-                "sheeshbot" => {
-                    tokio::spawn(async {
-                        if let Err(e) = sheeshbot::run().await {
-                            tracing::error!("sheeshbot exited with error: {}", e);
-                        }
-                    });
-                }
                 _ => {
                     tracing::warn!("Unknown bot configured for E2E: {}", bot);
                 }
@@ -263,8 +256,6 @@ async fn main() -> anyhow::Result<()> {
                 "bunkbot" => 8082,
                 "covabot" => 8083,
                 "djcova" => 8084,
-                "ratbot" => 8085,
-                "sheeshbot" => 8086,
                 _ => {
                     tracing::warn!("E2E Runner: Unknown bot '{}', skipping health check", bot);
                     continue;

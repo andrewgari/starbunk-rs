@@ -11,7 +11,7 @@ Add an entry under today's date for every PR or significant change.
 - Added `.github/workflows/e2e-manual.yml` to trigger manual E2E tests against live environments using the newly robust webhook testing harness.
 
 ### Changed
-- Migrated all event handlers (`bunkbot`, `bluebot`, `ratbot`, `sheeshbot`, `covabot`) and middleware policies to consume `StarbunkMessage` instead of raw `serenity::Message`.
+- Migrated all event handlers (`bunkbot`, `bluebot`, `ratbot`, `covabot`) and middleware policies to consume `StarbunkMessage` instead of raw `serenity::Message`.
 - Optimized `StarbunkMessage` allocation by stripping prefixes in-place on the `inner.content` rather than duplicating `content` fields.
 ## 2026-07-22 — Fix deploy.yml retag fallback bug (issues #80, #82)
 
