@@ -44,11 +44,12 @@ impl StarbunkMessage {
                                     inner.content = inner.content[end_idx + 1..].trim().to_string();
                                     sender = SenderCategory::E2eUser;
                                 }
-                                Err(_) => {
-                                    tracing::warn!(
-                                        id_str = id_str,
-                                        "E2E_MOCK_USER prefix has non-numeric id; stripping prefix and treating as E2eUser"
-                                    );
+Err(e) => {
+    tracing::warn!(
+        id_str = %id_str,
+        err = %e,
+        "E2E_MOCK_USER prefix has non-numeric id; stripping prefix and treating as E2eUser"
+    );
                                     inner.content = inner.content[end_idx + 1..].trim().to_string();
                                     sender = SenderCategory::E2eUser;
                                 }
