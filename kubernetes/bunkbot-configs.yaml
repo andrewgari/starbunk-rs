@@ -18,7 +18,7 @@ data:
             conditions:
               all_of:
                 - always: true   # Always check...
-                - with_chance: 1 # ...but only fire 10% of the time
+                - with_chance: 1 # ...but only fire 1% of the time
             responses: Hello fellow bot!
     
       - name: guy-bot
