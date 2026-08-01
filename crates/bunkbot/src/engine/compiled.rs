@@ -32,7 +32,17 @@ impl TryFrom<ConditionNode> for CompiledNode {
                 Ok(CompiledNode::ContainsWord(Regex::new(&pattern)?))
             }
             ConditionNode::MatchesRegex(pattern) => {
-                let pattern = if pattern.starts_with("(?") {
+                // Only skip prepending (?i) if the pattern already starts with an inline
+                // flag group — i.e. (? followed by a letter flag or '-'.
+                // This correctly handles (?i), (?-i), (?ims), etc. while still
+                // prepending (?i) to patterns that start with non-flag groups such as
+                // (?:...), (?=...), (?!...), or (?<...).
+                let has_inline_flags = pattern.starts_with("(?")
+                    && pattern
+                        .chars()
+                        .nth(2)
+                        .is_some_and(|c| c.is_ascii_alphabetic() || c == '-');
+                let pattern = if has_inline_flags {
                     pattern
                 } else {
                     format!("(?i){}", pattern)
@@ -213,6 +223,30 @@ mod tests {
         assert!(check(&node, "SpiderMan"));
         assert!(check(&node, "spiderman"));
         assert!(!check(&node, "Spider-Man"));
+    }
+
+    #[test]
+    fn matches_regex_non_capturing_group_still_case_insensitive() {
+        // (?:...) is a non-capturing group, NOT a flag group.
+        // (?i) should be prepended so the match is still case-insensitive.
+        let node = CompiledNode::try_from(crate::config::ConditionNode::MatchesRegex(
+            r"(?:cat|dog)".into(),
+        ))
+        .unwrap();
+        assert!(check(&node, "CAT"));
+        assert!(check(&node, "Dog"));
+        assert!(!check(&node, "fish"));
+    }
+
+    #[test]
+    fn matches_regex_explicit_flag_group_not_doubled() {
+        // (?i) is already an inline flag group — (?i) must NOT be prepended again.
+        let node = CompiledNode::try_from(crate::config::ConditionNode::MatchesRegex(
+            r"(?i)banana".into(),
+        ))
+        .unwrap();
+        assert!(check(&node, "BANANA"));
+        assert!(check(&node, "banana"));
     }
 
     #[test]
