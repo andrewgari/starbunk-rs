@@ -22,7 +22,8 @@ pub fn bot_command() -> CreateCommand {
                     "bot_name",
                     "The name of the bot",
                 )
-                .required(true),
+                .required(true)
+                .set_autocomplete(true),
             ),
         )
         .add_option(
@@ -37,7 +38,8 @@ pub fn bot_command() -> CreateCommand {
                     "bot_name",
                     "The name of the bot",
                 )
-                .required(true),
+                .required(true)
+                .set_autocomplete(true),
             ),
         )
         .add_option(
@@ -52,7 +54,8 @@ pub fn bot_command() -> CreateCommand {
                     "bot_name",
                     "The name of the bot",
                 )
-                .required(true),
+                .required(true)
+                .set_autocomplete(true),
             )
             .add_sub_option(
                 CreateCommandOption::new(
@@ -86,7 +89,8 @@ pub fn bot_command() -> CreateCommand {
                     "bot_name",
                     "The name of the bot",
                 )
-                .required(true),
+                .required(true)
+                .set_autocomplete(true),
             )
             .add_sub_option(
                 CreateCommandOption::new(
@@ -98,6 +102,19 @@ pub fn bot_command() -> CreateCommand {
                 .add_string_choice("frequency", "frequency"),
             ),
         )
+}
+
+/// Filter available bot names by a case-insensitive prefix/substring.
+///
+/// Returns references into `available` where the name contains `prefix` as a
+/// substring (case-insensitive). Intended for Discord autocomplete responses.
+pub fn filter_bot_names<'a>(available: &'a [(String, u8)], prefix: &str) -> Vec<&'a str> {
+    let lower = prefix.to_lowercase();
+    available
+        .iter()
+        .filter(|(name, _)| name.to_lowercase().contains(&lower))
+        .map(|(name, _)| name.as_str())
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -319,6 +336,47 @@ mod tests {
             res,
             Ok("ℹ️ bluebot has no frequency override to reset".to_string())
         );
+    }
+
+    // --- filter_bot_names ---
+
+    #[test]
+    fn test_filter_bot_names_empty_prefix_returns_all() {
+        let bots = test_bots();
+        let result = filter_bot_names(&bots, "");
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"bluebot"));
+        assert!(result.contains(&"bunkbot"));
+    }
+
+    #[test]
+    fn test_filter_bot_names_matching_prefix() {
+        let bots = test_bots();
+        let result = filter_bot_names(&bots, "blue");
+        assert_eq!(result, vec!["bluebot"]);
+    }
+
+    #[test]
+    fn test_filter_bot_names_case_insensitive() {
+        let bots = test_bots();
+        let result = filter_bot_names(&bots, "BLUE");
+        assert_eq!(result, vec!["bluebot"]);
+    }
+
+    #[test]
+    fn test_filter_bot_names_no_match_returns_empty() {
+        let bots = test_bots();
+        let result = filter_bot_names(&bots, "xyz");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_filter_bot_names_partial_match() {
+        let bots = test_bots();
+        let result = filter_bot_names(&bots, "bot");
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"bluebot"));
+        assert!(result.contains(&"bunkbot"));
     }
 
     #[test]
