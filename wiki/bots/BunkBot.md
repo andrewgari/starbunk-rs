@@ -70,6 +70,37 @@ Any other write failure (e.g. `StorageFull`, `NotFound`) is treated as an
 - Config write failures on non-K8s deployments now surface as HTTP 500 rather
   than being silently swallowed.
 
+## Prometheus /metrics Endpoint
+
+BunkBot exposes a `GET /metrics` endpoint on the same port as the health/config
+API (default `0.0.0.0:9082`).  The response uses the standard Prometheus text
+format (`text/plain; version=0.0.4; charset=utf-8`) and can be scraped directly
+by a Prometheus server or Grafana Agent.
+
+### Exposed metrics
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `bunkbot_messages_received_total` | Counter | — | Discord messages that passed the content filter |
+| `bunkbot_bot_triggers_total` | Counter | `bot` | Times each named reply bot fired |
+| `bunkbot_active_bots` | Gauge | — | Number of currently enabled reply bots |
+| `bunkbot_response_latency_seconds` | Histogram | — | Per-dispatch latency (buckets: 5 ms … 2.5 s) |
+| `bunkbot_errors_total` | Counter | `kind` | Errors by kind (e.g. `send`, `db`) |
+
+All metrics live in a private `prometheus::Registry` (never the global default
+registry) created once at startup by `BunkBotMetrics::new()`.  The `Arc` is
+shared between the Axum API state and the Discord event handler.
+
+### Prometheus scrape config example
+
+```yaml
+scrape_configs:
+  - job_name: bunkbot
+    static_configs:
+      - targets: ['bunkbot:9082']
+    metrics_path: /metrics
+```
+
 ## See Also
 
 - [[../infrastructure/Architecture|Architecture]]
