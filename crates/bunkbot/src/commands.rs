@@ -3,8 +3,8 @@ pub mod clearwebhooks;
 pub mod ping;
 
 use serenity::all::{
-    Context, CreateCommand, CreateInteractionResponse, CreateInteractionResponseMessage,
-    Interaction,
+    Context, CreateAutocompleteResponse, CreateCommand, CreateInteractionResponse,
+    CreateInteractionResponseMessage, Interaction,
 };
 
 pub fn all_commands() -> Vec<CreateCommand> {
@@ -141,5 +141,32 @@ pub async fn handle_interaction(
             )
             .await;
     }
+
+    if let Interaction::Autocomplete(cmd) = interaction {
+        if cmd.data.name == "bot" {
+            if let Some(focused) = cmd.data.autocomplete() {
+                let bot_configs = engine.bot_configs();
+                let matches = bot::filter_bot_names(&bot_configs, focused.value);
+                let response = matches
+                    .into_iter()
+                    .take(25)
+                    .fold(CreateAutocompleteResponse::new(), |acc, name| {
+                        acc.add_string_choice(name, name)
+                    });
+                if let Err(e) = cmd
+                    .create_response(&ctx.http, CreateInteractionResponse::Autocomplete(response))
+                    .await
+                {
+                    tracing::error!(
+                        command = "bot",
+                        focused_value = focused.value,
+                        err = %e,
+                        "failed to send autocomplete response"
+                    );
+                }
+            }
+        }
+    }
+
     Ok(())
 }
