@@ -17,6 +17,7 @@ identities using `src/shared/discord::MessageService`.
   - `STARTUP_DM_DATA_DIR` — directory holding `last_version` (default: `/app/data`).
 - Admin slash commands:
   - `/bot` (subcommands: `enable`, `disable`, `override`, `reset`, `list`) to toggle individual bots and override trigger frequencies. The `bot_name` argument on `enable`, `disable`, `override`, and `reset` supports Discord autocomplete — as the user types, Discord sends an autocomplete interaction and the bot responds with matching loaded bot names (case-insensitive substring filter, capped at 25 suggestions).
+  - `/comments` (subcommands: `set`, `append`, `get`, `clear`, `list`) to override a bot's response pool at runtime without editing YAML. The `bot_name` argument supports autocomplete from the loaded bot list. All replies are ephemeral. Only `list` is available to non-admins; all other subcommands require administrator permissions.
   - `/clearwebhooks` to fetch and clear active Starbunk webhooks.
   - `/ping` to verify bot responsiveness.
 - Dynamic bot state manager (`BotStateService` / `InMemoryBotStateManager`) to enable/disable bots and apply frequency overrides at runtime.

@@ -1,5 +1,6 @@
 pub mod api;
 pub mod commands;
+pub mod comment_config;
 pub mod config;
 pub mod engine;
 pub mod startup_dm;
