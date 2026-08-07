@@ -11,6 +11,10 @@ identities using `src/shared/discord::MessageService`.
 ## Major Features
 
 - General reply bot handlers using the Strategy pattern.
+- **Startup DM notification:** On each `ready` event, BunkBot compares the `APP_VERSION` environment variable against a persisted `last_version` file at `$STARTUP_DM_DATA_DIR/last_version`. If the version has changed (or the file is missing), it sends a Discord DM to the user identified by `DISCORD_NOTIFY_USER_ID`. The version file is then updated. The feature is skipped when `APP_VERSION` is unset or set to `"dev"`, or when `DISCORD_NOTIFY_USER_ID` is unset. DM-send failures are logged as warnings and do not prevent the version file from being written.
+  - `APP_VERSION` — the current deployment version string.
+  - `DISCORD_NOTIFY_USER_ID` — Discord user ID (u64) to DM.
+  - `STARTUP_DM_DATA_DIR` — directory holding `last_version` (default: `/app/data`).
 - Admin slash commands:
   - `/bot` (subcommands: `enable`, `disable`, `override`, `reset`, `list`) to toggle individual bots and override trigger frequencies.
   - `/clearwebhooks` to fetch and clear active Starbunk webhooks.
