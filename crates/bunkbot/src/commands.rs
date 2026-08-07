@@ -1,16 +1,18 @@
 pub mod bot;
 pub mod clearwebhooks;
+pub mod comments;
 pub mod ping;
 
 use serenity::all::{
-    Context, CreateAutocompleteResponse, CreateCommand, CreateInteractionResponse,
-    CreateInteractionResponseMessage, Interaction,
+    AutocompleteChoice, Context, CreateAutocompleteResponse, CreateCommand,
+    CreateInteractionResponse, CreateInteractionResponseMessage, Interaction,
 };
 
 pub fn all_commands() -> Vec<CreateCommand> {
     vec![
         bot::bot_command(),
         clearwebhooks::clearwebhooks_command(),
+        comments::comments_command(),
         ping::ping_command(),
     ]
 }
@@ -20,6 +22,54 @@ pub async fn handle_interaction(
     interaction: &Interaction,
     engine: &crate::engine::BunkBotEngine,
 ) -> anyhow::Result<()> {
+    // Handle autocomplete interactions for the "comments" command.
+    if let Interaction::Autocomplete(ac) = interaction {
+        if ac.data.name == "comments" {
+            // Find the focused bot_name option anywhere in the subcommand options.
+            let focused_value = ac
+                .data
+                .options
+                .iter()
+                .find_map(|sub| {
+                    if let serenity::all::CommandDataOptionValue::SubCommand(ref opts) = sub.value {
+                        opts.iter().find_map(|o| {
+                            if o.name == "bot_name" {
+                                if let serenity::all::CommandDataOptionValue::Autocomplete {
+                                    ref value,
+                                    ..
+                                } = o.value
+                                {
+                                    return Some(value.clone());
+                                }
+                            }
+                            None
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default();
+
+            let choices: Vec<AutocompleteChoice> = engine
+                .bot_configs()
+                .into_iter()
+                .filter(|(name, _)| name.to_lowercase().contains(&focused_value.to_lowercase()))
+                .take(25)
+                .map(|(name, _)| AutocompleteChoice::new(name.clone(), name))
+                .collect();
+
+            let _ = ac
+                .create_response(
+                    &ctx.http,
+                    CreateInteractionResponse::Autocomplete(
+                        CreateAutocompleteResponse::new().set_choices(choices),
+                    ),
+                )
+                .await;
+        }
+        return Ok(());
+    }
+
     if let Interaction::Command(cmd) = interaction {
         let content = match cmd.data.name.as_str() {
             "ping" => ping::execute_ping(),
@@ -118,6 +168,62 @@ pub async fn handle_interaction(
                             &cmd.user.id.to_string(),
                             is_admin,
                             &*state_service,
+                            &engine.bot_configs(),
+                        ) {
+                            Ok(msg) => result_msg = msg,
+                            Err(msg) => result_msg = msg,
+                        }
+                    }
+                }
+                result_msg
+            }
+            "comments" => {
+                let mut result_msg = "Invalid comments command format".to_string();
+                if let Some(sub_opt) = cmd.data.options.first() {
+                    if let serenity::all::CommandDataOptionValue::SubCommand(ref sub_options) =
+                        sub_opt.value
+                    {
+                        let subcommand = sub_opt.name.as_str();
+
+                        let mut bot_name: Option<&str> = None;
+                        let mut text: Option<&str> = None;
+
+                        for opt in sub_options {
+                            match opt.name.as_str() {
+                                "bot_name" => {
+                                    if let serenity::all::CommandDataOptionValue::String(ref s) =
+                                        opt.value
+                                    {
+                                        bot_name = Some(s.as_str());
+                                    }
+                                }
+                                "text" => {
+                                    if let serenity::all::CommandDataOptionValue::String(ref s) =
+                                        opt.value
+                                    {
+                                        text = Some(s.as_str());
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        let is_admin = cmd
+                            .member
+                            .as_ref()
+                            .map(|m| {
+                                m.permissions
+                                    .unwrap_or_else(serenity::all::Permissions::empty)
+                                    .administrator()
+                            })
+                            .unwrap_or(false);
+
+                        match comments::execute_comments_command(
+                            subcommand,
+                            bot_name,
+                            text,
+                            is_admin,
+                            &engine.comment_config_service(),
                             &engine.bot_configs(),
                         ) {
                             Ok(msg) => result_msg = msg,

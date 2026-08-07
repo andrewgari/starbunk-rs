@@ -1,5 +1,6 @@
 mod compiled;
 
+use crate::comment_config::CommentConfigService;
 use crate::config::{BotConfig, IdentityConfig};
 use crate::state::BotStateService;
 use crate::template::resolve_template;
@@ -24,6 +25,7 @@ pub struct BunkBotEngine {
     sender: Arc<dyn MessageService>,
     identity_provider: Arc<dyn IdentityProvider>,
     state_service: Arc<dyn BotStateService>,
+    comment_config: Arc<dyn CommentConfigService>,
     audit: Option<Arc<AuditStore>>,
 }
 
@@ -34,6 +36,24 @@ impl BunkBotEngine {
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
         audit: Option<Arc<AuditStore>>,
+    ) -> Self {
+        Self::new_with_comment_config(
+            bots,
+            sender,
+            identity_provider,
+            state_service,
+            audit,
+            Arc::new(crate::comment_config::InMemoryCommentConfigService::new()),
+        )
+    }
+
+    pub fn new_with_comment_config(
+        bots: Vec<BotConfig>,
+        sender: Arc<dyn MessageService>,
+        identity_provider: Arc<dyn IdentityProvider>,
+        state_service: Arc<dyn BotStateService>,
+        audit: Option<Arc<AuditStore>>,
+        comment_config: Arc<dyn CommentConfigService>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -58,9 +78,11 @@ impl BunkBotEngine {
             sender,
             identity_provider,
             state_service,
+            comment_config,
             audit,
         }
     }
+
     pub fn reload_bots(&mut self, bots: Vec<BotConfig>) {
         let compiled = bots
             .into_iter()
@@ -88,6 +110,7 @@ impl BunkBotEngine {
             sender: self.sender.clone(),
             identity_provider: self.identity_provider.clone(),
             state_service: self.state_service.clone(),
+            comment_config: self.comment_config.clone(),
             audit: self.audit.clone(),
         };
         new_engine.reload_bots(configs);
@@ -107,6 +130,10 @@ impl BunkBotEngine {
 
     pub fn state_service(&self) -> Arc<dyn BotStateService> {
         self.state_service.clone()
+    }
+
+    pub fn comment_config_service(&self) -> Arc<dyn CommentConfigService> {
+        self.comment_config.clone()
     }
 
     #[tracing::instrument(skip(self, ctx, msg), fields(channel = %msg.channel_id))]
@@ -133,17 +160,20 @@ impl BunkBotEngine {
         // Strip URLs once per dispatch, not per trigger.
         let stripped = strip_urls(&msg.content);
 
+        // Check for a runtime comment override for this bot.
+        let comment_override = self.comment_config.get_comments(&bot.name);
+
         for trigger in &bot.triggers {
             if !eval(&trigger.conditions, msg, &stripped) {
                 continue;
             }
 
-            let pool = if !trigger.responses.is_empty() {
-                &trigger.responses
-            } else {
-                &bot.responses
-            };
-
+            // Priority: comment override > trigger-level responses > bot-level responses.
+            let pool = select_response_pool(
+                comment_override.as_deref(),
+                &trigger.responses,
+                &bot.responses,
+            );
             let Some(template) = pick_response(pool) else {
                 continue;
             };
@@ -236,6 +266,31 @@ fn pick_response(pool: &[String]) -> Option<&str> {
         return None;
     }
     Some(&pool[rand::thread_rng().gen_range(0..pool.len())])
+}
+
+/// Choose which response pool to draw from.
+///
+/// Priority (highest first):
+/// 1. `comment_override` — runtime override set via `/comments set/append`
+/// 2. `trigger_responses` — per-trigger YAML responses (non-empty)
+/// 3. `bot_responses` — bot-level YAML fallback
+///
+/// Returns an empty slice when all pools are empty (caller treats this as "no
+/// response", skipping the trigger).
+fn select_response_pool<'a>(
+    comment_override: Option<&'a [String]>,
+    trigger_responses: &'a [String],
+    bot_responses: &'a [String],
+) -> &'a [String] {
+    if let Some(pool) = comment_override {
+        if !pool.is_empty() {
+            return pool;
+        }
+    }
+    if !trigger_responses.is_empty() {
+        return trigger_responses;
+    }
+    bot_responses
 }
 
 /// Pick a random index from a slice of (is_bot, ...) tuples, filtering to
@@ -694,5 +749,53 @@ mod tests {
 
         assert_eq!(engine.bots.len(), 1);
         assert_eq!(engine.bots[0].name, "testbot");
+    }
+
+    // ---- select_response_pool tests ----
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|&x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn select_uses_comment_override_when_set() {
+        let comment = s(&["override_response"]);
+        let trigger = s(&["trigger_response"]);
+        let bot = s(&["bot_response"]);
+        let pool = select_response_pool(Some(&comment), &trigger, &bot);
+        assert_eq!(pool, comment.as_slice());
+    }
+
+    #[test]
+    fn select_uses_trigger_responses_when_no_override() {
+        let trigger = s(&["trigger_response"]);
+        let bot = s(&["bot_response"]);
+        let pool = select_response_pool(None, &trigger, &bot);
+        assert_eq!(pool, trigger.as_slice());
+    }
+
+    #[test]
+    fn select_uses_bot_responses_when_no_override_and_no_trigger() {
+        let bot = s(&["bot_response"]);
+        let pool = select_response_pool(None, &[], &bot);
+        assert_eq!(pool, bot.as_slice());
+    }
+
+    #[test]
+    fn select_falls_through_empty_override_to_trigger() {
+        // An empty override pool (e.g. after a buggy set) must fall through.
+        let trigger = s(&["trigger_response"]);
+        let bot = s(&["bot_response"]);
+        let pool = select_response_pool(Some(&[]), &trigger, &bot);
+        assert_eq!(pool, trigger.as_slice());
+    }
+
+    #[test]
+    fn select_uses_yaml_pool_after_clear() {
+        // Simulates: set override, call clear (get_comments returns None), check pool.
+        let bot = s(&["yaml_response"]);
+        // After clear, get_comments returns None → comment_override is None.
+        let pool = select_response_pool(None, &[], &bot);
+        assert_eq!(pool, bot.as_slice());
     }
 }
