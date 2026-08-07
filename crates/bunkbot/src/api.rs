@@ -30,6 +30,8 @@ pub struct ApiState {
 
 pub fn router(state: ApiState) -> Router {
     Router::new()
+        .route("/live", get(live))
+        .route("/health", get(health))
         .route("/config", get(get_config).post(post_config))
         .route("/api/bots", get(get_bots).put(put_bots))
         .route("/api/bots/status", get(get_bots_status))
@@ -40,6 +42,23 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/discovery/channels", get(get_channels))
         .route("/api/user/:id", get(get_discord_user))
         .with_state(state)
+}
+
+/// Liveness probe — always returns 200 OK.
+/// Used by Kubernetes to determine whether the process is alive.
+async fn live() -> axum::http::StatusCode {
+    axum::http::StatusCode::OK
+}
+
+/// Readiness/health probe — returns 200 OK once the Discord engine is
+/// initialised, or 503 Service Unavailable while it is still starting up.
+async fn health(State(state): State<ApiState>) -> axum::http::StatusCode {
+    let engine_lock = state.engine.read().await;
+    if engine_lock.is_some() {
+        axum::http::StatusCode::OK
+    } else {
+        axum::http::StatusCode::SERVICE_UNAVAILABLE
+    }
 }
 
 async fn get_config(State(state): State<ApiState>) -> Result<String, axum::http::StatusCode> {
@@ -664,6 +683,162 @@ mod tests {
             response.status(),
             StatusCode::SERVICE_UNAVAILABLE,
             "Missing engine should return 503"
+        );
+    }
+
+    // ── /live liveness probe ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_live_always_returns_200() {
+        // /live must return 200 even when the engine is not yet initialised.
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/tmp".to_string(),
+            config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
+        };
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/live")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "/live should always return 200 regardless of engine state"
+        );
+    }
+
+    // ── /health readiness probe ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_health_returns_503_when_engine_not_ready() {
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(None)),
+            config_dir: "/tmp".to_string(),
+            config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
+        };
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "/health should return 503 when engine is None"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_health_returns_200_when_engine_initialized() {
+        use crate::engine::BunkBotEngine;
+        use starbunk::discord::Identity;
+
+        struct DummySender;
+        #[async_trait::async_trait]
+        impl starbunk::discord::MessageService for DummySender {
+            async fn send(
+                &self,
+                _: serenity::all::ChannelId,
+                _: &str,
+            ) -> anyhow::Result<serenity::all::Message> {
+                unimplemented!()
+            }
+            async fn send_with_identity(
+                &self,
+                _: serenity::all::ChannelId,
+                _: &str,
+                _: Identity,
+            ) -> anyhow::Result<serenity::all::Message> {
+                unimplemented!()
+            }
+            async fn reply(
+                &self,
+                _: serenity::all::ChannelId,
+                _: serenity::all::MessageId,
+                _: &str,
+            ) -> anyhow::Result<serenity::all::Message> {
+                unimplemented!()
+            }
+            async fn edit(
+                &self,
+                _: serenity::all::ChannelId,
+                _: serenity::all::MessageId,
+                _: &str,
+            ) -> anyhow::Result<serenity::all::Message> {
+                unimplemented!()
+            }
+            async fn delete(
+                &self,
+                _: serenity::all::ChannelId,
+                _: serenity::all::MessageId,
+            ) -> anyhow::Result<()> {
+                unimplemented!()
+            }
+            async fn close(&self) {}
+        }
+
+        struct DummyProvider;
+        #[async_trait::async_trait]
+        impl starbunk::discord::IdentityProvider for DummyProvider {
+            async fn get_identity(
+                &self,
+                _: serenity::all::UserId,
+                _: Option<serenity::all::GuildId>,
+            ) -> anyhow::Result<Identity> {
+                unimplemented!()
+            }
+        }
+
+        // Build a minimal engine with no bots and stub services.
+        let sender: Arc<dyn starbunk::discord::MessageService> = Arc::new(DummySender);
+        let identity_provider: Arc<dyn starbunk::discord::IdentityProvider> =
+            Arc::new(DummyProvider);
+        let state_svc = Arc::new(crate::state::InMemoryBotStateManager::new());
+
+        let engine = BunkBotEngine::new(vec![], sender, identity_provider, state_svc, None);
+
+        let state = ApiState {
+            engine: Arc::new(RwLock::new(Some(Arc::new(engine)))),
+            config_dir: "/tmp".to_string(),
+            config_store: Arc::new(DummyConfigStore),
+            tracking_store: Arc::new(DummyTrackingStore),
+        };
+
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "/health should return 200 when engine is initialized"
         );
     }
 }
