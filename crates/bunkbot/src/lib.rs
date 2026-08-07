@@ -2,6 +2,7 @@ pub mod api;
 pub mod commands;
 pub mod config;
 pub mod engine;
+pub mod startup_dm;
 pub mod state;
 pub mod template;
 
@@ -54,6 +55,14 @@ impl EventHandler for Handler {
             .ready(ctx.clone(), ready.clone())
             .await;
         tracing::info!("BunkBot connected as {}", ready.user.name);
+
+        // Spawn a non-blocking DM notification if the deployment version changed.
+        let http_for_dm = ctx.http.clone();
+        tokio::spawn(async move {
+            if let Err(e) = startup_dm::check_and_notify(&http_for_dm, "BunkBot").await {
+                tracing::warn!(err = %e, "startup DM check failed");
+            }
+        });
 
         let ws = Arc::new(WebhookService::new(ctx.http.clone()));
         let sender: Arc<dyn MessageService> =
