@@ -45,3 +45,4 @@ tower              = { version = "0.4", features = ["util"] }
 http-body-util     = "0.1.4"
 notify             = "7.0.0"
 notify-debouncer-mini = "0.5.0"
+prometheus         = { version = "0.13", features = ["process"] }

@@ -2,12 +2,14 @@ pub mod api;
 pub mod commands;
 pub mod config;
 pub mod engine;
+pub mod metrics;
 pub mod startup_dm;
 pub mod state;
 pub mod template;
 
 use async_trait::async_trait;
 use engine::BunkBotEngine;
+use metrics::BunkBotMetrics;
 use serenity::all::{Context, EventHandler, Interaction, Message, Ready};
 use starbunk::config_store::ConfigStore;
 use starbunk::discord::{
@@ -29,6 +31,7 @@ struct Handler {
     state_service: Arc<dyn state::BotStateService>,
     audit: Arc<starbunk::audit::AuditStore>,
     tracking_handler: Arc<BotTrackingHandler>,
+    metrics: Arc<BunkBotMetrics>,
 }
 
 impl Handler {
@@ -37,6 +40,7 @@ impl Handler {
         state_service: Arc<dyn state::BotStateService>,
         audit: Arc<starbunk::audit::AuditStore>,
         tracking_handler: Arc<BotTrackingHandler>,
+        metrics: Arc<BunkBotMetrics>,
     ) -> Self {
         Self {
             filter: HAS_CONTENT.clone(),
@@ -44,6 +48,7 @@ impl Handler {
             state_service,
             audit,
             tracking_handler,
+            metrics,
         }
     }
 }
@@ -167,6 +172,7 @@ impl EventHandler for Handler {
         if !self.filter.check(&ctx, &msg) {
             return;
         }
+        self.metrics.messages_received.inc();
         let engine_opt = { self.engine.read().await.clone() };
         if let Some(engine) = engine_opt.as_ref() {
             let self_id = ctx.cache.current_user().id;
@@ -218,6 +224,7 @@ pub async fn run() -> anyhow::Result<()> {
     let audit = Arc::new(starbunk::audit::AuditStore::new(pool.clone()).await?);
 
     let state_service = Arc::new(state::InMemoryBotStateManager::new());
+    let bunkbot_metrics = BunkBotMetrics::new();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9082").await?;
     let config_dir =
@@ -238,6 +245,7 @@ pub async fn run() -> anyhow::Result<()> {
         config_dir,
         config_store,
         tracking_store,
+        metrics: bunkbot_metrics.clone(),
     };
 
     let app = api::router(api_state);
@@ -251,7 +259,13 @@ pub async fn run() -> anyhow::Result<()> {
     starbunk::utils::run_bot(
         "BunkBot",
         starbunk::utils::default_intents() | serenity::all::GatewayIntents::GUILDS,
-        Handler::new(engine_ref, state_service, audit, tracking_handler),
+        Handler::new(
+            engine_ref,
+            state_service,
+            audit,
+            tracking_handler,
+            bunkbot_metrics,
+        ),
     )
     .await
 }

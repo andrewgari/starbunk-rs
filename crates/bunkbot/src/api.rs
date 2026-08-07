@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, State},
+    http::header::CONTENT_TYPE,
     routing::{get, post},
     Json, Router,
 };
@@ -19,6 +20,7 @@ fn is_expected_write_error(e: &std::io::Error) -> bool {
 
 use crate::config::{self, BotConfig};
 use crate::engine::BunkBotEngine;
+use crate::metrics::BunkBotMetrics;
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -26,6 +28,7 @@ pub struct ApiState {
     pub config_dir: String,
     pub config_store: Arc<dyn starbunk::config_store::ConfigStore>,
     pub tracking_store: Arc<dyn starbunk::tracking::BotTrackingStore>,
+    pub metrics: Arc<BunkBotMetrics>,
 }
 
 pub fn router(state: ApiState) -> Router {
@@ -33,6 +36,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/live", get(live))
         .route("/health", get(health))
         .route("/config", get(get_config).post(post_config))
+        .route("/metrics", get(get_metrics))
         .route("/api/bots", get(get_bots).put(put_bots))
         .route("/api/bots/status", get(get_bots_status))
         .route("/api/bots/:name/enable", post(enable_bot))
@@ -59,6 +63,27 @@ async fn health(State(state): State<ApiState>) -> axum::http::StatusCode {
     } else {
         axum::http::StatusCode::SERVICE_UNAVAILABLE
     }
+}
+
+async fn get_metrics(
+    State(state): State<ApiState>,
+) -> Result<(axum::http::HeaderMap, String), axum::http::StatusCode> {
+    let encoder = prometheus::TextEncoder::new();
+    let families = state.metrics.registry().gather();
+    let body = encoder.encode_to_string(&families).map_err(|e| {
+        tracing::error!(err = %e, "failed to encode prometheus metrics");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        CONTENT_TYPE,
+        "text/plain; version=0.0.4; charset=utf-8"
+            .parse()
+            .expect("prometheus content-type header value is valid"),
+    );
+
+    Ok((headers, body))
 }
 
 async fn get_config(State(state): State<ApiState>) -> Result<String, axum::http::StatusCode> {
@@ -509,6 +534,7 @@ mod tests {
             config_dir: dir.to_string_lossy().to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         }
     }
 
@@ -592,6 +618,7 @@ mod tests {
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let valid_yaml =
@@ -628,6 +655,7 @@ mod tests {
             config_dir: "/nonexistent/path/that/cannot/exist".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let bots_json = serde_json::json!([{
@@ -665,6 +693,7 @@ mod tests {
             config_dir: "/tmp".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let app = router(state);
@@ -696,6 +725,7 @@ mod tests {
             config_dir: "/tmp".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let app = router(state);
@@ -726,6 +756,7 @@ mod tests {
             config_dir: "/tmp".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let app = router(state);
@@ -744,6 +775,51 @@ mod tests {
             response.status(),
             StatusCode::SERVICE_UNAVAILABLE,
             "/health should return 503 when engine is None"
+        );
+    }
+
+    // ── /metrics endpoint ────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_metrics_returns_200() {
+        let state = setup_test_state().await;
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn get_metrics_content_type_is_prometheus_text() {
+        let state = setup_test_state().await;
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let ct = response
+            .headers()
+            .get("content-type")
+            .expect("content-type header present")
+            .to_str()
+            .expect("content-type is valid utf-8");
+        assert!(
+            ct.contains("text/plain"),
+            "content-type must contain 'text/plain', got '{ct}'"
         );
     }
 
@@ -821,6 +897,7 @@ mod tests {
             config_dir: "/tmp".to_string(),
             config_store: Arc::new(DummyConfigStore),
             tracking_store: Arc::new(DummyTrackingStore),
+            metrics: BunkBotMetrics::new(),
         };
 
         let app = router(state);
@@ -839,6 +916,64 @@ mod tests {
             response.status(),
             StatusCode::OK,
             "/health should return 200 when engine is initialized"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_metrics_body_contains_all_metric_names() {
+        let state = setup_test_state().await;
+        // Seed label-set vecs so they appear in Prometheus output.
+        state
+            .metrics
+            .bot_triggers
+            .with_label_values(&["test"])
+            .inc();
+        state.metrics.errors.with_label_values(&["test"]).inc();
+        state.metrics.response_latency.observe(0.01);
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        for name in &[
+            "bunkbot_messages_received_total",
+            "bunkbot_bot_triggers_total",
+            "bunkbot_active_bots",
+            "bunkbot_response_latency_seconds",
+            "bunkbot_errors_total",
+        ] {
+            assert!(body.contains(name), "/metrics body must contain '{name}'");
+        }
+    }
+
+    #[tokio::test]
+    async fn get_metrics_after_increment_shows_updated_value() {
+        let state = setup_test_state().await;
+        state.metrics.messages_received.inc();
+        let app = router(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            body.contains("bunkbot_messages_received_total 1"),
+            "body must show counter value 1 after increment, got:\n{body}"
         );
     }
 }
