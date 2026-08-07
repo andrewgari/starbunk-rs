@@ -244,7 +244,7 @@ mod tests {
     //       or coordinate via a Mutex.
     // ---------------------------------------------------------------------------
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     // ---------------------------------------------------------------------------
     // Tests
@@ -252,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn sends_dm_when_version_file_missing() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("sends_dm_missing_file");
         // dir does NOT exist yet — version file definitely missing
         unsafe {
@@ -291,7 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn sends_dm_when_version_changed() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("sends_dm_version_changed");
         tokio::fs::create_dir_all(&dir).await.expect("create dir");
         tokio::fs::write(dir.join("last_version"), "1.0.0")
@@ -336,7 +336,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_dm_when_version_unchanged() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("skips_dm_unchanged");
         tokio::fs::create_dir_all(&dir).await.expect("create dir");
         tokio::fs::write(dir.join("last_version"), "1.0.0")
@@ -377,7 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_dm_when_app_version_unset() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("skips_dm_no_app_version");
         unsafe {
             std::env::remove_var("APP_VERSION");
@@ -414,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_dm_when_app_version_is_dev() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("skips_dm_dev");
         unsafe {
             std::env::set_var("APP_VERSION", "dev");
@@ -451,7 +451,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_dm_when_notify_user_id_unset() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("skips_dm_no_user_id");
         unsafe {
             std::env::set_var("APP_VERSION", "3.0.0");
@@ -487,7 +487,7 @@ mod tests {
 
     #[tokio::test]
     async fn continues_when_dm_send_fails() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("continues_on_dm_failure");
         unsafe {
             std::env::set_var("APP_VERSION", "4.0.0");
@@ -521,7 +521,7 @@ mod tests {
 
     #[tokio::test]
     async fn creates_data_dir_if_missing() {
-        let _lock = ENV_LOCK.lock().expect("env lock");
+        let _lock = ENV_LOCK.lock().await;
         let dir = unique_temp_dir("creates_data_dir");
         // dir does not exist
         let nested = dir.join("a").join("b").join("c");
