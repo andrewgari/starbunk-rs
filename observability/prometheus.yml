@@ -23,13 +23,9 @@ scrape_configs:
     static_configs:
       - targets: [otel-collector:8888]
 
-  # Optional: scrape per-bot /metrics if bots ever expose a Prometheus endpoint.
-  # Uncomment and extend when adding native Prometheus instrumentation.
-  # - job_name: starbunk-bots
-  #   static_configs:
-  #     - targets:
-  #         - bluebot:9091
-  #         - bunkbot:9091
-  #         - covabot:9091
-  #         - djcova:9091
-  #         - ratbot:9091
+  # BunkBot subbot metrics (Prometheus client library on /metrics endpoint).
+  - job_name: bunkbot
+    scrape_interval: 10s
+    static_configs:
+      - targets: [bunkbot:9082]
+    metrics_path: /metrics
