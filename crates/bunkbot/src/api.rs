@@ -890,7 +890,7 @@ mod tests {
             Arc::new(DummyProvider);
         let state_svc = Arc::new(crate::state::InMemoryBotStateManager::new());
 
-        let engine = BunkBotEngine::new(vec![], sender, identity_provider, state_svc, None);
+        let engine = BunkBotEngine::new(vec![], sender, identity_provider, state_svc, None, None);
 
         let state = ApiState {
             engine: Arc::new(RwLock::new(Some(Arc::new(engine)))),
