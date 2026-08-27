@@ -27,11 +27,7 @@ pub async fn watch_personality_file(
     }
     if !p.exists() {
         if let Err(e) = tokio::fs::write(&path_owned, "").await {
-            tracing::warn!(
-                "Could not create {}: {}; watcher may not work if file doesn't exist",
-                path_owned,
-                e
-            );
+            tracing::warn!(path = %path_owned, err = %e, "Could not create personality file; watcher may not work if the file does not exist");
         }
     }
 
