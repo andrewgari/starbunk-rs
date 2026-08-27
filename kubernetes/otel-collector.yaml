@@ -16,6 +16,8 @@ data:
     exporters:
       googlecloud:
         project: starbunk-bot
+        log:
+          default_log_name: "opentelemetry.app"
 
     service:
       pipelines:
