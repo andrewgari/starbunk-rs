@@ -26,10 +26,32 @@ pub async fn watch_personality_file(
         }
     }
     if !p.exists() {
-        tokio::fs::write(&path_owned, "").await?;
+        if let Err(e) = tokio::fs::write(&path_owned, "").await {
+            tracing::warn!(
+                "Could not create {}: {}; watcher may not work if file doesn't exist",
+                path_owned,
+                e
+            );
+        }
     }
 
-    watcher.watch(p, RecursiveMode::NonRecursive)?;
+    if let Err(e) = watcher.watch(p, RecursiveMode::NonRecursive) {
+        tracing::warn!("Failed to watch {}: {}", path_owned, e);
+        // Try watching the parent directory as a fallback for kubernetes configmaps
+        if let Some(parent) = p.parent() {
+            if let Err(e2) = watcher.watch(parent, RecursiveMode::NonRecursive) {
+                tracing::error!("Failed to watch parent directory either: {}", e2);
+                return Err(e2.into());
+            } else {
+                tracing::info!(
+                    "Watching parent directory {} instead (Kubernetes fallback)",
+                    parent.display()
+                );
+            }
+        } else {
+            return Err(e.into());
+        }
+    }
 
     tokio::spawn(async move {
         // Keep watcher alive
