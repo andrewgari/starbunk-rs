@@ -1,5 +1,5 @@
 use crate::personality::PersonalityStore;
-use notify::event::ModifyKind;
+use notify::event::{ModifyKind, RenameMode};
 use notify::{EventKind, RecursiveMode, Watcher};
 use std::path::Path;
 use std::sync::Arc;
@@ -53,8 +53,14 @@ pub async fn watch_personality_file(
         // Keep watcher alive
         let _watcher = watcher;
         while let Some(event) = rx.recv().await {
+            let target_path_matches = event.paths.iter().any(|p| p.ends_with(&path_owned));
             match event.kind {
-                EventKind::Modify(ModifyKind::Data(_)) | EventKind::Modify(ModifyKind::Any) => {
+                EventKind::Modify(ModifyKind::Data(_))
+                | EventKind::Modify(ModifyKind::Any)
+                | EventKind::Create(_)
+                | EventKind::Modify(ModifyKind::Name(RenameMode::To))
+                    if target_path_matches || event.paths.is_empty() =>
+                {
                     tracing::info!("Detected modification in {}", path_owned);
                     if let Ok(content) = tokio::fs::read_to_string(&path_owned).await {
                         if let Err(e) = store.sync_from_yaml(&content).await {
