@@ -1,15 +1,12 @@
 name: Deploy PR Test Build
 
+# DISABLED: GCP pipelines are retired — builds and deploys run on Tower via
+# Portainer (see docker/docker-compose.tower.yml and wiki/infrastructure/Deployment.md).
+# This workflow is manual-dispatch only and every job is gated on the repository
+# variable GCP_PIPELINES_ENABLED. That variable is unset by default, so a dispatch
+# is a no-op. Set it to 'true' only if the GCP pipeline is ever reinstated.
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR Number (e.g. 123)'
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -24,6 +21,7 @@ concurrency:
 
 jobs:
   build_and_deploy:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Build & Deploy Test Build
     runs-on: ubuntu-latest
     environment:

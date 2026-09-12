@@ -1,4 +1,5 @@
 use super::client::{AnthropicClient, GoogleClient, OllamaClient, OpenAiClient};
+use super::instrumented::InstrumentedLlmService;
 use super::service::{LlmService, Registry, TieredRegistry};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -102,6 +103,9 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
                 }
             };
 
+            let provider_name = format!("{:?}", spec.provider).to_lowercase();
+            let default_model = spec.model.clone();
+
             let service: Arc<dyn LlmService> = match spec.provider {
                 Provider::OpenAi => Arc::new(OpenAiClient::new(
                     pcfg.base_url.clone(),
@@ -120,6 +124,12 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
                     spec.model,
                 )),
             };
+
+            let service: Arc<dyn LlmService> = Arc::new(InstrumentedLlmService::new(
+                provider_name,
+                default_model,
+                service,
+            ));
 
             Ok(Some(service))
         };

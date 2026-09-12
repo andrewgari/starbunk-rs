@@ -1,5 +1,12 @@
 # CI/CD
 
+> **Note:** The GCP pipelines (`release.yml`, `health-check.yml`, `main.yml`,
+> `deploy.yml`, `deploy-pr.yml`) are retired — production is the Tower/Portainer
+> stack. They are manual-dispatch only and every job is gated on the repository
+> variable `GCP_PIPELINES_ENABLED` (unset ⇒ a dispatch does nothing). Only
+> `ci.yml` runs automatically. See
+> [[../infrastructure/Deployment|Deployment]].
+
 ## Workflows
 
 ### `ci.yml` — Pull Request Checks
@@ -30,26 +37,20 @@ The `ci.yml` workflow optimizes execution times by gating jobs based on changed 
 - **Quick PRs / Docker Skipping**: If the PR has the `quick-pr` or `skip-docker` label, all Docker container builds, Docker smoke tests, and E2E integration test runs are skipped entirely, allowing for fast verification.
 
 
-### `main.yml` — Merge to Main (auto-release)
+### `main.yml` — Merge to Main (retired)
 
-Triggered on every push to `main`. This is the only workflow that creates releases
-and deploys to Tower — **every merge automatically ships**. Jobs:
+**Retired.** Previously triggered on every push to `main` to validate, lint,
+test, compute the next semver, publish images to GCP Artifact Registry, and
+create a GitHub Release. The `push` trigger and the `confirm` input are gone; the
+workflow is manual-dispatch only and every job is gated on
+`GCP_PIPELINES_ENABLED`, so it no longer publishes anything by default.
 
-1. **Validate DevOps Consistency**
-2. **Lint** — `cargo fmt --check` + `cargo clippy`
-3. **Test** — `cargo test --all`
-4. **Determine Version** — reads the last `v*` git tag and the merge commit title
-   to compute the next semver (major/minor/patch via conventional commits).
-5. **Docker Publish** — builds all five bots in parallel; pushes `:vX.Y.Z`,
-   `:latest`, and `:sha-<short-sha>` to GHCR.
-6. **Create Release** — creates a `vX.Y.Z` git tag and GitHub Release, which
-   triggers `deploy.yml` automatically.
+### `deploy.yml` — Deploy to GKE (retired)
 
-### `deploy.yml` — Deploy to Tower
-
-Triggered automatically when a GitHub Release is published (i.e., after `main.yml`
-completes). Tower deploys `:vX.Y.Z` (the specific version that was just released).
-See [[../infrastructure/Deployment|Deployment]].
+**Retired.** Previously fired on a published GitHub Release and deployed to GKE
+via `kubectl`. It is now manual-dispatch only and gated on
+`GCP_PIPELINES_ENABLED`. Production deploys happen on Tower through Portainer —
+see [[../infrastructure/Deployment|Deployment]].
 
 ---
 

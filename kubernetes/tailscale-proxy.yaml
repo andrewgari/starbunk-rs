@@ -1,3 +1,15 @@
+# NOTE — one-time migration step.
+#
+# This file previously also defined a standalone `starbunk-ui-tailscale`
+# Deployment. That proxy has been folded into the `starbunk-ui` pod as a
+# sidecar (see kubernetes/starbunk-ui.yaml). `kubectl apply` does not prune
+# removed objects, and the old pod keeps `tailscale-proxy-pvc` (ReadWriteOnce)
+# mounted, which conflicts with the new sidecar. Delete it once before rolling
+# out the updated starbunk-ui:
+#
+#   kubectl -n starbunk delete deployment starbunk-ui-tailscale --ignore-not-found
+#
+# The ConfigMap and PVC below are still used by the sidecar.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,14 +30,14 @@ data:
         "${TS_CERT_DOMAIN}:443": {
           "Handlers": {
             "/": {
-              "Proxy": "http://starbunk-ui:80"
+              "Proxy": "http://127.0.0.1:3000"
             }
           }
         },
         "${TS_CERT_DOMAIN}:80": {
           "Handlers": {
             "/": {
-              "Proxy": "http://starbunk-ui:80"
+              "Proxy": "http://127.0.0.1:3000"
             }
           }
         }
@@ -35,59 +47,6 @@ data:
         "${TS_CERT_DOMAIN}:80": false
       }
     }
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: starbunk-ui-tailscale
-  namespace: starbunk
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: starbunk-ui-tailscale
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      labels:
-        app: starbunk-ui-tailscale
-    spec:
-      containers:
-        - name: tailscale
-          image: tailscale/tailscale:v1.98.4
-          env:
-            - name: TS_AUTHKEY
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-auth
-                  key: TS_AUTHKEY
-            - name: TS_AUTH_ONCE
-              value: "true"
-            - name: TS_USERSPACE
-              value: "true"
-            - name: TS_HOSTNAME
-              value: "starbunk-ui"
-            - name: TS_SERVE_CONFIG
-              value: "/config/serve-config.json"
-            - name: TS_EXTRA_ARGS
-              value: "--advertise-tags=tag:k8s-operator"
-            - name: TS_KUBE_SECRET
-              value: ""
-            - name: TS_STATE_DIR
-              value: "/var/lib/tailscale"
-          volumeMounts:
-            - name: serve-config
-              mountPath: /config
-            - name: ts-state
-              mountPath: /var/lib/tailscale
-      volumes:
-        - name: serve-config
-          configMap:
-            name: tailscale-serve-config
-        - name: ts-state
-          persistentVolumeClaim:
-            claimName: tailscale-proxy-pvc
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

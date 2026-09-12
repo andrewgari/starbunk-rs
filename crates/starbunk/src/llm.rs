@@ -1,5 +1,6 @@
 pub mod client;
 pub mod config;
+pub mod instrumented;
 pub mod models;
 pub mod service;
 
