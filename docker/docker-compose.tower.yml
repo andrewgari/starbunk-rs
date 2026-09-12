@@ -135,7 +135,7 @@ services:
       otel-collector:
         condition: service_healthy
     environment:
-      - DISCORD_TOKEN=${BLUEBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - DISCORD_TOKEN=${BLUEBOT_TOKEN}
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -160,7 +160,7 @@ services:
       otel-collector:
         condition: service_healthy
     environment:
-      - DISCORD_TOKEN=${BUNKBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - DISCORD_TOKEN=${BUNKBOT_TOKEN}
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -188,7 +188,7 @@ services:
       otel-collector:
         condition: service_healthy
     environment:
-      - DISCORD_TOKEN=${COVABOT_TOKEN:-${STARBUNK_TOKEN}}
+      - DISCORD_TOKEN=${COVABOT_TOKEN}
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -230,7 +230,7 @@ services:
       otel-collector:
         condition: service_healthy
     environment:
-      - DISCORD_TOKEN=${DJCOVA_TOKEN:-${STARBUNK_TOKEN}}
+      - DISCORD_TOKEN=${DJCOVA_TOKEN}
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -253,7 +253,7 @@ services:
       otel-collector:
         condition: service_healthy
     environment:
-      - DISCORD_TOKEN=${RATBOT_TOKEN:-${STARBUNK_TOKEN}}
+      - DISCORD_TOKEN=${RATBOT_TOKEN}
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
