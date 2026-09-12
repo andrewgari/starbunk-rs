@@ -25,6 +25,8 @@ spec:
       labels:
         app: postgres
     spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
       containers:
         - name: postgres
           image: pgvector/pgvector:pg16
@@ -47,8 +49,8 @@ spec:
             - containerPort: 5432
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
               cpu: 500m
               memory: 512Mi

@@ -5,15 +5,14 @@ name: CD / Main Merge
 #
 # Releases and deployments are handled by release.yml instead.
 
+# DISABLED: Migrated to Tower Portainer stack 2026-09-11
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
-      force_all:
-        description: 'Force rebuild all containers'
-        type: boolean
-        default: false
+      confirm:
+        description: 'DISABLED: Tower Portainer deployment active'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write

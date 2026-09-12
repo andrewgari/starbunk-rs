@@ -10,10 +10,14 @@ name: Deploy to Production
 #   GCP_WORKLOAD_IDENTITY_PROVIDER — Workload Identity Provider ID
 #   GCP_SERVICE_ACCOUNT            — GCP Service Account email
 
+# DISABLED: Migrated to Tower Portainer stack 2026-09-11
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'DISABLED: Tower Portainer deployment active'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read

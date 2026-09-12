@@ -16,12 +16,18 @@ data:
     exporters:
       googlecloud:
         project: starbunk-bot
+      otlphttp/langfuse:
+        endpoint: "https://cloud.langfuse.com/api/public/otel"
+        headers:
+          Authorization: "Basic ${env:LANGFUSE_AUTH_STRING}"
+          x-langfuse-ingestion-version: "4"
+
 
     service:
       pipelines:
         traces:
           receivers: [otlp]
-          exporters: [googlecloud]
+          exporters: [googlecloud, otlphttp/langfuse]
         logs:
           receivers: [otlp]
           exporters: [googlecloud]
@@ -61,6 +67,12 @@ spec:
         - name: otel-collector
           image: otel/opentelemetry-collector-contrib:0.154.0
           args: ["--config=/etc/otel/otel-collector.yaml"]
+          env:
+            - name: LANGFUSE_AUTH_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secrets
+                  key: auth-string
           volumeMounts:
             - name: config
               mountPath: /etc/otel
@@ -69,7 +81,7 @@ spec:
             - containerPort: 4318
           resources:
             requests:
-              cpu: 100m
+              cpu: 50m
               memory: 128Mi
             limits:
               cpu: 250m

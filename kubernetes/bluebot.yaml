@@ -37,8 +37,8 @@ spec:
               value: "http://otel-collector:4317"
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "25m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "256Mi"
+              cpu: "250m"
+              memory: "128Mi"

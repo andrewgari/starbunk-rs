@@ -81,11 +81,11 @@ spec:
               value: "gemini-2.5-flash"
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "25m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "256Mi"
+              cpu: "250m"
+              memory: "128Mi"
           volumeMounts:
             - name: config-volume
               mountPath: /app/config/covabot

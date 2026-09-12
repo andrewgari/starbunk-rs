@@ -1,7 +1,11 @@
 version: "3.8"
 name: starbunk
-# Local development — builds all bots from source.
-# Usage: docker compose -f docker/docker-compose.yml up -d --build
+# Tower/Portainer deployment — builds all bots from source on Tower.
+# Usage: Portainer → Stacks → Create from repository (git.lan:starbunk-rs)
+# or: docker compose -f docker/docker-compose.tower.yml up -d --build
+#
+# Volume paths reference Tower appdata: /mnt/config/appdata/starbunk/
+# Secrets via environment: pull from 1Password via .env (git-ignored)
 
 services:
   # ── Observability stack ──────────────────────────────────────────────────────
@@ -13,7 +17,7 @@ services:
       - LANGFUSE_AUTH_STRING=${LANGFUSE_AUTH_STRING}
     command: ["--config=/etc/otel/otel-collector.yaml"]
     volumes:
-      - ../observability/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+      - /mnt/config/appdata/starbunk/observability/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
     ports:
       - "127.0.0.1:4317:4317"
       - "127.0.0.1:4318:4318"
@@ -38,8 +42,8 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki.yaml"]
     volumes:
-      - ../observability/loki.yaml:/etc/loki/loki.yaml:ro
-      - loki-data:/loki
+      - /mnt/config/appdata/starbunk/observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - starbunk-loki-data:/loki
     ports:
       - "127.0.0.1:3100:3100"
     healthcheck:
@@ -55,8 +59,8 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
-      - ../observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
-      - tempo-data:/var/lib/tempo
+      - /mnt/config/appdata/starbunk/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - starbunk-tempo-data:/var/lib/tempo
     ports:
       - "127.0.0.1:3200:3200"
     healthcheck:
@@ -78,8 +82,8 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     volumes:
-      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
+      - /mnt/config/appdata/starbunk/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - starbunk-prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
     healthcheck:
@@ -94,15 +98,13 @@ services:
     container_name: starbunk-grafana
     restart: unless-stopped
     environment:
-      # Dev: anonymous access with Editor role (enough to view/edit dashboards).
-      # Login form is kept enabled so you can elevate to Admin when needed.
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Editor
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
-      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana-data:/var/lib/grafana
+      - /mnt/config/appdata/starbunk/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - starbunk-grafana-data:/var/lib/grafana
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -126,6 +128,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: bluebot
+    image: starbunk-bluebot:latest
     container_name: starbunk-bluebot
     restart: unless-stopped
     depends_on:
@@ -148,6 +151,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: bunkbot
+    image: starbunk-bunkbot:latest
     container_name: starbunk-bunkbot
     restart: unless-stopped
     depends_on:
@@ -162,7 +166,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:-starbunk}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
     volumes:
-      - ../config/bunkbot:/app/config/bunkbot:ro
+      - /mnt/config/appdata/starbunk/config/bunkbot:/app/config/bunkbot:ro
     logging:
       driver: "json-file"
       options:
@@ -175,6 +179,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: covabot
+    image: starbunk-covabot:latest
     container_name: starbunk-covabot
     restart: unless-stopped
     depends_on:
@@ -191,7 +196,13 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
+      # Override OLLAMA_BASE_URL in Portainer UI: http://192.168.50.2:11434 or DNS hostname if available.
+      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
+      # Override in Portainer UI: http://192.168.50.2:11434 or DNS hostname if available.
+      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
+      # Override in Portainer UI if needed: http://192.168.50.2:11434
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.50.2:11434}
       - LLM_TIER_HIGH_PROVIDER=${LLM_TIER_HIGH_PROVIDER:-anthropic}
       - LLM_TIER_HIGH_MODEL=${LLM_TIER_HIGH_MODEL:-claude-3-5-sonnet-latest}
       - LLM_TIER_MEDIUM_PROVIDER=${LLM_TIER_MEDIUM_PROVIDER:-google}
@@ -199,7 +210,7 @@ services:
       - LLM_TIER_LOW_PROVIDER=${LLM_TIER_LOW_PROVIDER:-openai}
       - LLM_TIER_LOW_MODEL=${LLM_TIER_LOW_MODEL:-text-embedding-3-small}
     volumes:
-      - ../config/covabot:/app/config/covabot:ro
+      - /mnt/config/appdata/starbunk/config/covabot:/app/config/covabot:ro
     logging:
       driver: "json-file"
       options:
@@ -212,6 +223,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: djcova
+    image: starbunk-djcova:latest
     container_name: starbunk-djcova
     restart: unless-stopped
     depends_on:
@@ -234,6 +246,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BOT_NAME: ratbot
+    image: starbunk-ratbot:latest
     container_name: starbunk-ratbot
     restart: unless-stopped
     depends_on:
@@ -266,11 +279,11 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - starbunk-pgdata:/var/lib/postgresql/data
 
 volumes:
-  pgdata:
-  loki-data:
-  tempo-data:
-  prometheus-data:
-  grafana-data:
+  starbunk-pgdata:
+  starbunk-loki-data:
+  starbunk-tempo-data:
+  starbunk-prometheus-data:
+  starbunk-grafana-data:

@@ -78,6 +78,14 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
 
+
+  # ── Traces → Langfuse ───────────────────────────────────────────────────────
+  otlphttp/langfuse:
+    endpoint: "https://cloud.langfuse.com/api/public/otel"
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_AUTH_STRING}"
+      x-langfuse-ingestion-version: "4"
+
   # ── Debug logging for the collector itself (disable in prod) ─────────────────
   debug:
     verbosity: normal
@@ -99,7 +107,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlp/tempo]
+      exporters: [otlp/tempo, otlphttp/langfuse]
 
     metrics:
       receivers: [otlp]

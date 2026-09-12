@@ -1,4 +1,5 @@
 use super::client::{AnthropicClient, GoogleClient, OllamaClient, OpenAiClient};
+use super::instrumented::InstrumentedLlmService;
 use super::service::{LlmService, Registry, TieredRegistry};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -120,6 +121,12 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
                     spec.model,
                 )),
             };
+
+            let service_name = format!("{:?}", spec.provider).to_lowercase();
+            let service: Arc<dyn LlmService> = Arc::new(InstrumentedLlmService::new(
+                service_name,
+                service
+            ));
 
             Ok(Some(service))
         };
