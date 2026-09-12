@@ -143,7 +143,6 @@ spec:
         - name: ts-state
           persistentVolumeClaim:
             claimName: tailscale-proxy-pvc
-
 ---
 # Service — ClusterIP only. Tailscale sidecar handles external access via tailnet.
 apiVersion: v1

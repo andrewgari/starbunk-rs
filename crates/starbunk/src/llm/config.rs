@@ -103,6 +103,9 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
                 }
             };
 
+            let provider_name = format!("{:?}", spec.provider).to_lowercase();
+            let default_model = spec.model.clone();
+
             let service: Arc<dyn LlmService> = match spec.provider {
                 Provider::OpenAi => Arc::new(OpenAiClient::new(
                     pcfg.base_url.clone(),
@@ -122,10 +125,10 @@ pub fn registry_from_env() -> anyhow::Result<Arc<dyn Registry>> {
                 )),
             };
 
-            let service_name = format!("{:?}", spec.provider).to_lowercase();
             let service: Arc<dyn LlmService> = Arc::new(InstrumentedLlmService::new(
-                service_name,
-                service
+                provider_name,
+                default_model,
+                service,
             ));
 
             Ok(Some(service))

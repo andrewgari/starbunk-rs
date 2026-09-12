@@ -1,9 +1,11 @@
-# DISABLED: Tower Portainer 2026-09-11
+# DISABLED: GCP pipelines are retired — builds and deploys run on Tower via
+# Portainer (see docker/docker-compose.tower.yml and wiki/infrastructure/Deployment.md).
+# This workflow is manual-dispatch only and every job is gated on the repository
+# variable GCP_PIPELINES_ENABLED. That variable is unset by default, so a dispatch
+# is a no-op. Set it to 'true' only if the GCP pipeline is ever reinstated.
 name: Daily Production Health Check
 
 on:
-  schedule:
-    - cron: '0 8 * * *' # Daily at 08:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -13,6 +15,7 @@ permissions:
 
 jobs:
   health-check:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Health Check
     runs-on: ubuntu-latest
     environment:

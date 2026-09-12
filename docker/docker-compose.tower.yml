@@ -17,7 +17,7 @@ services:
       - LANGFUSE_AUTH_STRING=${LANGFUSE_AUTH_STRING}
     command: ["--config=/etc/otel/otel-collector.yaml"]
     volumes:
-      - /mnt/config/appdata/starbunk/observability/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+      - /mnt/config/appdata/starbunk/observability/otel-collector.tower.yaml:/etc/otel/otel-collector.yaml:ro
     ports:
       - "127.0.0.1:4317:4317"
       - "127.0.0.1:4318:4318"
@@ -98,12 +98,16 @@ services:
     container_name: starbunk-grafana
     restart: unless-stopped
     environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Editor
+      # Anonymous access is read-only, and Grafana is reachable only over the
+      # loopback bind + Tailscale proxy, so the bind is not an auth boundary.
+      - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ENABLED:-true}
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
       - /mnt/config/appdata/starbunk/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /mnt/config/appdata/starbunk/observability/grafana/dashboards:/etc/grafana/dashboards:ro
       - starbunk-grafana-data:/var/lib/grafana
     ports:
       - "127.0.0.1:3000:3000"
@@ -164,7 +168,7 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:-starbunk}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
     volumes:
       - /mnt/config/appdata/starbunk/config/bunkbot:/app/config/bunkbot:ro
     logging:
@@ -192,16 +196,12 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:-starbunk}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
-      # Override OLLAMA_BASE_URL in Portainer UI: http://192.168.50.2:11434 or DNS hostname if available.
-      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
-      # Override in Portainer UI: http://192.168.50.2:11434 or DNS hostname if available.
-      # Ollama runs on Framework desktop (192.168.50.2), not Tower.
-      # Override in Portainer UI if needed: http://192.168.50.2:11434
+      # Ollama runs on the Framework desktop (192.168.50.2), not Tower.
+      # Override OLLAMA_BASE_URL in the Portainer UI if the host or DNS name changes.
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.50.2:11434}
       - LLM_TIER_HIGH_PROVIDER=${LLM_TIER_HIGH_PROVIDER:-anthropic}
       - LLM_TIER_HIGH_MODEL=${LLM_TIER_HIGH_MODEL:-claude-3-5-sonnet-latest}
@@ -250,6 +250,8 @@ services:
     container_name: starbunk-ratbot
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       otel-collector:
         condition: service_healthy
     environment:
@@ -257,6 +259,7 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       - VERBOSE=${VERBOSE:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
     logging:
       driver: "json-file"
       options:
@@ -269,7 +272,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-starbunk}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-starbunk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: ${POSTGRES_DB:-starbunk_memory}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-starbunk} -d ${POSTGRES_DB:-starbunk_memory}"]

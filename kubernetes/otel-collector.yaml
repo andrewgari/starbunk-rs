@@ -21,8 +21,6 @@ data:
         headers:
           Authorization: "Basic ${env:LANGFUSE_AUTH_STRING}"
           x-langfuse-ingestion-version: "4"
-        log:
-          default_log_name: "opentelemetry.app"
 
     service:
       pipelines:
@@ -91,3 +89,25 @@ spec:
         - name: config
           configMap:
             name: otel-collector-conf
+---
+# Credentials for the collector's otlphttp/langfuse exporter.
+#
+# The committed value is an empty placeholder so that `kubectl apply` leaves the
+# collector in a Running state instead of CreateContainerConfigError. Populate
+# the real value out-of-band before applying (the header value is the base64 of
+# `pk-lf-...:sk-lf-...`):
+#
+#   kubectl -n starbunk create secret generic langfuse-secrets \
+#     --from-literal=auth-string="$(printf '%s' 'pk-lf-xxx:sk-lf-xxx' | base64)" \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# Note: a later `kubectl apply -f kubernetes/` will reset this to the empty
+# placeholder, so re-apply the real secret afterwards.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: langfuse-secrets
+  namespace: starbunk
+type: Opaque
+stringData:
+  auth-string: ""

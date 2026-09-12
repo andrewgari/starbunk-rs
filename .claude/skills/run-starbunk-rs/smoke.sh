@@ -31,7 +31,7 @@ trap cleanup EXIT
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "--- Build ---"
-if cargo build --workspace 2>&1 | grep -q "error\["; then
+if ! cargo build --workspace; then
   fail "cargo build failed"
   exit 1
 fi
@@ -39,11 +39,10 @@ ok "cargo build --workspace"
 
 # ── 2. Unit tests ─────────────────────────────────────────────────────────────
 echo "--- Unit tests ---"
-FAILED_TESTS=$(cargo test --workspace 2>&1 | grep "^test result:" | grep -v "0 failed" | head -5 || true)
-if [[ -n "$FAILED_TESTS" ]]; then
-  fail "unit tests: $FAILED_TESTS"
-else
+if cargo test --workspace; then
   ok "cargo test --workspace (all suites)"
+else
+  fail "cargo test --workspace"
 fi
 
 # ── 3. Per-bot health endpoints ───────────────────────────────────────────────

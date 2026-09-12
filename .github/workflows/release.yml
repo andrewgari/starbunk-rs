@@ -1,4 +1,8 @@
-# DISABLED: Tower Portainer 2026-09-11
+# DISABLED: GCP pipelines are retired — builds and deploys run on Tower via
+# Portainer (see docker/docker-compose.tower.yml and wiki/infrastructure/Deployment.md).
+# This workflow is manual-dispatch only and every job is gated on the repository
+# variable GCP_PIPELINES_ENABLED. That variable is unset by default, so a dispatch
+# is a no-op. Set it to 'true' only if the GCP pipeline is ever reinstated.
 name: Weekly Release
 
 # Triggered by schedule every Sunday at midnight, or manually.
@@ -7,8 +11,6 @@ name: Weekly Release
 # → deploy.yml fires automatically via the published release event.
 
 on:
-  schedule:
-    - cron: '0 0 * * 0' # Weekly at midnight on Sunday
   workflow_dispatch:
 
 permissions:
@@ -19,6 +21,7 @@ jobs:
 
   # ─── Validate DevOps consistency ─────────────────────────────────────────────
   validate_devops:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Validate DevOps Consistency
     runs-on: ubuntu-latest
     steps:
@@ -28,6 +31,7 @@ jobs:
 
   # ─── Lint ────────────────────────────────────────────────────────────────────
   lint:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Lint
     runs-on: ubuntu-latest
     steps:
@@ -57,6 +61,7 @@ jobs:
 
   # ─── Test ────────────────────────────────────────────────────────────────────
   test:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Test
     runs-on: ubuntu-latest
     needs: [validate_devops, lint]
@@ -94,6 +99,7 @@ jobs:
   # Reads the latest v* git tag to compute the next version.
   # For scheduled releases, defaults to a minor version bump.
   version:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Determine Version
     runs-on: ubuntu-latest
     needs: [validate_devops, lint, test]
@@ -143,6 +149,7 @@ jobs:
   # Creates the semver git tag and a GitHub Release. The published release event
   # triggers deploy.yml automatically.
   release:
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Create Release
     runs-on: ubuntu-latest
     needs: [version]

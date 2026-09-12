@@ -1,3 +1,15 @@
+# NOTE — one-time migration step.
+#
+# This file previously also defined a standalone `starbunk-ui-tailscale`
+# Deployment. That proxy has been folded into the `starbunk-ui` pod as a
+# sidecar (see kubernetes/starbunk-ui.yaml). `kubectl apply` does not prune
+# removed objects, and the old pod keeps `tailscale-proxy-pvc` (ReadWriteOnce)
+# mounted, which conflicts with the new sidecar. Delete it once before rolling
+# out the updated starbunk-ui:
+#
+#   kubectl -n starbunk delete deployment starbunk-ui-tailscale --ignore-not-found
+#
+# The ConfigMap and PVC below are still used by the sidecar.
 apiVersion: v1
 kind: ConfigMap
 metadata:

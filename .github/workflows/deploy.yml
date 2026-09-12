@@ -10,14 +10,13 @@ name: Deploy to Production
 #   GCP_WORKLOAD_IDENTITY_PROVIDER — Workload Identity Provider ID
 #   GCP_SERVICE_ACCOUNT            — GCP Service Account email
 
-# DISABLED: Migrated to Tower Portainer stack 2026-09-11
+# DISABLED: GCP pipelines are retired — builds and deploys run on Tower via
+# Portainer (see docker/docker-compose.tower.yml and wiki/infrastructure/Deployment.md).
+# This workflow is manual-dispatch only and every job is gated on the repository
+# variable GCP_PIPELINES_ENABLED. That variable is unset by default, so a dispatch
+# is a no-op. Set it to 'true' only if the GCP pipeline is ever reinstated.
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'DISABLED: Tower Portainer deployment active'
-        required: false
-        default: 'false'
 
 permissions:
   contents: read
@@ -35,7 +34,7 @@ jobs:
     environment:
       name: production
       url: https://console.cloud.google.com/kubernetes/workload/overview?project=starbunk-bot
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
+    if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

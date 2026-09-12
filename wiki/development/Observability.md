@@ -64,6 +64,19 @@ Grafana datasources are auto-provisioned on startup with cross-links:
 - Traces → links back to Loki logs by service name
 - Traces → service graph from Prometheus metrics
 
+### Tower/Portainer collector config
+
+The Tower stack (`docker/docker-compose.tower.yml`) mounts
+`observability/otel-collector.tower.yaml` as `/etc/otel/otel-collector.yaml`.
+
+It is the same pipeline as `observability/otel-collector.yaml` minus the GCP
+Cloud Logging Pub/Sub receiver and its `transform/gcp_service_name` processor,
+because Tower has no GCP credentials and the GKE path is retired. Dashboards are
+bind-mounted from `observability/grafana/dashboards` into
+`/etc/grafana/dashboards`, matching the folder provider in
+`grafana/provisioning/dashboards/dashboards.yaml`. Keep the two collector configs
+in sync for everything except the GCP components.
+
 ---
 
 ## Environment variables
@@ -208,8 +221,12 @@ messages_received.add(1, &[
 
 ## Grafana access
 
-- **Local dev**: http://localhost:3000 (no login required — anonymous admin)
-- **Production (Tower)**: port-forward or Tailscale to the Tower host
+- **Local dev**: http://localhost:3000 (anonymous access, admin role)
+- **Production (Tower)**: http://127.0.0.1:3000 on the Tower host (or over the
+  tailnet). Anonymous access is **read-only**
+  (`GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer`); anything that publishes edits needs the
+  `GRAFANA_ADMIN_PASSWORD` set for the stack. The loopback bind is not treated
+  as an authorization boundary — only the Tailscale proxy reaches it.
 
 ### Useful queries
 
@@ -236,6 +253,12 @@ rate(bot_messages_received_total[5m])
 ---
 
 ## GKE Cloud Log Ingestion
+
+> **Status: retired.** GKE is being decommissioned in favour of the Tower
+> Portainer stack. The collector config Tower runs
+> (`observability/otel-collector.tower.yaml`) no longer defines the
+> `googlecloudpubsub` receiver, so nothing on Tower pulls GCP logs. This section
+> is retained for reference and still describes `observability/otel-collector.yaml`.
 
 GKE bot logs flow to **Google Cloud Logging** via the in-cluster otel-collector's
 `googlecloud` exporter. A Cloud Logging sink forwards them to a Pub/Sub topic, and
@@ -330,6 +353,29 @@ Both are set in `/mnt/user/appdata/portainer/compose/46/docker-compose.yml`.
 **Cross-correlate with bot traces** — GKE logs share the same Loki instance as
 local bot logs, so Grafana's Explore split-panel can show GKE errors alongside
 Tempo trace spans from the same time window.
+
+---
+
+## LLM tracing (Langfuse)
+
+Traces carrying `gen_ai.*` attributes are mirrored to Langfuse. Two pieces:
+
+1. **Exporter** — `observability/otel-collector.yaml` (and the Tower variant)
+   define `otlphttp/langfuse`, authenticated with `LANGFUSE_AUTH_STRING`
+   (`base64(pk-lf-...:sk-lf-...)`), and attach it to the traces pipeline.
+2. **Spans** — `crates/starbunk/src/llm/instrumented.rs` wraps every provider
+   client in `InstrumentedLlmService`, which emits one span per call:
+
+| Attribute | Value |
+|---|---|
+| `gen_ai.system` | provider name (`anthropic`, `openai`, `google`, `ollama`) |
+| `gen_ai.request.model` | caller's `req.model` override, else the client's configured model |
+| `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` | recorded from the response |
+| `langfuse.observation.type` | `generation` for `generate`, `embedding` for `embed` |
+
+`crates/starbunk/src/llm/config.rs` builds the wrappers and passes each client's
+configured model through, so a request that omits `req.model` is attributed to
+the real model rather than a placeholder.
 
 ---
 
