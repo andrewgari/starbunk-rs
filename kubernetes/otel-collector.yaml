@@ -21,7 +21,8 @@ data:
         headers:
           Authorization: "Basic ${env:LANGFUSE_AUTH_STRING}"
           x-langfuse-ingestion-version: "4"
-
+        log:
+          default_log_name: "opentelemetry.app"
 
     service:
       pipelines:

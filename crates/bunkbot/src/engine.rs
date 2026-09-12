@@ -20,6 +20,8 @@ use std::sync::{Arc, LazyLock};
 /// matching response.
 use starbunk::audit::AuditStore;
 
+use crate::metrics::BunkBotMetrics;
+
 pub struct BunkBotEngine {
     bots: Vec<CompiledBot>,
     sender: Arc<dyn MessageService>,
@@ -27,6 +29,7 @@ pub struct BunkBotEngine {
     state_service: Arc<dyn BotStateService>,
     comment_config: Arc<dyn CommentConfigService>,
     audit: Option<Arc<AuditStore>>,
+    metrics: Option<Arc<BunkBotMetrics>>,
 }
 
 impl BunkBotEngine {
@@ -36,6 +39,7 @@ impl BunkBotEngine {
         identity_provider: Arc<dyn IdentityProvider>,
         state_service: Arc<dyn BotStateService>,
         audit: Option<Arc<AuditStore>>,
+        metrics: Option<Arc<BunkBotMetrics>>,
     ) -> Self {
         Self::new_with_comment_config(
             bots,
@@ -44,6 +48,7 @@ impl BunkBotEngine {
             state_service,
             audit,
             Arc::new(crate::comment_config::InMemoryCommentConfigService::new()),
+            metrics,
         )
     }
 
@@ -54,6 +59,7 @@ impl BunkBotEngine {
         state_service: Arc<dyn BotStateService>,
         audit: Option<Arc<AuditStore>>,
         comment_config: Arc<dyn CommentConfigService>,
+        metrics: Option<Arc<BunkBotMetrics>>,
     ) -> Self {
         let compiled = bots
             .into_iter()
@@ -80,6 +86,7 @@ impl BunkBotEngine {
             state_service,
             comment_config,
             audit,
+            metrics,
         }
     }
 
@@ -112,6 +119,7 @@ impl BunkBotEngine {
             state_service: self.state_service.clone(),
             comment_config: self.comment_config.clone(),
             audit: self.audit.clone(),
+            metrics: self.metrics.clone(),
         };
         new_engine.reload_bots(configs);
         new_engine
@@ -151,6 +159,7 @@ impl BunkBotEngine {
         }
     }
 
+    #[tracing::instrument(skip(self, ctx, msg, bot), fields(bot = %bot.name))]
     async fn dispatch_bot(
         &self,
         ctx: &Context,
@@ -182,6 +191,7 @@ impl BunkBotEngine {
             let identity =
                 resolve_identity(&bot.identity, ctx, msg, &*self.identity_provider).await;
 
+            let timer = std::time::Instant::now();
             let result = match identity {
                 Some(id) => self
                     .sender
@@ -194,6 +204,7 @@ impl BunkBotEngine {
                     .await
                     .map(|_| ()),
             };
+            let elapsed = timer.elapsed();
 
             if let Err(e) = result {
                 tracing::error!(
@@ -201,8 +212,21 @@ impl BunkBotEngine {
                     channel = %msg.channel_id,
                     "send failed: {}", e
                 );
+                if let Some(m) = &self.metrics {
+                    m.errors.with_label_values(&["send"]).inc();
+                }
             } else {
+                tracing::debug!(
+                    bot = %bot.name,
+                    channel = %msg.channel_id,
+                    latency_ms = elapsed.as_millis() as u64,
+                    "subbot triggered"
+                );
                 self.state_service.increment_trigger(&bot.name);
+                if let Some(m) = &self.metrics {
+                    m.bot_triggers.with_label_values(&[&bot.name]).inc();
+                    m.response_latency.observe(elapsed.as_secs_f64());
+                }
                 if let Some(audit) = &self.audit {
                     let _ = audit
                         .log_event(&bot.name, &msg.content, &response, None)
@@ -728,6 +752,7 @@ mod tests {
             Arc::new(DummySender),
             Arc::new(DummyProvider),
             Arc::new(InMemoryBotStateManager::new()),
+            None,
             None,
         );
 

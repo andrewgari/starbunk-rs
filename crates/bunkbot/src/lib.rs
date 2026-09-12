@@ -122,12 +122,16 @@ impl EventHandler for Handler {
 
         tracing::info!(count = bots.len(), "loaded reply bots from database");
 
+        // Update the active_bots gauge with the count of loaded bots.
+        self.metrics.active_bots.set(bots.len() as i64);
+
         let new_engine = BunkBotEngine::new(
             bots,
             sender,
             identity_provider,
             self.state_service.clone(),
             Some(self.audit.clone()),
+            Some(self.metrics.clone()),
         );
 
         let mut engine_lock = self.engine.write().await;
