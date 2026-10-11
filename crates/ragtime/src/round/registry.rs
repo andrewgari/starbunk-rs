@@ -1,28 +1,15 @@
 //! Per-channel registry of rounds — the public entry point of the state machine.
 
-use super::{ChannelId, Phase, RoundError, RoundEvent, UserId};
+use super::game::Game;
+use super::{
+    select_questions, ChannelId, CleanupReason, Grader, Phase, RoundError, RoundEvent, UserId,
+    QUESTIONS_PER_ROUND,
+};
 use crate::question::Question;
 use rand::Rng;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
-
-/// Grades a player's reply. Implemented for any
-/// `Fn(&str, &str, &[String]) -> bool`, so the Discord layer can pass the
-/// crate's `grade()` function directly:
-/// `Arc::new(|reply: &str, display: &str, ok: &[String]| grade(reply, display, ok))`.
-pub trait Grader: Send + Sync {
-    /// `true` if `reply` is a correct answer.
-    fn grade(&self, reply: &str, display_answer: &str, acceptable_answers: &[String]) -> bool;
-}
-
-impl<F> Grader for F
-where
-    F: Fn(&str, &str, &[String]) -> bool + Send + Sync,
-{
-    fn grade(&self, reply: &str, display_answer: &str, acceptable_answers: &[String]) -> bool {
-        self(reply, display_answer, acceptable_answers)
-    }
-}
 
 /// Result of a successful [`RoundRegistry::join`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,21 +24,40 @@ pub enum JoinOutcome {
 ///
 /// Time is always passed in explicitly (`now: Instant`) so tests never sleep.
 pub struct RoundRegistry {
-    // TDD PR 1: fields (per-channel rounds + grader) land with the implementation.
-    _private: (),
+    /// `BTreeMap` so [`Self::tick`] visits channels in a deterministic order.
+    rounds: BTreeMap<ChannelId, Game>,
+    grader: Arc<dyn Grader>,
 }
 
 impl std::fmt::Debug for RoundRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RoundRegistry").finish_non_exhaustive()
+        f.debug_struct("RoundRegistry")
+            .field("rounds", &self.rounds)
+            .finish_non_exhaustive()
     }
+}
+
+fn cleanup(channel: ChannelId, reason: CleanupReason) -> RoundEvent {
+    RoundEvent::Cleanup { channel, reason }
 }
 
 impl RoundRegistry {
     /// An empty registry that grades answers with `grader`.
     pub fn new(grader: Arc<dyn Grader>) -> Self {
-        let _ = grader;
-        todo!("ragtime: RoundRegistry::new (PR 2)")
+        Self {
+            rounds: BTreeMap::new(),
+            grader,
+        }
+    }
+
+    fn game(&self, channel: ChannelId) -> Result<&Game, RoundError> {
+        self.rounds.get(&channel).ok_or(RoundError::NoActiveRound)
+    }
+
+    fn game_mut(&mut self, channel: ChannelId) -> Result<&mut Game, RoundError> {
+        self.rounds
+            .get_mut(&channel)
+            .ok_or(RoundError::NoActiveRound)
     }
 
     /// Open a lobby in `channel` hosted by `host`.
@@ -64,8 +70,11 @@ impl RoundRegistry {
         host: UserId,
         now: Instant,
     ) -> Result<(), RoundError> {
-        let _ = (channel, host, now);
-        todo!("ragtime: RoundRegistry::create (PR 2)")
+        if self.rounds.contains_key(&channel) {
+            return Err(RoundError::RoundAlreadyActive);
+        }
+        self.rounds.insert(channel, Game::new(host, now));
+        Ok(())
     }
 
     /// Add `user` to the lobby. Idempotent.
@@ -74,16 +83,29 @@ impl RoundRegistry {
     /// early-close rule waits for every joined player, and a player joining
     /// mid-question would also start behind on points with no way to catch up.
     pub fn join(&mut self, channel: ChannelId, user: UserId) -> Result<JoinOutcome, RoundError> {
-        let _ = (channel, user);
-        todo!("ragtime: RoundRegistry::join (PR 2)")
+        let game = self.game_mut(channel)?;
+        if game.phase != Phase::Lobby {
+            return Err(RoundError::AlreadyStarted);
+        }
+        if game.is_player(user) {
+            return Ok(JoinOutcome::AlreadyJoined);
+        }
+        game.players.push(user);
+        Ok(JoinOutcome::Joined)
     }
 
     /// Check that `user` may start the round in `channel` without changing
     /// anything. Call this before loading questions so a non-host gets
     /// [`RoundError::NotHost`] without a database round-trip.
     pub fn ensure_can_start(&self, channel: ChannelId, user: UserId) -> Result<(), RoundError> {
-        let _ = (channel, user);
-        todo!("ragtime: RoundRegistry::ensure_can_start (PR 2)")
+        let game = self.game(channel)?;
+        if game.phase != Phase::Lobby {
+            return Err(RoundError::AlreadyStarted);
+        }
+        if game.host != user {
+            return Err(RoundError::NotHost);
+        }
+        Ok(())
     }
 
     /// Start the round: pick up to [`super::QUESTIONS_PER_ROUND`] questions
@@ -103,8 +125,30 @@ impl RoundRegistry {
         rng: &mut R,
         now: Instant,
     ) -> Result<Vec<RoundEvent>, RoundError> {
-        let _ = (channel, user, pool, rng, now);
-        todo!("ragtime: RoundRegistry::start (PR 2)")
+        self.ensure_can_start(channel, user)?;
+        let game = self.game_mut(channel)?;
+
+        if game.players.is_empty() {
+            self.rounds.remove(&channel);
+            return Ok(vec![cleanup(channel, CleanupReason::NoPlayers)]);
+        }
+        let questions = select_questions(pool, QUESTIONS_PER_ROUND, rng);
+        let Some(first) = questions.first().cloned() else {
+            self.rounds.remove(&channel);
+            return Ok(vec![cleanup(channel, CleanupReason::NoQuestions)]);
+        };
+
+        let total = questions.len();
+        game.questions = questions;
+        game.last_activity = now;
+        let deadline = game.open_question(0, now);
+        Ok(vec![RoundEvent::PostQuestion {
+            channel,
+            index: 0,
+            total,
+            question: first,
+            deadline,
+        }])
     }
 
     /// Whether `user` may answer the open question. Returns its 0-based index.
@@ -113,8 +157,15 @@ impl RoundRegistry {
     /// "not in this round"; [`RoundError::AlreadyAnswered`] → ephemeral notice;
     /// `Ok` → open the modal.
     pub fn can_answer(&self, channel: ChannelId, user: UserId) -> Result<usize, RoundError> {
-        let _ = (channel, user);
-        todo!("ragtime: RoundRegistry::can_answer (PR 2)")
+        let game = self.game(channel)?;
+        let index = game.open_index().ok_or(RoundError::NotInProgress)?;
+        if !game.is_player(user) {
+            return Err(RoundError::NotInRound);
+        }
+        if game.answers.contains_key(&user) {
+            return Err(RoundError::AlreadyAnswered);
+        }
+        Ok(index)
     }
 
     /// Record and grade `user`'s `reply` to question `index`.
@@ -136,8 +187,39 @@ impl RoundRegistry {
         reply: &str,
         now: Instant,
     ) -> Result<Vec<RoundEvent>, RoundError> {
-        let _ = (channel, user, index, reply, now);
-        todo!("ragtime: RoundRegistry::submit_answer (PR 2)")
+        let grader = Arc::clone(&self.grader);
+        let game = self.game_mut(channel)?;
+        let open = game.open_index().ok_or(RoundError::NotInProgress)?;
+        if !game.is_player(user) {
+            return Err(RoundError::NotInRound);
+        }
+        if index != open {
+            return Err(RoundError::StaleQuestion);
+        }
+        if game.answers.contains_key(&user) {
+            return Err(RoundError::AlreadyAnswered);
+        }
+
+        let question = &game.questions[open];
+        let correct = grader.grade(
+            reply,
+            &question.display_answer,
+            &question.acceptable_answers,
+        );
+        game.answers.insert(user, correct);
+        if correct {
+            *game.scores.entry(user).or_insert(0) += 1;
+        }
+        game.last_activity = now;
+
+        if !game.everyone_answered() {
+            return Ok(Vec::new());
+        }
+        let closed = game.close_question(channel, now);
+        if closed.finished {
+            self.rounds.remove(&channel);
+        }
+        Ok(closed.events)
     }
 
     /// Host-only: cancel the round in any phase. Returns
@@ -147,8 +229,11 @@ impl RoundRegistry {
         channel: ChannelId,
         user: UserId,
     ) -> Result<Vec<RoundEvent>, RoundError> {
-        let _ = (channel, user);
-        todo!("ragtime: RoundRegistry::cancel (PR 2)")
+        if self.game(channel)?.host != user {
+            return Err(RoundError::NotHost);
+        }
+        self.rounds.remove(&channel);
+        Ok(vec![cleanup(channel, CleanupReason::Cancelled)])
     }
 
     /// Advance time to `now` for every round, in channel-id order:
@@ -161,32 +246,49 @@ impl RoundRegistry {
     ///
     /// Safe to call at any time and as often as you like; a stale timer is a no-op.
     pub fn tick(&mut self, now: Instant) -> Vec<RoundEvent> {
-        let _ = now;
-        todo!("ragtime: RoundRegistry::tick (PR 2)")
+        let mut events = Vec::new();
+        let mut removed = Vec::new();
+        for (&channel, game) in &mut self.rounds {
+            if game.lobby_expired(now) {
+                game.phase = Phase::Abandoned;
+                events.push(cleanup(channel, CleanupReason::LobbyTimeout));
+                removed.push(channel);
+            } else if game.abandoned(now) {
+                game.phase = Phase::Abandoned;
+                events.push(cleanup(channel, CleanupReason::Abandoned));
+                removed.push(channel);
+            } else if game.question_expired(now) {
+                let closed = game.close_question(channel, now);
+                events.extend(closed.events);
+                if closed.finished {
+                    removed.push(channel);
+                }
+            }
+        }
+        for channel in removed {
+            self.rounds.remove(&channel);
+        }
+        events
     }
 
     /// When [`Self::tick`] should next be called for `channel`, or `None` if
     /// there is no round there.
     pub fn next_deadline(&self, channel: ChannelId) -> Option<Instant> {
-        let _ = channel;
-        todo!("ragtime: RoundRegistry::next_deadline (PR 2)")
+        self.rounds.get(&channel).and_then(Game::next_deadline)
     }
 
     /// Current phase of the round in `channel`, or `None` if there is none.
     pub fn phase(&self, channel: ChannelId) -> Option<Phase> {
-        let _ = channel;
-        todo!("ragtime: RoundRegistry::phase (PR 2)")
+        self.rounds.get(&channel).map(|g| g.phase)
     }
 
     /// Host of the round in `channel`.
     pub fn host(&self, channel: ChannelId) -> Option<UserId> {
-        let _ = channel;
-        todo!("ragtime: RoundRegistry::host (PR 2)")
+        self.rounds.get(&channel).map(|g| g.host)
     }
 
     /// Joined players of the round in `channel`, in join order.
     pub fn players(&self, channel: ChannelId) -> Option<&[UserId]> {
-        let _ = channel;
-        todo!("ragtime: RoundRegistry::players (PR 2)")
+        self.rounds.get(&channel).map(|g| g.players.as_slice())
     }
 }

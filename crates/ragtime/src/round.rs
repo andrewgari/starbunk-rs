@@ -37,8 +37,11 @@
 //! * 1 point per correct answer; ties share a rank (see [`rank`]).
 //! * [`LOBBY_TIMEOUT`] and [`HOST_ABANDON_TIMEOUT`] clean up dead rounds.
 
+mod advance;
 mod error;
 mod event;
+mod game;
+mod grader;
 mod registry;
 mod select;
 mod state;
@@ -46,7 +49,8 @@ mod tally;
 
 pub use error::RoundError;
 pub use event::{CleanupReason, Reveal, RoundEvent};
-pub use registry::{Grader, JoinOutcome, RoundRegistry};
+pub use grader::Grader;
+pub use registry::{JoinOutcome, RoundRegistry};
 pub use select::select_questions;
 pub use state::Phase;
 pub use tally::{rank, Standing};
