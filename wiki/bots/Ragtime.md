@@ -1,8 +1,8 @@
 # Ragtime
 
-> Trivia bot for the guild. **Status: in development** — crate skeleton, question model/repository,
-> the Discord-free round state machine, and the presentation (embed/modal) builders are done. Wiring
-> these into live Discord handlers and the question editor are future work.
+> Trivia bot for the guild. **Status: playable** — question repository (Postgres), the
+> Discord-free round state machine, presentation builders and the live Discord wiring are done.
+> The fuzzy grader (interim exact-match in use) and the question editor are separate cards.
 
 ## Goals & Purpose
 
@@ -18,7 +18,8 @@ how questions are stored and accessed.
 | 2 — implementation | follows | sqlx implementation of `PgQuestionRepository`, bot runtime (telemetry, serenity client, `ready` log) |
 | 3 — round state machine | `feat/ragtime-round-state-machine` | Discord-free `ragtime::round`: lobby, join, start, question rotation, grading, reveal, tally, abandonment |
 | 4 — presentation builders | `test/ragtime-presentation-builders` | `ragtime::presentation`: pure embed/component/modal builders — lobby, question + \[Answer\] button, answer modal, reveal, final tally, ephemeral responses |
-| Future | — | Wire `presentation` + `round` into live Discord handlers, question editor |
+| 5 — Discord wiring | `feat/ragtime-discord-wiring` | `ragtime::bot`: mention/reaction/slash-command/button/modal handlers, tokio timers, `PgQuestionRepository` implementation, bot runtime |
+| Future | — | Fuzzy `grade()` (replaces interim grader), question editor |
 
 ## Environment Variables
 
@@ -105,6 +106,41 @@ module's rustdoc (`cargo doc -p ragtime --open`) for the full wiring table mappi
 Routing: `custom_id::AnswerRoute { channel, index }` is encoded into both the \[Answer\] button's
 and the answer modal's `custom_id` (different prefixes, so a button id can never be mistaken for
 a modal id) and parsed back by `custom_id::parse_button` / `custom_id::parse_modal`.
+
+## Discord wiring — `ragtime::bot`
+
+| Input | Effect |
+|---|---|
+| @mention the bot (direct `<@id>` only) | Lobby embed + 🙋 reaction, mentioner is host. Busy channel → "already running" reply |
+| 🙋 reaction on the lobby message | Join (bots and the bot itself ignored; reactions on other messages ignored) |
+| `/ragtime start` (host only) | Loads up to 20 questions via `QuestionRepository::random`, posts question 1. No joiners → closed silently, no DB hit. Empty bank → notice |
+| `/ragtime cancel` (host only) | Ends the round with a notice |
+| \[Answer\] button | Ephemeral "not in this round" / "already answered" / "question closed", otherwise opens the modal |
+| Modal submit | Graded by the state machine; ephemeral "Answer received!" for right and wrong alike |
+
+Slash command follows ratbot's `/ratmas` convention (one global command, subcommands). Non-host
+start/cancel get an ephemeral "Only the host can do that."
+
+Gateway intents: `GUILDS | GUILD_MESSAGES | MESSAGE_CONTENT | GUILD_MESSAGE_REACTIONS`.
+
+**Structure.** `RagtimeEngine` is Discord-free orchestration (plain `u64` ids) over an `Outbox`
+trait; `DiscordOutbox` implements it with serenity and `RagtimeHandler` is the `EventHandler`.
+`crates/ragtime/tests/discord_wiring.rs` drives the engine through full rounds with a fake outbox,
+an in-memory repository and paused tokio time.
+
+**Concurrency.** Two `tokio::sync::Mutex`es, always in the order `seq` → `state`. `seq` serialises a
+state change with the posts it causes, so a channel's reveal always precedes the next question.
+`state` (registry + lobby message ids + timer handles) is never held across an `.await`. The
+\[Answer\] button path only takes `state` briefly so the modal opens inside Discord's 3 s window;
+commands and modal submits are deferred ephemerally first.
+
+**Timers.** One tokio task per channel sleeps until `RoundRegistry::next_deadline` and then calls
+`tick`. Every state change aborts and replaces the channel's timer; a stale timer that fires anyway
+is a no-op because `tick` only acts on deadlines that have passed. Timeouts: question 2 min, lobby
+10 min, abandon 6 min without any answer (see the constants table above).
+
+**Grading.** `bot::interim_grader()` is a case/whitespace-insensitive exact match on the display
+answer and acceptable answers, used until the fuzzy `grade()` (card t_a1639804) lands.
 
 ## Testing
 
