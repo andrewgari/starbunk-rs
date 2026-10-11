@@ -1,10 +1,10 @@
 # CI/CD
 
-> **Note:** The GCP pipelines (`release.yml`, `health-check.yml`, `main.yml`,
-> `deploy.yml`, `deploy-pr.yml`) are retired — production is the Tower/Portainer
-> stack. They are manual-dispatch only and every job is gated on the repository
-> variable `GCP_PIPELINES_ENABLED` (unset ⇒ a dispatch does nothing). Only
-> `ci.yml` runs automatically. See
+> **Note:** The GCP pipelines (`release.yml`, `main.yml`) are retired —
+> production is the Tower/Portainer stack. They are manual-dispatch only and
+> every job is gated on the repository variable `GCP_PIPELINES_ENABLED` (unset ⇒
+> a dispatch does nothing). The cluster deploy workflows (`deploy.yml`, `deploy-pr.yml`,
+> `health-check.yml`) have been deleted — see [[../Changelog|Changelog]]. Only `ci.yml` runs automatically. See
 > [[../infrastructure/Deployment|Deployment]].
 
 ## Workflows
@@ -44,13 +44,6 @@ test, compute the next semver, publish images to GCP Artifact Registry, and
 create a GitHub Release. The `push` trigger and the `confirm` input are gone; the
 workflow is manual-dispatch only and every job is gated on
 `GCP_PIPELINES_ENABLED`, so it no longer publishes anything by default.
-
-### `deploy.yml` — Deploy to GKE (retired)
-
-**Retired.** Previously fired on a published GitHub Release and deployed to GKE
-via `kubectl`. It is now manual-dispatch only and gated on
-`GCP_PIPELINES_ENABLED`. Production deploys happen on Tower through Portainer —
-see [[../infrastructure/Deployment|Deployment]].
 
 ---
 

@@ -12,7 +12,7 @@
 | Framework | Next.js 16 (App Router, React Server Components) |
 | Styling | Tailwind CSS v4 + `globals.css` (glassmorphism design tokens) |
 | Mutations | Next.js Server Actions (`"use server"`) — no separate API routes |
-| K8s client | `@kubernetes/client-node` v1.4 (object-param API) |
+| Bot status | `fetch()` against each bot's existing HTTP API (no orchestrator client) |
 | DB (audit log) | `pg` — lazy-loaded, only when `DATABASE_URL` is set |
 
 ---
@@ -25,13 +25,12 @@ npm install
 npm run dev -- --port 3002   # or any free port
 ```
 
-Open `http://localhost:3002`. No Kubernetes or running bots are required — every action has a local fallback.
+Open `http://localhost:3002`. No running bots are required — every action degrades gracefully (status shows `Unknown`).
 
 **Environment variables (all optional):**
 
 | Variable | Default | Effect |
 |---|---|---|
-| `K8S_NAMESPACE` | `starbunk` | K8s namespace to read/patch |
 | `DATABASE_URL` | *(unset)* | Postgres URL for audit history — omit to skip DB |
 | `BUNKBOT_API_URL` | `http://localhost:9082` | BunkBot internal HTTP API |
 | `COVABOT_API_URL` | `http://localhost:9083` | CovaBot internal HTTP API |
@@ -39,16 +38,29 @@ Open `http://localhost:3002`. No Kubernetes or running bots are required — eve
 
 ---
 
-## Dual-Environment Architecture
+## Data Sources
 
-Every server action has two code paths selected at module init time:
+The UI talks only to the bots' own HTTP APIs, the local filesystem, and
+(optionally) Postgres. It has no orchestrator client and no Docker socket —
+lifecycle (start/stop/restart) belongs to the Compose stack on Tower
+(Portainer), not the UI.
 
-```
-K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & ConfigMaps)
-                ──no───▶  Local fallback  (mock state / local filesystem)
-```
+**Bot status** (`src/app/actions.ts` → `getBotStatuses()`): probes each bot's
+existing HTTP endpoint with a 2s timeout:
 
-**K8s client** (`src/app/actions.ts`): initialised once at module load by calling `kc.loadFromDefault()`. If that throws (no kubeconfig), `k8sAppsApi` and `k8sCoreApi` are `null` and every action falls back to local mode.
+| Bot | Probe | Result |
+|---|---|---|
+| `bunkbot` | `${BUNKBOT_API_URL}/health` | 200 → `Running`, 503 → `Starting` |
+| `covabot` | `${COVABOT_API_URL}/api/personality` | 2xx → `Running` |
+| `djcova` | `${DJCOVA_API_URL}/state` | 2xx → `Running` |
+| `bluebot`, `ratbot` | none | always `Unknown` |
+
+Any other HTTP status is `Down`; a network error or timeout is `Unknown`.
+bluebot and ratbot only run the shared health server, which binds
+`127.0.0.1` inside their container and is not reachable from the UI.
+
+**Config files** (`getBotConfigs` / `updateBotConfig`): read and write YAML
+under `../config/<bot>/` relative to the UI's working directory.
 
 **Bot HTTP APIs** (`djcova/actions.ts`, `bunkbot/actions.ts`, `covabot/personalities/actions.ts`): each wraps `fetch()` in a try/catch and returns `null` / empty on network error. Pages render gracefully when bots are not running.
 
@@ -60,10 +72,10 @@ K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & Co
 
 | Route | Component | Data source |
 |---|---|---|
-| `/` | Dashboard | `getBotDeployments()` — K8s or mock (all 5 bots) |
+| `/` | Dashboard | `getBotStatuses()` — HTTP probe per bot (all 5 bots) |
 | `/api/sse` | Real-time SSE Stream | EventSource streaming live telemetry & trigger audits |
 | `/history` | Audit Log | Postgres `bot_audit_history` table or local mock |
-| `/covabot` | CovaBot landing | Model Tier Routing Matrix, Personality Studio & ConfigMap |
+| `/covabot` | CovaBot landing | Model Tier Routing Matrix, Personality Studio & config files |
 | `/covabot/personalities` | Persona editor | CovaBot HTTP API (`/config/profiles/…`) |
 | `/bunkbot` | BunkBot Magnum Opus | Global & per-bot limiters, "+ Add Bot" (JSON/TOML/YAML loader), SubBot cards |
 | `/bunkbot/strategies` | Strategy editor | BunkBot HTTP API (`/config`) |
@@ -80,12 +92,9 @@ K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & Co
 
 | Export | What it does |
 |---|---|
-| `getBotDeployments()` | Returns deployment status for all 4 bots |
-| `setBotState(name, action)` | Starts, stops, or rolling-restarts a bot via K8s patch |
-| `getBotConfigs(botName)` | Reads YAML configs from K8s ConfigMap or local FS |
-| `updateBotConfig(botName, file, content)` | Writes/deletes a config entry; `content=null` deletes |
-
-**K8s API note (v1.4):** All calls use the object-param form: `api.readNamespacedDeployment({ name, namespace })`. The response is the resource directly — no `.body` wrapper. The `restart` action patches `kubectl.kubernetes.io/restartedAt` and falls back from `replace` to `add` if the annotation path doesn't exist yet.
+| `getBotStatuses()` | Returns `Running` / `Starting` / `Down` / `Unknown` for all 5 bots via HTTP probes |
+| `getBotConfigs(botName)` | Reads YAML configs from the local config directory |
+| `updateBotConfig(botName, file, content)` | Writes/deletes a config file; `content=null` deletes |
 
 ### `src/app/djcova/actions.ts`
 
@@ -113,7 +122,7 @@ Reusable YAML file manager used on `/covabot` and `/bunkbot`. Props: `configs: R
 
 ### `src/app/page.tsx` (Dashboard)
 
-Client component. Polls `getBotDeployments()` every 5 seconds. Uses `useTransition` so lifecycle button clicks are non-blocking.
+Client component. Polls `getBotStatuses()` every 5 seconds. Read-only: there are no start/stop/restart buttons.
 
 ---
 
