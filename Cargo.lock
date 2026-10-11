@@ -4506,6 +4506,7 @@ dependencies = [
  "bunkbot",
  "covabot",
  "djcova",
+ "ragtime",
  "ratbot",
  "reqwest",
  "serde",

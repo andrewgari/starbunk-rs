@@ -132,7 +132,8 @@ Starbunk includes an E2E testing framework in the `starbunk-e2e` crate. It allow
 ### Optional Environment Variables
 - `E2E_START_BOTS`: Set to `true` (default) to start the bots in the background inside the runner, or `false` if they are already running externally (e.g. in Docker).
 - `E2E_TEST_BOTS`: Comma-separated list of bots to spawn (default: `"bunkbot,bluebot"`).
-- `E2E_SUITE_PATH`: Path to a JSON file containing the test suite. If not specified, uses a built-in suite.
+- `E2E_SUITE_PATH`: Path to a JSON file containing the test suite. If set, it must be readable (the runner exits with an error otherwise). If unset, uses `crates/e2e/suites/bunkbot_bluebot.json`, then the built-in suite. `docker-compose.e2e.yml` mounts `crates/e2e/suites` into the container for this.
+- `E2E_STARTUP_WAIT_SECS`: Seconds to wait after spawning bots before the first test (default `5`; the ragtime CI step uses `15` because ragtime runs Postgres migrations before connecting).
 
 ### Running the E2E Suite
 ```bash
@@ -175,7 +176,18 @@ Since the workspace Dockerfile is parameterized by `BOT_NAME`, you can build and
    ```
 
 ### JSON Test Suite Format
-Test suites are defined in simple JSON files:
+Test suites are defined in simple JSON files. Unknown top-level keys are ignored, so a suite can
+document itself (e.g. `ragtime.json` has `description` and `not_covered`).
+
+- `message` may contain `{bot_mention}`; the runner replaces it with `<@id>` of the account
+  `DISCORD_TOKEN` logs in as, for bots that react to direct mentions (Ragtime).
+- `expect` is matched as a substring of the bot's message content **plus** every embed's title,
+  description and field names/values, so embed-only posts (e.g. the Ragtime lobby) can be asserted.
+- Tests in a suite run in order against the same bot process, so later tests may rely on state
+  earlier ones created.
+- `cargo test -p starbunk-e2e` parses every committed suite, so a malformed suite fails CI even
+  when the live E2E job is skipped.
+
 ```json
 {
   "tests": [

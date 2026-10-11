@@ -585,6 +585,146 @@ async fn late_join_reactions_are_ignored() {
     assert!(!h.engine.join_reaction(CH, lobby, BOB).await);
 }
 
+/// The Ragtime e2e round-flow entry, step by step, with a 2-question bank.
+///
+/// `crates/e2e/suites/ragtime.json` covers the steps a webhook can drive on
+/// live Discord (mention → lobby, mention guards). Everything after the lobby
+/// needs a real user client (reactions from a second account, slash commands,
+/// buttons, modals, ephemeral replies), so this test is that flow's
+/// end-to-end check, at the engine boundary the serenity handler calls.
+#[tokio::test(start_paused = true)]
+async fn e2e_round_flow_two_questions() {
+    let h = harness(2);
+
+    // 1. A mention creates a lobby hosted by the mentioner.
+    let MentionOutcome::Created { lobby_message } = h.engine.mention(CH, HOST).await.unwrap()
+    else {
+        panic!("mention must open a lobby");
+    };
+    assert_eq!(
+        h.outbox.take(),
+        vec![
+            Post::Lobby { host: HOST },
+            Post::Reaction {
+                message: lobby_message
+            }
+        ]
+    );
+
+    // 2. Joining via the lobby reaction registers the players.
+    assert!(h.engine.join_reaction(CH, lobby_message, ALICE).await);
+    assert!(h.engine.join_reaction(CH, lobby_message, BOB).await);
+
+    // 3. A non-host start is rejected and posts nothing.
+    assert_eq!(h.engine.start(CH, ALICE).await, replies::NOT_HOST);
+    assert!(h.outbox.posts().is_empty());
+
+    // 4. The host's start posts question 1 of 2.
+    assert_eq!(h.engine.start(CH, HOST).await, replies::STARTED);
+    settle(&h).await;
+    let posts = h.outbox.take();
+    assert!(
+        matches!(
+            posts.as_slice(),
+            [Post::Question {
+                index: 0,
+                total: 2,
+                ..
+            }]
+        ),
+        "{posts:?}"
+    );
+    let (index, text) = open_question(&posts);
+    let q1 = AnswerRoute::new(CH, index);
+
+    // 6. Someone who didn't join gets "not in this round", on the button and
+    //    on a (forged) modal submit alike.
+    assert_eq!(
+        h.engine.answer_button(q1, STRANGER).await,
+        ButtonOutcome::Ephemeral(not_in_round_text())
+    );
+    assert_eq!(
+        h.engine.submit_answer(q1, STRANGER, "anything").await,
+        not_in_round_text()
+    );
+
+    // 5. A joined player's modal answer is recorded: the button opens the
+    //    modal, the submit is acknowledged, and a second answer is refused.
+    assert_eq!(
+        h.engine.answer_button(q1, ALICE).await,
+        ButtonOutcome::OpenModal(q1)
+    );
+    assert_eq!(
+        h.engine
+            .submit_answer(q1, ALICE, &right_answer(&text))
+            .await,
+        replies::ANSWER_RECEIVED
+    );
+    assert_eq!(
+        h.engine.answer_button(q1, ALICE).await,
+        ButtonOutcome::Ephemeral(already_answered_text())
+    );
+    settle(&h).await;
+    assert!(
+        h.outbox.posts().is_empty(),
+        "question stays open until every player answered"
+    );
+
+    // 7. The last player's answer closes the question early (no timer
+    //    elapsed); the reveal mentions only the correct player and comes
+    //    before question 2.
+    h.engine.submit_answer(q1, BOB, "wrong").await;
+    settle(&h).await;
+    let posts = h.outbox.take();
+    match posts.as_slice() {
+        [Post::Reveal(reveal), Post::Question {
+            index: 1,
+            total: 2,
+            text: q2_text,
+        }] => {
+            assert_eq!(reveal.correct_users, vec![ALICE]);
+            let (index, _) = open_question(&posts);
+            let q2 = AnswerRoute::new(CH, index);
+
+            // Both right on question 2.
+            h.engine
+                .submit_answer(q2, BOB, &right_answer(q2_text))
+                .await;
+            h.engine
+                .submit_answer(q2, ALICE, &right_answer(q2_text))
+                .await;
+        }
+        other => panic!("expected reveal then question 2, got {other:?}"),
+    }
+    settle(&h).await;
+
+    // 8. After the last question: its reveal, then the final tally.
+    let posts = h.outbox.take();
+    match posts.as_slice() {
+        [Post::Reveal(reveal), Post::Tally(rows)] => {
+            // Mentions are listed in join order, not answer order.
+            assert_eq!(reveal.correct_users, vec![ALICE, BOB]);
+            assert_eq!(
+                rows,
+                &vec![
+                    TallyRow {
+                        rank: 1,
+                        user: ALICE,
+                        score: 2
+                    },
+                    TallyRow {
+                        rank: 2,
+                        user: BOB,
+                        score: 1
+                    },
+                ]
+            );
+        }
+        other => panic!("expected final reveal then tally, got {other:?}"),
+    }
+    assert!(!h.engine.has_round(CH).await, "round cleaned up");
+}
+
 #[tokio::test(start_paused = true, flavor = "current_thread")]
 async fn concurrent_submits_do_not_deadlock() {
     let h = harness(20);
