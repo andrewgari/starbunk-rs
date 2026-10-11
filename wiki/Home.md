@@ -23,6 +23,7 @@ memory-safe, high-performance implementation.
 - [[bots/CovaBot|CovaBot]] — AI personality emulator (LLM-driven)
 - [[bots/DJCova|DJCova]] — Voice channel music streaming (YouTube)
 - [[bots/RatBot|RatBot]] — Rat-themed SecretRat bot
+- [[bots/Ragtime|Ragtime]] — Trivia bot (question bank foundation; in development)
 
 ### Infrastructure & Deployment
 - [[infrastructure/Architecture|Architecture]] — Monorepo layout, bot pattern, shared libraries
@@ -54,6 +55,7 @@ memory-safe, high-performance implementation.
 | CovaBot | `ghcr.io/andrewgari/starbunk-covabot` | `crates/covabot/src/main.rs` |
 | DJCova  | `ghcr.io/andrewgari/starbunk-djcova`  | `crates/djcova/src/main.rs`  |
 | RatBot  | `ghcr.io/andrewgari/starbunk-ratbot`  | `crates/ratbot/src/main.rs`  |
+| Ragtime | `ghcr.io/andrewgari/starbunk-ragtime` | `crates/ragtime/src/main.rs` |
 
 ### Key Commands
 
