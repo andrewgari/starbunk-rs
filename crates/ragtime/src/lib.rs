@@ -3,6 +3,7 @@
 //! TDD PR 1: crate skeleton, question model, repository trait and tests.
 //! The bot runtime and the Postgres repository are implemented in PR 2.
 
+pub mod presentation;
 pub mod question;
 pub mod repository;
 pub mod round;
