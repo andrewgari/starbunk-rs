@@ -3277,6 +3277,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "serde_json",
  "serenity",
  "sqlx",
  "starbunk",

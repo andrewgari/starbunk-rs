@@ -1,8 +1,8 @@
 # Ragtime
 
-> Trivia bot for the guild. **Status: in development** — this page documents the foundation
-> (crate skeleton, question model, repository contract). Game logic, answer grading and the
-> question editor are future work.
+> Trivia bot for the guild. **Status: in development** — crate skeleton, question model/repository,
+> the Discord-free round state machine, and the presentation (embed/modal) builders are done. Wiring
+> these into live Discord handlers and the question editor are future work.
 
 ## Goals & Purpose
 
@@ -16,7 +16,9 @@ how questions are stored and accessed.
 |---|---|---|
 | 1 — tests first | `test/ragtime-question-repository` | Crate skeleton, `Question` model, `QuestionRepository` trait, `PgQuestionRepository` stubs (`todo!()`), migration, contract tests |
 | 2 — implementation | follows | sqlx implementation of `PgQuestionRepository`, bot runtime (telemetry, serenity client, `ready` log) |
-| Future | — | Game logic, grading, editor UI |
+| 3 — round state machine | `feat/ragtime-round-state-machine` | Discord-free `ragtime::round`: lobby, join, start, question rotation, grading, reveal, tally, abandonment |
+| 4 — presentation builders | `test/ragtime-presentation-builders` | `ragtime::presentation`: pure embed/component/modal builders — lobby, question + \[Answer\] button, answer modal, reveal, final tally, ephemeral responses |
+| Future | — | Wire `presentation` + `round` into live Discord handlers, question editor |
 
 ## Environment Variables
 
@@ -55,6 +57,28 @@ migrations directory — other bots create tables inline in `init_schema`).
 | `random(n)` | up to `n` distinct questions in random order; `n == 0` → empty | — |
 
 Missing rows return `None`/`false` rather than an error, matching `ratbot::store::Store`.
+
+## Presentation builders (`ragtime::presentation`)
+
+Pure functions mapping plain data (`u64` ids, strings, scores) to `serenity` builder types
+(`CreateEmbed`, `CreateButton`, `CreateActionRow`, `CreateModal`). No network I/O and no
+dependency on `ragtime::round` — the module has its own small structs (`RevealInfo`, `TallyRow`)
+that mirror `round::Reveal` / `round::Standing` so the two can evolve independently. See the
+module's rustdoc (`cargo doc -p ragtime --open`) for the full wiring table mapping each
+`RoundEvent` to a builder call.
+
+| Builder | Produces |
+|---|---|
+| `lobby::lobby_embed(host)` | "Ragtime contest" embed; join via the `lobby::JOIN_EMOJI` reaction |
+| `question::question_embed` + `question::question_action_row` | "Question N/total" embed + \[Answer\] button |
+| `modal::answer_modal` | single-text-input modal for submitting an answer |
+| `reveal::reveal_embed` | shows the display answer and mentions every correct user, or says nobody got it |
+| `tally::tally_embed` | ranked leaderboard; truncates with an "...and N more." line if it would exceed Discord's embed description limit |
+| `response::not_in_round_text` / `response::already_answered_text` | ephemeral copy for the two \[Answer\]-button edge cases |
+
+Routing: `custom_id::AnswerRoute { channel, index }` is encoded into both the \[Answer\] button's
+and the answer modal's `custom_id` (different prefixes, so a button id can never be mistaken for
+a modal id) and parsed back by `custom_id::parse_button` / `custom_id::parse_modal`.
 
 ## Testing
 
