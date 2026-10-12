@@ -1,8 +1,8 @@
 # Ragtime
 
-> Trivia bot for the guild. **Status: in development** — this page documents the foundation
-> (crate skeleton, question model, repository contract). Game logic, answer grading and the
-> question editor are future work.
+> Trivia bot for the guild. **Status: foundation only** — this page documents the question
+> bank (model, Postgres repository, migration) and the bot runtime. Game logic, answer grading
+> and the question editor are future work.
 
 ## Goals & Purpose
 
@@ -14,9 +14,21 @@ how questions are stored and accessed.
 
 | Stage | PR | Contents |
 |---|---|---|
-| 1 — tests first | `test/ragtime-question-repository` | Crate skeleton, `Question` model, `QuestionRepository` trait, `PgQuestionRepository` stubs (`todo!()`), migration, contract tests |
-| 2 — implementation | follows | sqlx implementation of `PgQuestionRepository`, bot runtime (telemetry, serenity client, `ready` log) |
+| 1 — tests first | #196 `test/ragtime-question-repository` | Crate skeleton, `Question` model, `QuestionRepository` trait, `PgQuestionRepository` stubs (`todo!()`), migration, contract tests |
+| 2 — implementation | `feat/ragtime-question-repository` | sqlx implementation of `PgQuestionRepository`, bot runtime (telemetry, migrations at startup, serenity client, `ready` log) |
 | Future | — | Game logic, grading, editor UI |
+
+## Runtime
+
+`crates/ragtime/src/main.rs` → `ragtime::run(DATABASE_URL)`:
+
+1. `starbunk::telemetry::init("ragtime")` — unified OTEL pipeline.
+2. `PgQuestionRepository::connect` — opens a `PgPool` and runs `sqlx::migrate!("./migrations")`
+   (embedded at compile time, tracked in `_sqlx_migrations`, idempotent on every boot).
+3. `starbunk::utils::run_bot("Ragtime", default_intents(), RagtimeHandler)` — serenity 0.12 client.
+   The `ready` handler logs `Ragtime connected and ready` with `user` and `guilds` fields.
+
+There are no commands, message handlers or game logic yet.
 
 ## Environment Variables
 
@@ -52,11 +64,14 @@ migrations directory — other bots create tables inline in `init_schema`).
 | `create(NewQuestion)` | stored `Question` | — |
 | `update(id, QuestionUpdate)` | `Option<Question>`; `None` fields are left unchanged, `updated_at` is bumped | `None` |
 | `delete(id)` | `bool` — whether a row was removed | `false` |
-| `random(n)` | up to `n` distinct questions in random order; `n == 0` → empty | — |
+| `random(n)` | up to `n` distinct questions in random order (`ORDER BY random() LIMIT n`); `n == 0` → empty | — |
+
+`update` uses `COALESCE` per field and sets `updated_at = clock_timestamp()` (not `now()`, which
+is frozen for the whole transaction).
 
 Missing rows return `None`/`false` rather than an error, matching `ratbot::store::Store`.
 
 ## Testing
 
-Contract tests: `crates/ragtime/tests/question_repository.rs` (`#[sqlx::test]`, `#[ignore]`d in
-CI because they need Postgres). See [[development/Testing|Testing]] for how to run them.
+Contract tests: `crates/ragtime/tests/question_repository.rs` and `tests/migrations.rs`
+(`#[sqlx::test]`, `#[ignore]`d in CI because they need Postgres). See [[development/Testing|Testing]] for how to run them.
