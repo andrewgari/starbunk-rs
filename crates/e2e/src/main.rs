@@ -38,6 +38,43 @@ impl EventHandler for TestListener {
     }
 }
 
+/// Placeholder a suite `message` can use for a direct `<@id>` mention of the
+/// bot account under test. The id is only known at runtime (it is whatever
+/// `DISCORD_TOKEN` logs in as), so suites cannot hard-code it.
+const BOT_MENTION_PLACEHOLDER: &str = "{bot_mention}";
+
+/// Expand runtime placeholders in a suite message.
+fn render_message(template: &str, bot_user_id: u64) -> String {
+    template.replace(BOT_MENTION_PLACEHOLDER, &format!("<@{bot_user_id}>"))
+}
+
+/// Everything a bot response shows as text: the message content plus every
+/// embed's title, description and field names/values, newline-joined. `expect`
+/// is matched against this, so suites can assert on embed-only posts (e.g. the
+/// Ragtime lobby) as well as plain replies.
+fn response_text(msg: &Message) -> String {
+    let mut parts = vec![msg.content.clone()];
+    for embed in &msg.embeds {
+        parts.extend(embed.title.clone());
+        parts.extend(embed.description.clone());
+        for field in &embed.fields {
+            parts.push(field.name.clone());
+            parts.push(field.value.clone());
+        }
+    }
+    parts.retain(|p| !p.is_empty());
+    parts.join("\n")
+}
+
+/// Seconds to wait after spawning bots before testing (`E2E_STARTUP_WAIT_SECS`,
+/// default 5).
+fn startup_wait_secs() -> u64 {
+    std::env::var("E2E_STARTUP_WAIT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5)
+}
+
 fn get_default_suite_content() -> String {
     r#"{
   "tests": [
@@ -219,6 +256,16 @@ async fn main() -> anyhow::Result<()> {
                         }
                     });
                 }
+                "ragtime" => {
+                    tokio::spawn(async {
+                        let conn_str = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                            "postgres://postgres:***@localhost:5432/starbunk".to_string()
+                        });
+                        if let Err(e) = ragtime::run(&conn_str).await {
+                            tracing::error!("ragtime exited with error: {}", e);
+                        }
+                    });
+                }
                 "ratbot" => {
                     tokio::spawn(async {
                         let conn_str = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
@@ -234,8 +281,10 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        // Give spawned bots a moment to connect to Gateway and log in
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        // Give spawned bots a moment to connect to Gateway and log in.
+        // DB-backed bots (ragtime) run migrations first, so CI can raise this
+        // with E2E_STARTUP_WAIT_SECS.
+        tokio::time::sleep(tokio::time::Duration::from_secs(startup_wait_secs())).await;
 
         // 6b. Run health checks against the /health endpoints of spawned bots
         let bots_env =
@@ -310,13 +359,20 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("E2E Runner: All spawned bots' health checks passed.");
     }
 
-    // 7. Parse test suite configuration
-    let suite_path = std::env::var("E2E_SUITE_PATH")
-        .unwrap_or_else(|_| format!("{}/suites/bunkbot_bluebot.json", env!("CARGO_MANIFEST_DIR")));
-    let suite_content = std::fs::read_to_string(&suite_path).unwrap_or_else(|_| {
-        tracing::info!("E2E Runner: E2E_SUITE_PATH not found or readable. Falling back to default built-in test suite.");
-        get_default_suite_content()
-    });
+    // 7. Parse test suite configuration. An explicit E2E_SUITE_PATH must be
+    // readable: silently falling back would run a different bot's suite.
+    let suite_content = match std::env::var("E2E_SUITE_PATH") {
+        Ok(path) => std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("cannot read E2E_SUITE_PATH {}: {}", path, e))?,
+        Err(_) => {
+            let default_path =
+                format!("{}/suites/bunkbot_bluebot.json", env!("CARGO_MANIFEST_DIR"));
+            std::fs::read_to_string(&default_path).unwrap_or_else(|_| {
+                tracing::info!("E2E Runner: E2E_SUITE_PATH not set and default suite not readable. Falling back to default built-in test suite.");
+                get_default_suite_content()
+            })
+        }
+    };
 
     let suite: TestSuite = serde_json::from_str(&suite_content)
         .map_err(|e| anyhow::anyhow!("failed to parse test suite JSON: {}", e))?;
@@ -408,14 +464,15 @@ async fn main() -> anyhow::Result<()> {
         }
 
         // Format E2E payload prefix to flag simulated bot/human authors
+        let message = render_message(&test.message, bot_user_id.get());
         let payload_content = match test.sender.as_str() {
-            "bot" => format!("[E2E_BOT] {}", test.message),
+            "bot" => format!("[E2E_BOT] {}", message),
             "mock_user" => format!(
                 "[E2E_MOCK_USER:{}] {}",
                 test.mock_user_id.unwrap_or(0),
-                test.message
+                message
             ),
-            _ => format!("[E2E_HUMAN] {}", test.message),
+            _ => format!("[E2E_HUMAN] {}", message),
         };
 
         let payload = serde_json::json!({
@@ -460,9 +517,9 @@ async fn main() -> anyhow::Result<()> {
                     Ok(Some(msg)) => {
                         // Check if the message is from our bot's user account (bot under test)
                         if msg.author.id == bot_user_id {
-                            last_response = msg.content.clone();
+                            last_response = response_text(&msg);
                             if let Some(ref expected) = test.expect {
-                                if msg.content.contains(expected) {
+                                if last_response.contains(expected) {
                                     got_expected = true;
                                     break;
                                 } else {
@@ -558,5 +615,86 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::info!("E2E Suite completed successfully.");
         std::process::exit(0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn suites_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("suites")
+    }
+
+    fn load_suite(name: &str) -> TestSuite {
+        let raw = std::fs::read_to_string(suites_dir().join(name)).expect("suite file readable");
+        serde_json::from_str(&raw).unwrap_or_else(|e| panic!("{name} is not a valid suite: {e}"))
+    }
+
+    #[test]
+    fn every_committed_suite_parses() {
+        let mut seen = 0;
+        for entry in std::fs::read_dir(suites_dir()).expect("suites dir") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let suite = load_suite(&name);
+            assert!(!suite.tests.is_empty(), "{name} has no tests");
+            seen += 1;
+        }
+        assert!(seen > 0, "no suites found");
+    }
+
+    #[test]
+    fn bot_mention_placeholder_expands_to_a_direct_mention() {
+        assert_eq!(render_message("{bot_mention} trivia?", 42), "<@42> trivia?");
+        assert_eq!(render_message("no placeholder", 42), "no placeholder");
+    }
+
+    #[test]
+    fn response_text_includes_embed_title_description_and_fields() {
+        let msg: Message = serde_json::from_value(serde_json::json!({
+            "id": "1",
+            "channel_id": "2",
+            "author": {"id": "3", "username": "bot", "discriminator": "0000", "avatar": null},
+            "content": "",
+            "timestamp": "2026-10-11T00:00:00Z",
+            "edited_timestamp": null,
+            "tts": false,
+            "mention_everyone": false,
+            "mentions": [],
+            "mention_roles": [],
+            "attachments": [],
+            "embeds": [{
+                "title": "Ragtime contest",
+                "description": "Hosted by <@7>.",
+                "fields": [{"name": "Players", "value": "none yet", "inline": false}]
+            }],
+            "pinned": false,
+            "type": 0
+        }))
+        .expect("message fixture deserializes");
+        let text = response_text(&msg);
+        assert!(text.contains("Ragtime contest"), "{text}");
+        assert!(text.contains("Hosted by <@7>."), "{text}");
+        assert!(text.contains("none yet"), "{text}");
+    }
+
+    /// The Ragtime suite drives only what a webhook can drive (its
+    /// `not_covered` list says why the rest lives in
+    /// `crates/ragtime/tests/discord_wiring.rs`). Its lobby step must mention
+    /// the bot under test via the runtime placeholder, as a human.
+    #[test]
+    fn ragtime_suite_opens_the_lobby_with_a_runtime_mention() {
+        let suite = load_suite("ragtime.json");
+        let lobby = suite.tests.first().expect("ragtime suite is not empty");
+        assert_eq!(lobby.expect.as_deref(), Some("Ragtime contest"));
+        assert!(lobby.message.contains(BOT_MENTION_PLACEHOLDER));
+        assert_eq!(lobby.sender, "human");
     }
 }

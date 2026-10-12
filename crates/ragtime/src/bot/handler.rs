@@ -14,6 +14,7 @@ use serenity::all::{
     CommandInteraction, ComponentInteraction, Context, CreateInteractionResponse, CreateMessage,
     EventHandler, Interaction, Message, ModalInteraction, Reaction, ReactionType, Ready, UserId,
 };
+use starbunk::discord::StarbunkMessage;
 use std::sync::{Arc, OnceLock};
 
 /// Discord event handler. The engine is built on the first `ready`, once the
@@ -132,7 +133,12 @@ impl EventHandler for RagtimeHandler {
     #[tracing::instrument(skip(self, ctx, msg), fields(channel = %msg.channel_id))]
     async fn message(&self, ctx: Context, msg: Message) {
         let me = ctx.cache.current_user().id;
-        if msg.author.bot || msg.author.id == me || msg.guild_id.is_none() {
+        // `from_serenity` classifies the author: real users stay `User`, and in
+        // E2E mode the runner's webhook posts (`[E2E_HUMAN]` / `[E2E_BOT]` /
+        // `[E2E_MOCK_USER:id]`) are unwrapped to `E2eUser` / `E2eBot` with the
+        // prefix stripped. Outside E2E mode every bot/webhook stays `Bot`.
+        let msg = StarbunkMessage::from_serenity(msg);
+        if msg.sender.is_bot() || msg.author.id == me || msg.guild_id.is_none() {
             return;
         }
         if !mentions_directly(&msg.content, me) {
@@ -148,7 +154,7 @@ impl EventHandler for RagtimeHandler {
             Ok(MentionOutcome::AlreadyRunning) => {
                 let reply = CreateMessage::new()
                     .content(replies::ALREADY_RUNNING)
-                    .reference_message(&msg);
+                    .reference_message(&msg.inner);
                 if let Err(e) = msg.channel_id.send_message(&ctx.http, reply).await {
                     tracing::error!(bot = "ragtime", err = %e, "failed to reply to mention");
                 }
