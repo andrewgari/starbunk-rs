@@ -3,6 +3,25 @@
 Running log of all significant work done on starbunk-rs.
 Add an entry under today's date for every PR or significant change.
 
+## 2026-10-11 — Remove Kubernetes/GKE from the repo
+
+Docker Compose (`docker/docker-compose.tower.yml` on Tower via Portainer) is now
+the only deployment path.
+
+### Removed
+- `kubernetes/` manifests and `proxyclass-autopilot.yaml`.
+- GKE workflows: `.github/workflows/deploy.yml`, `deploy-pr.yml`, `health-check.yml`.
+- kubectl/GKE scripts: `scripts/deploy_k8s.sh`, `deploy_config.sh`, `restart_bots.sh`, `list_models.sh`.
+- `.gemini/skills/kubernetes-deploy` and its references in `GEMINI.md` and the cartel skill.
+- GKE Cloud Logging Pub/Sub receiver and `transform/gcp_service_name` from `observability/otel-collector.yaml`.
+- `@kubernetes/client-node` from `starbunk-ui`, along with dashboard start/stop/restart (`setBotState`).
+
+### Changed
+- `starbunk-ui` dashboard status now probes each bot's existing HTTP API (`getBotStatuses()`): bunkbot `/health`, covabot `/api/personality`, djcova `/state`. bluebot and ratbot have no reachable endpoint and show `Unknown`.
+- `starbunk-ui` config read/write is filesystem-only.
+- Added `starbunk-ui/.npmrc` (`legacy-peer-deps`) — `next-auth@5.0.0-beta.25` declares a `next@^14||^15` peer and plain `npm install`/`npm ci` failed with ERESOLVE against next 16. Lockfile regenerated (it was also missing `next-auth`).
+- Rewrote `wiki/infrastructure/Deployment.md` for Compose on Tower; updated Configuration, UI, Observability, CI-CD and BunkBot pages.
+
 ## 2026-07-28 — StarbunkMessage Migration and E2E Framework
 
 ### Added

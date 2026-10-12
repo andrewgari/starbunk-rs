@@ -1,3 +1,4 @@
+#![allow(clippy::double_must_use)]
 mod strategy;
 
 use async_trait::async_trait;

@@ -67,7 +67,6 @@ the skill immediately — don't describe what you'd do, just do it.
 | File exceeds ~150 lines | Split by responsibility — one concept per file |
 | New bot or shared module added | Verify isolation: `bots/` never imports from another bot; `shared/` never imports from `bots/` |
 | Deploying or updating containers on Tower | `/deploy` |
-| Deploying/releasing bots to Kubernetes | `/deploy-k8s` |
 | CI pipeline is failing on current branch | `/ci-diagnose` |
 | Resolving CI failures or origin merge conflicts | `/ci-fix` |
 | Auditing test suites, security, or CI/CD | `/audit` |

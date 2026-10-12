@@ -23,10 +23,10 @@ identities using `src/shared/discord::MessageService`.
 - Dynamic bot state manager (`BotStateService` / `InMemoryBotStateManager`) to enable/disable bots and apply frequency overrides at runtime.
 - Local HTTP API (`127.0.0.1:9082/config`) to view and overwrite the active `bots.yml` configuration, automatically hot-reloading bot strategies.
 - Health and liveness endpoints on the same API port:
-  - `GET /live` — always returns `200 OK`; used as a Kubernetes liveness probe.
-  - `GET /health` — returns `200 OK` once the Discord engine is initialised, or `503 Service Unavailable` while still starting up; used as a readiness probe.
-- Filesystem Hot Reloading: BunkBot utilizes `notify` to watch its configuration directory. Changes to `*.yml` or `*.yaml` files (e.g. via Kubernetes ConfigMap updates or manual edits) instantly trigger a bot configuration reload without requiring a restart. Only `.yml`/`.yaml` extension events are processed — editor temp files, swap files, and other filesystem noise are ignored. If a reload returns a non-2xx status, a `WARN` log entry is emitted with the status code rather than silently discarding the failure.
-- Config saves via `starbunk-ui` follow a two-phase write: the API must accept the config (HTTP 2xx) before it is persisted to the Kubernetes Secret, preventing corrupted or rejected configs from overwriting the stored state.
+  - `GET /live` — always returns `200 OK`; used as a liveness probe.
+  - `GET /health` — returns `200 OK` once the Discord engine is initialised, or `503 Service Unavailable` while still starting up; used as a readiness probe and by the `starbunk-ui` dashboard status.
+- Filesystem Hot Reloading: BunkBot utilizes `notify` to watch its configuration directory. Changes to `*.yml` or `*.yaml` files (e.g. edits to the bind-mounted config on Tower) instantly trigger a bot configuration reload without requiring a restart. Only `.yml`/`.yaml` extension events are processed — editor temp files, swap files, and other filesystem noise are ignored. If a reload returns a non-2xx status, a `WARN` log entry is emitted with the status code rather than silently discarding the failure.
+- Config saves via `starbunk-ui` follow a two-phase write: the UI persists the YAML to its config directory first, then POSTs it to BunkBot's `/config` API for a hot-reload.
 - Webhook-based responses using `send_message_with_identity`.
 
 ## Dependencies & Architecture
@@ -38,7 +38,7 @@ identities using `src/shared/discord::MessageService`.
 
 ## Configuration
 
-BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup. See the [[../infrastructure/Configuration|Configuration]] wiki page for detailed instructions on managing this configuration file in development and production GKE environments.
+BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup. See the [[../infrastructure/Configuration|Configuration]] wiki page for detailed instructions on managing this configuration file in development and production (Tower).
 
 > **Note on `identity` fields:** The YAML parser accepts both `snake_case` (canonical) and `camelCase` for identity properties. For example, `bot_name` or `botName`, `avatar_url` or `avatarUrl`, and `user_id` or `as_member` (for `mimic` bots).
 
@@ -47,13 +47,13 @@ BunkBot dynamically loads reply bot strategies from `config/bots.yml` at startup
 The HTTP API endpoints `POST /config` and `PUT /api/bots` attempt to persist the
 new configuration to `botbot.yml` before hot-reloading the bot strategies.
 
-In a Kubernetes environment the config directory is typically a read-only
-ConfigMap/Secret mount. Two `std::io::ErrorKind` values are therefore treated as
+In production the config directory is a read-only bind mount (`:ro` in
+`docker/docker-compose.tower.yml`). Two `std::io::ErrorKind` values are therefore treated as
 **expected and non-fatal**:
 
 | `ErrorKind` | Scenario |
 |---|---|
-| `ReadOnlyFilesystem` | K8s read-only volume mount |
+| `ReadOnlyFilesystem` | Read-only volume / bind mount |
 | `PermissionDenied` | Restrictive container permissions |
 
 For these errors a `WARN` log entry is emitted and the request proceeds to
@@ -68,7 +68,7 @@ Any other write failure (e.g. `StorageFull`, `NotFound`) is treated as an
 - Webhook permission errors or timeouts.
 - Race conditions on simultaneous admin commands.
 - Graceful degradation when Discord API is unreachable.
-- Config write failures on non-K8s deployments now surface as HTTP 500 rather
+- Config write failures on writable deployments now surface as HTTP 500 rather
   than being silently swallowed.
 
 ## Prometheus /metrics Endpoint
