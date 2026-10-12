@@ -30,6 +30,7 @@ COPY crates/bunkbot/Cargo.toml         crates/bunkbot/
 COPY crates/covabot/Cargo.toml         crates/covabot/
 COPY crates/djcova/Cargo.toml          crates/djcova/
 COPY crates/ratbot/Cargo.toml          crates/ratbot/
+COPY crates/ragtime/Cargo.toml         crates/ragtime/
 COPY crates/e2e/Cargo.toml             crates/e2e/
 
 # Create minimal stub sources so `cargo build` can compile all external deps
@@ -37,7 +38,7 @@ COPY crates/e2e/Cargo.toml             crates/e2e/
 # required because Cargo resolves the full dependency graph up-front.
 RUN mkdir -p crates/starbunk/src \
     && echo "pub fn _stub() {}" > crates/starbunk/src/lib.rs \
-    && for bot in bluebot bunkbot covabot djcova ratbot e2e; do \
+    && for bot in bluebot bunkbot covabot djcova ratbot ragtime e2e; do \
          mkdir -p crates/$bot/src; \
          echo "pub fn _stub() {}" > crates/$bot/src/lib.rs; \
          echo "fn main() {}" > crates/$bot/src/main.rs; \

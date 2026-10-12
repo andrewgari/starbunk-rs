@@ -1,0 +1,49 @@
+{
+  "description": "Ragtime contest round flow, live-Discord part. The runner can only post plain messages through its webhook and read the bot's channel messages, so this suite covers lobby creation by @mention and the mention guards. Tests run in order and share one lobby: the first test opens it and the later ones rely on it still being open (LOBBY_TIMEOUT is 10 minutes). Run with E2E_TEST_BOTS=ragtime against a fresh process; a lobby left open by an earlier run in the same process would make the first test reply 'already running'.",
+  "not_covered": [
+    "join via the lobby reaction: the runner has a single bot token, and ragtime ignores reactions from itself and from bots; webhooks cannot react. Covered by discord_wiring.rs (mention_posts_lobby_and_join_reaction, reactions_on_other_messages_do_not_join).",
+    "/ragtime start, host and non-host: bots and webhooks cannot invoke application commands. Covered by discord_wiring.rs (non_host_start_is_rejected, start_with_nobody_joined_posts_nothing_and_cleans_up) and round_state_machine.rs.",
+    "first question posted after start: it needs /ragtime start and a seeded question bank. Covered by discord_wiring.rs (full_round_lobby_to_tally, uses_all_questions_when_bank_is_small with a 2-question bank).",
+    "[Answer] button, answer modal, 'not in this round' ephemeral: only a real user client can click components and submit modals, and ephemeral replies are invisible to the listener. Covered by discord_wiring.rs (answer_button_edge_cases, wrong_and_right_answers_get_the_same_acknowledgement).",
+    "early close when all players answered, reveal mentioning the correct players, final tally: these depend on modal answers. Covered by discord_wiring.rs (full_round_lobby_to_tally, early_close_does_not_let_the_old_timer_close_the_next_question, question_times_out_after_two_minutes), plus the manual 2-account guild run.",
+    "shortened timeouts: QUESTION_TIMEOUT / LOBBY_TIMEOUT / HOST_ABANDON_TIMEOUT are compile-time constants with no env override, so live timeouts are not exercised. The unit tests use paused tokio time instead."
+  ],
+  "tests": [
+    {
+      "name": "Ragtime: @mention opens a 'Ragtime contest' lobby",
+      "sender": "human",
+      "message": "{bot_mention} trivia time?",
+      "expect": "Ragtime contest",
+      "timeout_ms": 5000
+    },
+    {
+      "name": "Ragtime: a mention from a different user while the lobby is open replies 'already running'",
+      "sender": "mock_user",
+      "mock_user_id": 424242,
+      "message": "{bot_mention} can I host too?",
+      "expect": "A Ragtime round is already running in this channel.",
+      "timeout_ms": 5000
+    },
+    {
+      "name": "Ragtime: a second mention from the same user replies 'already running'",
+      "sender": "human",
+      "message": "{bot_mention} again",
+      "expect": "A Ragtime round is already running in this channel.",
+      "timeout_ms": 5000
+    },
+    {
+      "name": "Ragtime: mentions from bots are ignored",
+      "sender": "bot",
+      "message": "{bot_mention} trivia time?",
+      "expect_no_response": true,
+      "timeout_ms": 3000
+    },
+    {
+      "name": "Ragtime: messages without a direct mention are ignored",
+      "sender": "human",
+      "message": "anyone up for ragtime trivia?",
+      "expect_no_response": true,
+      "timeout_ms": 3000
+    }
+  ]
+}
