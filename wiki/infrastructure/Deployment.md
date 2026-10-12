@@ -11,7 +11,7 @@ built from source. GCP/GKE is retired.
 |---|---|
 | Stack definition | `docker/docker-compose.tower.yml` |
 | Collector config (Tower) | `observability/otel-collector.tower.yaml` |
-| Bot tokens | per-bot env vars — `BLUEBOT_TOKEN`, `BUNKBOT_TOKEN`, `COVABOT_TOKEN`, `DJCOVA_TOKEN`, `RATBOT_TOKEN` |
+| Bot tokens | per-bot env vars — `BLUEBOT_TOKEN`, `BUNKBOT_TOKEN`, `COVABOT_TOKEN`, `DJCOVA_TOKEN`, `RATBOT_TOKEN`, `RAGTIME_TOKEN` |
 | Host appdata root | `/mnt/config/appdata/starbunk/` |
 
 Deploy: **Portainer → Stacks → Create from repository** (`git.lan:starbunk-rs`),
@@ -39,7 +39,7 @@ password:
 | `POSTGRES_PASSWORD` | required — no default |
 | `GRAFANA_ADMIN_PASSWORD` | required — no default |
 | `LANGFUSE_AUTH_STRING` | `base64(pk-lf-…:sk-lf-…)`; leave empty to disable export |
-| `BLUEBOT_TOKEN` … `RATBOT_TOKEN` | one per bot |
+| `BLUEBOT_TOKEN` … `RAGTIME_TOKEN` | one per bot |
 
 See `.env.example` for the full list. Secrets are injected by 1Password into a
 git-ignored `.env`.
