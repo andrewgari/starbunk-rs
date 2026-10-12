@@ -1,3 +1,4 @@
+#![allow(clippy::double_must_use)]
 pub mod api;
 pub mod commands;
 pub mod comment_config;
