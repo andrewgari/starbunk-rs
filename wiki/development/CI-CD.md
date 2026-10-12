@@ -36,6 +36,27 @@ The `ci.yml` workflow optimizes execution times by gating jobs based on changed 
 - **E2E Integration Tests**: The E2E container build and integration tests are only executed if `bluebot`, `bunkbot`, or global/shared dependencies changed (since the E2E suite primarily targets those bots).
 - **Quick PRs / Docker Skipping**: If the PR has the `quick-pr` or `skip-docker` label, all Docker container builds, Docker smoke tests, and E2E integration test runs are skipped entirely, allowing for fast verification.
 
+#### Toolchain & Clippy drift
+
+CI installs the **latest stable** Rust via `dtolnay/rust-toolchain@stable` (no
+pinned version), so a new stable release can introduce lints that a local
+toolchain does not report. Before blaming a PR for a Clippy failure, compare
+`cargo clippy --version` in the CI log with your local version and reproduce
+with the CI version:
+
+```bash
+rustup toolchain install 1.99.0 --profile minimal -c clippy
+cargo +1.99.0 clippy --all-targets --all-features -- -D warnings
+```
+
+**Known case — `clippy::double_must_use` on rustc/clippy 1.99 (2026-09-28).**
+`async-trait` ≤ 0.1.89 emitted a bare `#[must_use]` on the boxed-future methods
+it generates, which clippy 1.99 flags as `double_must_use` (24 errors across the
+`#[async_trait]` traits in `crates/starbunk`), failing *Lint & DevOps* on every
+PR. Fixed by requiring `async-trait = "0.1.92"` in the workspace `Cargo.toml`
+(and the matching `Cargo.lock` bump). Do not lower that floor. Prefer a
+dependency bump over pinning the CI toolchain or adding `#[allow]`s.
+
 
 ### `main.yml` — Merge to Main (retired)
 
