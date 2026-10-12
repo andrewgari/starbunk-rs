@@ -4,11 +4,6 @@
 //! so nothing here sleeps or touches Discord. A stand-in grader (exact,
 //! case-insensitive match against the acceptable answers) is injected because
 //! the fuzzy `grade()` function is owned by a separate card.
-//!
-//! TDD PR 1: every behaviour test is `#[ignore]`d so CI stays green while the
-//! module is `todo!()` (sheeshbot precedent). Run the red suite with
-//! `cargo test -p ragtime --test round_state_machine -- --ignored`.
-//! PR 2 removes the `#[ignore]` attributes; the tests must then pass unchanged.
 
 use chrono::Utc;
 use ragtime::question::Question;
@@ -120,7 +115,6 @@ fn cleanup(events: &[RoundEvent]) -> Option<CleanupReason> {
 // ── registry: one round per channel ─────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn create_opens_lobby_with_host() {
     let t0 = Instant::now();
     let mut reg = registry();
@@ -131,7 +125,6 @@ fn create_opens_lobby_with_host() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn second_round_in_same_channel_is_rejected() {
     let t0 = Instant::now();
     let mut reg = registry();
@@ -144,7 +137,6 @@ fn second_round_in_same_channel_is_rejected() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn different_channels_are_independent() {
     let t0 = Instant::now();
     let mut reg = registry();
@@ -154,7 +146,6 @@ fn different_channels_are_independent() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn channel_is_free_again_after_cleanup() {
     let t0 = Instant::now();
     let mut reg = lobby(&[], t0);
@@ -167,7 +158,6 @@ fn channel_is_free_again_after_cleanup() {
 // ── joining ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn join_is_idempotent_and_keeps_join_order() {
     let t0 = Instant::now();
     let mut reg = lobby(&[], t0);
@@ -178,7 +168,6 @@ fn join_is_idempotent_and_keeps_join_order() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn host_can_join_as_a_player() {
     let t0 = Instant::now();
     let mut reg = lobby(&[], t0);
@@ -187,14 +176,12 @@ fn host_can_join_as_a_player() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn join_without_round_is_rejected() {
     let mut reg = registry();
     assert_eq!(reg.join(CH, ALICE), Err(RoundError::NoActiveRound));
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn late_join_after_start_is_rejected() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE], 3, t0);
@@ -205,7 +192,6 @@ fn late_join_after_start_is_rejected() {
 // ── starting ────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn only_host_can_start() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -226,7 +212,6 @@ fn only_host_can_start() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn start_without_round_is_rejected() {
     let mut reg = registry();
     let t0 = Instant::now();
@@ -241,7 +226,6 @@ fn start_without_round_is_rejected() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn start_twice_is_rejected() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE], 3, t0);
@@ -256,7 +240,6 @@ fn start_twice_is_rejected() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn start_posts_first_question_with_deadline() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -279,7 +262,6 @@ fn start_posts_first_question_with_deadline() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn start_uses_at_most_twenty_questions() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -291,7 +273,6 @@ fn start_uses_at_most_twenty_questions() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn fewer_than_twenty_questions_uses_all_of_them() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -312,7 +293,6 @@ fn fewer_than_twenty_questions_uses_all_of_them() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn zero_joiners_ends_silently_and_removes_round() {
     let t0 = Instant::now();
     let mut reg = lobby(&[], t0);
@@ -329,7 +309,6 @@ fn zero_joiners_ends_silently_and_removes_round() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn empty_question_pool_cleans_up() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -347,7 +326,6 @@ fn empty_question_pool_cleans_up() {
 // ── question selection ──────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn select_questions_is_distinct_and_capped() {
     let picked = select_questions(pool(50), 20, &mut rng());
     assert_eq!(picked.len(), 20);
@@ -356,7 +334,6 @@ fn select_questions_is_distinct_and_capped() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn select_questions_small_pool_returns_all() {
     let picked = select_questions(pool(3), 20, &mut rng());
     let ids: HashSet<_> = picked.iter().map(|q| q.id).collect();
@@ -364,7 +341,6 @@ fn select_questions_small_pool_returns_all() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn select_questions_is_deterministic_for_a_seed_and_random_across_seeds() {
     let a = select_questions(pool(50), 20, &mut StdRng::seed_from_u64(1));
     let b = select_questions(pool(50), 20, &mut StdRng::seed_from_u64(1));
@@ -380,7 +356,6 @@ fn select_questions_is_deterministic_for_a_seed_and_random_across_seeds() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn select_questions_zero_is_empty() {
     assert!(select_questions(pool(5), 0, &mut rng()).is_empty());
 }
@@ -388,7 +363,6 @@ fn select_questions_zero_is_empty() {
 // ── answering ───────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn can_answer_reports_not_in_round_already_answered_and_index() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[ALICE, BOB], 3, t0);
@@ -400,7 +374,6 @@ fn can_answer_reports_not_in_round_already_answered_and_index() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn can_answer_in_lobby_or_without_round() {
     let t0 = Instant::now();
     let reg = lobby(&[ALICE], t0);
@@ -412,7 +385,6 @@ fn can_answer_in_lobby_or_without_round() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn duplicate_answer_is_rejected() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[ALICE, BOB], 3, t0);
@@ -427,7 +399,6 @@ fn duplicate_answer_is_rejected() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn answer_from_non_joined_player_is_not_in_round() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[ALICE], 3, t0);
@@ -439,7 +410,6 @@ fn answer_from_non_joined_player_is_not_in_round() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn answer_before_start_is_not_in_progress() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -454,7 +424,6 @@ fn answer_before_start_is_not_in_progress() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn answer_for_closed_question_is_stale() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE, BOB], 3, t0);
@@ -469,7 +438,6 @@ fn answer_for_closed_question_is_stale() {
 // ── closing a question ──────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn question_stays_open_until_everyone_answered() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[ALICE, BOB, CAROL], 3, t0);
@@ -482,7 +450,6 @@ fn question_stays_open_until_everyone_answered() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn early_close_when_everyone_answered() {
     let t0 = Instant::now();
     let t1 = t0 + Duration::from_secs(10);
@@ -509,7 +476,6 @@ fn early_close_when_everyone_answered() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn reveal_has_question_display_answer_and_correct_users_in_join_order() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[CAROL, ALICE, BOB], 3, t0);
@@ -531,7 +497,6 @@ fn reveal_has_question_display_answer_and_correct_users_in_join_order() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn timeout_closes_question_with_partial_answers() {
     let t0 = Instant::now();
     let (mut reg, qs) = started(&[ALICE, BOB], 3, t0);
@@ -549,7 +514,6 @@ fn timeout_closes_question_with_partial_answers() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn stale_timer_after_early_close_is_a_no_op() {
     let t0 = Instant::now();
     let t1 = t0 + Duration::from_secs(30);
@@ -561,7 +525,6 @@ fn stale_timer_after_early_close_is_a_no_op() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn next_deadline_tracks_lobby_and_question_timers() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -573,7 +536,6 @@ fn next_deadline_tracks_lobby_and_question_timers() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn last_question_close_posts_reveal_then_tally_then_cleanup() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE], 1, t0);
@@ -597,7 +559,6 @@ fn last_question_close_posts_reveal_then_tally_then_cleanup() {
 // ── tally ───────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn full_round_tally_counts_one_point_per_correct_answer() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE, BOB, CAROL], t0);
@@ -644,7 +605,6 @@ fn full_round_tally_counts_one_point_per_correct_answer() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn rank_orders_by_score_descending() {
     assert_eq!(
         rank(&[(ALICE, 1), (BOB, 5), (CAROL, 3)]),
@@ -669,7 +629,6 @@ fn rank_orders_by_score_descending() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn rank_ties_share_rank_keep_join_order_and_skip_next_rank() {
     // Join order: CAROL, ALICE, BOB, 40. CAROL and BOB tie on 4.
     assert_eq!(
@@ -700,7 +659,6 @@ fn rank_ties_share_rank_keep_join_order_and_skip_next_rank() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn rank_all_zero_is_a_shared_first_place() {
     let standings = rank(&[(BOB, 0), (ALICE, 0)]);
     assert_eq!(
@@ -724,7 +682,6 @@ fn rank_all_zero_is_a_shared_first_place() {
 // ── abandonment ─────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn unstarted_lobby_is_cleaned_up_after_lobby_timeout() {
     let t0 = Instant::now();
     let mut reg = lobby(&[ALICE], t0);
@@ -747,7 +704,6 @@ fn unstarted_lobby_is_cleaned_up_after_lobby_timeout() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn round_with_no_answers_is_abandoned() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE, BOB], 20, t0);
@@ -771,7 +727,6 @@ fn round_with_no_answers_is_abandoned() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn answers_keep_round_alive_past_abandon_timeout() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE, BOB], 20, t0);
@@ -788,7 +743,6 @@ fn answers_keep_round_alive_past_abandon_timeout() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn host_can_cancel_and_others_cannot() {
     let t0 = Instant::now();
     let (mut reg, _) = started(&[ALICE], 3, t0);
@@ -805,7 +759,6 @@ fn host_can_cancel_and_others_cannot() {
 }
 
 #[test]
-#[ignore = "red: enable in PR 2 when ragtime::round is implemented"]
 fn tick_only_affects_expired_rounds() {
     let t0 = Instant::now();
     let t1 = t0 + Duration::from_secs(5 * 60);
