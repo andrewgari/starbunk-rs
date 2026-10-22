@@ -6,10 +6,13 @@
 //! * [`bot`] — Discord wiring: event handler, timers, shared state.
 
 pub mod bot;
+pub mod fuzzy;
 pub mod presentation;
 pub mod question;
 pub mod repository;
 pub mod round;
+
+pub use fuzzy::{grade, grade_with_threshold, DEFAULT_GRADE_THRESHOLD};
 
 use std::sync::Arc;
 
