@@ -28,7 +28,7 @@ Constants live in `src/round.rs` (`QUESTION_TIMEOUT`, `LOBBY_TIMEOUT`, `HOST_ABA
 
 ## Grading
 
-Grading currently uses an interim case- and whitespace-insensitive exact match against the display answer and the acceptable answers (`src/bot/grading.rs`). The fuzzy `grade()` from card t_a1639804 replaces it once that lands.
+Grading uses the fuzzy `grade()` (`src/fuzzy.rs`): normalised strsim Levenshtein similarity, default threshold 0.85, overridable via `RAGTIME_SIMILARITY_THRESHOLD`.
 
 ## Running
 

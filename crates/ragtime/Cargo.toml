@@ -21,6 +21,7 @@ tracing.workspace            = true
 sqlx.workspace               = true
 chrono.workspace             = true
 rand.workspace               = true
+strsim                       = "0.11"
 
 [dev-dependencies]
 serde_json.workspace         = true

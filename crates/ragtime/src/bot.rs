@@ -47,6 +47,6 @@ mod timers;
 pub use commands::{register_commands, RagtimeCommand, COMMAND_NAME};
 pub use discord_outbox::DiscordOutbox;
 pub use engine::{ButtonOutcome, MentionOutcome, RagtimeEngine};
-pub use grading::interim_grader;
+pub use grading::fuzzy_grader;
 pub use handler::RagtimeHandler;
 pub use outbox::Outbox;

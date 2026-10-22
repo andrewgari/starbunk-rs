@@ -172,7 +172,7 @@ fn harness(n_questions: usize) -> Harness {
     let engine = RagtimeEngine::with_rng(
         repo.clone(),
         outbox.clone(),
-        ragtime::bot::interim_grader(),
+        ragtime::bot::fuzzy_grader(ragtime::DEFAULT_GRADE_THRESHOLD),
         StdRng::seed_from_u64(1),
     );
     Harness {
