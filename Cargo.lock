@@ -3276,13 +3276,17 @@ version = "2026.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "chrono",
+ "http-body-util",
  "rand 0.8.6",
+ "serde",
  "serde_json",
  "serenity",
  "sqlx",
  "starbunk",
  "tokio",
+ "tower 0.4.13",
  "tracing",
 ]
 
