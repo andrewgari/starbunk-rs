@@ -6,15 +6,20 @@
 //! * [`bot`] — Discord wiring: event handler, timers, shared state.
 
 pub mod bot;
+pub mod config;
+pub mod fuzzy;
 pub mod presentation;
 pub mod question;
 pub mod repository;
 pub mod round;
 
+pub use fuzzy::{grade, grade_with_threshold, DEFAULT_GRADE_THRESHOLD};
+
 use std::sync::Arc;
 
 /// Connect to Postgres, run migrations and start the Discord client.
 pub async fn run(conn_str: &str) -> anyhow::Result<()> {
+    let config = config::RagtimeConfig::from_env()?;
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
         .connect(conn_str)
@@ -23,7 +28,7 @@ pub async fn run(conn_str: &str) -> anyhow::Result<()> {
     tracing::info!(bot = "ragtime", "migrations applied");
 
     let repo = Arc::new(repository::PgQuestionRepository::from_pool(pool));
-    let handler = bot::RagtimeHandler::new(repo, bot::interim_grader());
+    let handler = bot::RagtimeHandler::new(repo, bot::fuzzy_grader(config.similarity_threshold));
     let intents = starbunk::utils::default_intents()
         | serenity::all::GatewayIntents::GUILDS
         | serenity::all::GatewayIntents::GUILD_MESSAGE_REACTIONS;
