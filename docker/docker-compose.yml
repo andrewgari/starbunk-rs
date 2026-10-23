@@ -251,6 +251,31 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  ragtime:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BOT_NAME: ragtime
+    container_name: starbunk-ragtime
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    environment:
+      - DISCORD_TOKEN=${RAGTIME_TOKEN:-${STARBUNK_TOKEN}}
+      - RUST_LOG=${RUST_LOG:-info}
+      - VERBOSE=${VERBOSE:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-starbunk}:${POSTGRES_PASSWORD:-starbunk}@postgres:5432/${POSTGRES_DB:-starbunk_memory}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: starbunk-postgres
