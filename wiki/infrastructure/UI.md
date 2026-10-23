@@ -71,6 +71,7 @@ K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & Co
 | `/djcova/controls` | Queue / skip / kick | DJCova HTTP API, polled every 10s |
 | `/bluebot` | BlueBot landing | Pattern inspector, regex matcher coverage & SSE response audit stream |
 | `/ratbot` | RatBot landing | Automated (Cron) vs Manual/Ad-hoc mode toggle & Secret Santa control dashboard |
+| `/ragtime` | Ragtime question editor | Ragtime admin API (`/api/ragtime/questions`) — server-gated, admins only |
 
 ---
 
@@ -102,6 +103,15 @@ K8s available?  ──yes──▶  Kubernetes API  (read/patch Deployments & Co
 ### `src/app/history/actions.ts`
 
 `getHistory(botName?, limit?)` — queries `bot_audit_history` via `pg`. No-ops silently (returns `[]`) when `DATABASE_URL` is unset.
+
+### `src/app/ragtime/actions.ts`
+
+`listQuestions()` · `createQuestion(input)` · `updateQuestion(id, input)` · `deleteQuestion(id)`
+
+- Every action re-checks the session via `src/lib/admin-session.ts` (`checkAdmin()`: Discord OAuth session with ≥1 ADMINISTRATOR guild in `session.admin_guild_ids`, same rule as `/bunkbot`). Returns `{ success: false, error }` when unauthenticated/forbidden.
+- HTTP calls live in `src/lib/ragtime-api.ts`, marked `import "server-only"`, which reads `RAGTIME_API_URL` (default `http://localhost:9085`) and `RAGTIME_ADMIN_TOKEN` and sends `Authorization: Bearer <token>`. The browser only ever calls the server actions; the token never reaches client bundles or browser network traffic.
+- `/ragtime/page.tsx` is a server component: logged-out users get a 307 to `/api/auth/signin/discord?callbackUrl=/ragtime`; non-admins see "Access denied".
+- Editor (`QuestionEditor.tsx`): one row per question (Question / Display answer / Acceptable answers). Acceptable answers accept one per line or comma-separated (split on newlines + commas, trimmed, blanks dropped) and load one per line. Global **Save** POSTs new rows and PUTs changed ones; **Delete** confirms first; dirty rows are highlighted with an unsaved count.
 
 ---
 
