@@ -81,14 +81,14 @@ function tagErrors(t){
     if(p===''){errs.push('empty tag segment');continue}
     const m=p.split(':');
     if(m.length!==2||!m[0]||!m[1]){errs.push(`"${p}" is not key:value`);continue}
-    if(!(m[0] in cfg))errs.push(`unknown key "${m[0]}"`);
+    if(!Object.hasOwn(cfg,m[0]))errs.push(`unknown key "${m[0]}"`);
     else if(!/^[a-z]+$/.test(m[1]))errs.push(`value "${m[1]}" must be lowercase letters`);
     else if(!cfg[m[0]].includes(m[1]))errs.push(`"${m[1]}" not allowed for ${m[0]}`);
   }
   return errs;
 }
 function validate(){
-  const seen={};rows.forEach((r,i)=>{const k=r.name.trim().toLowerCase();(seen[k]=seen[k]||[]).push(i)});
+  const seen=Object.create(null);rows.forEach((r,i)=>{const k=r.name.trim().toLowerCase();(seen[k]=seen[k]||[]).push(i)});
   let bad=0;
   rows.forEach((r,i)=>{
     const e=[];const k=r.name.trim().toLowerCase();
@@ -131,7 +131,7 @@ function renderCfg(){
   });
 }
 function saveCfg(){localStorage.setItem(LS,JSON.stringify(cfg));renderCfg();validate()}
-$('addKey').onclick=()=>{const k=$('newKey').value.trim();if(/^[a-z]+$/.test(k)&&!(k in cfg)){cfg[k]=[];$('newKey').value='';saveCfg()}};
+$('addKey').onclick=()=>{const k=$('newKey').value.trim();if(/^[a-z]+$/.test(k)&&!Object.hasOwn(cfg,k)){cfg[k]=[];$('newKey').value='';saveCfg()}};
 $('filter').addEventListener('input',render);
 $('add').onclick=()=>{rows.push({name:'',source:'',tags:''});$('filter').value='';render();
   const ins=$('rows').lastElementChild.querySelector('input');ins.focus();ins.scrollIntoView()};
