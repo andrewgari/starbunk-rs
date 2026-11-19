@@ -18,6 +18,17 @@ pub struct Standing {
 /// Ties share a rank and keep their join order, so whoever joined first is
 /// listed first within a tie. Every player appears, including those with 0 points.
 pub fn rank(scores: &[(UserId, u32)]) -> Vec<Standing> {
-    let _ = scores;
-    todo!("ragtime: rank (PR 2)")
+    let mut sorted = scores.to_vec();
+    // Stable sort keeps join order within a tie.
+    sorted.sort_by_key(|&(_, score)| std::cmp::Reverse(score));
+
+    let mut out: Vec<Standing> = Vec::with_capacity(sorted.len());
+    for (position, (user, score)) in sorted.into_iter().enumerate() {
+        let rank = match out.last() {
+            Some(prev) if prev.score == score => prev.rank,
+            _ => position + 1,
+        };
+        out.push(Standing { rank, user, score });
+    }
+    out
 }
