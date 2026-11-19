@@ -48,9 +48,9 @@ static COOKIE_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Copies the cookies file to a unique writable temp path and returns that path.
 ///
-/// Kubernetes secret volumes are always read-only (projected tmpfs). yt-dlp tries to save
-/// updated session cookies back to the `--cookies` file on teardown; passing the K8s secret
-/// path directly causes an EROFS crash. Copying to /tmp gives yt-dlp a writable location.
+/// The cookies file is typically mounted read-only (secret or `:ro` bind mount). yt-dlp tries
+/// to save updated session cookies back to the `--cookies` file on teardown; passing a
+/// read-only path directly causes an EROFS crash. Copying to /tmp gives yt-dlp a writable location.
 ///
 /// A per-call counter ensures concurrent invocations don't share a file, avoiding racy
 /// overwrites when multiple yt-dlp processes exit and write back at the same time.
