@@ -14,8 +14,12 @@ impl StarbunkMessage {
     }
 
     pub fn from_serenity(inner: Message) -> Self {
-        let e2e_webhook = if std::env::var("E2E_MODE").is_ok() {
-            std::env::var("E2E_WEBHOOK_ID").ok().and_then(|s| s.parse::<u64>().ok())
+        // Spoofing is only possible when E2E_MODE is explicitly "true"/"1" AND the
+        // message came from the runner's own webhook (E2E_WEBHOOK_ID).
+        let e2e_webhook = if e2e_mode_enabled(std::env::var("E2E_MODE").ok().as_deref()) {
+            std::env::var("E2E_WEBHOOK_ID")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
         } else {
             None
         };
@@ -32,7 +36,9 @@ impl StarbunkMessage {
 
         {
             if let Some(webhook_id) = inner.webhook_id {
-                let is_e2e_webhook = e2e_webhook_id.map(|id| webhook_id.get() == id).unwrap_or(false);
+                let is_e2e_webhook = e2e_webhook_id
+                    .map(|id| webhook_id.get() == id)
+                    .unwrap_or(false);
 
                 if is_e2e_webhook {
                     if inner.content.starts_with("[E2E_HUMAN]") {
@@ -79,8 +85,8 @@ impl Deref for StarbunkMessage {
 }
 
 /// Returns true only for an explicit opt-in value of `E2E_MODE`.
-pub(crate) fn e2e_mode_enabled(_value: Option<&str>) -> bool {
-    true
+pub(crate) fn e2e_mode_enabled(value: Option<&str>) -> bool {
+    matches!(value, Some("true" | "1"))
 }
 
 #[cfg(test)]
