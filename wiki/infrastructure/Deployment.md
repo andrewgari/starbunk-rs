@@ -54,9 +54,12 @@ docker compose -f docker/docker-compose.tower.yml stop djcova
 docker compose -f docker/docker-compose.tower.yml logs -f covabot
 ```
 
-Or use the stack's container list in Portainer. `starbunk-ui` is read-only for
-bot lifecycle: it shows status from each bot's HTTP API and never controls
-containers (no Docker socket). See [[UI]].
+Or use the stack's container list in Portainer.
+
+> `starbunk-ui` is **not** part of the Tower production stack (the Kubernetes
+> manifest was removed and `docker-compose.tower.yml` has no UI service). It is a
+> local/dev tool; it shows status from each bot's HTTP API and never controls
+> containers (no Docker socket). See [[UI]].
 
 ### Updating bot config
 

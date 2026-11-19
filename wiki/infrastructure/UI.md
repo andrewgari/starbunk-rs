@@ -33,7 +33,7 @@ Open `http://localhost:3002`. No running bots are required — every action degr
 |---|---|---|
 | `DATABASE_URL` | *(unset)* | Postgres URL for audit history — omit to skip DB |
 | `BUNKBOT_API_URL` | `http://localhost:9082` | BunkBot internal HTTP API |
-| `COVABOT_API_URL` | `http://localhost:9083` | CovaBot internal HTTP API |
+| `COVABOT_API_URL` | `http://localhost:3004` | CovaBot internal HTTP API |
 | `DJCOVA_API_URL` | `http://localhost:9084` | DJCova internal HTTP API |
 
 ---
