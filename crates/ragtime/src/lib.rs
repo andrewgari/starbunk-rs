@@ -5,6 +5,7 @@
 
 pub mod question;
 pub mod repository;
+pub mod round;
 
 /// Connect to Postgres, run migrations and start the Discord client.
 pub async fn run(_conn_str: &str) -> anyhow::Result<()> {

@@ -56,6 +56,32 @@ migrations directory — other bots create tables inline in `init_schema`).
 
 Missing rows return `None`/`false` rather than an error, matching `ratbot::store::Store`.
 
+## Round State Machine — `ragtime::round`
+
+A pure, Discord-free game loop (no serenity types). The Discord layer holds one
+`RoundRegistry` behind an async lock (never held across `.await`), feeds it inputs and posts
+the returned `RoundEvent`s (`PostQuestion`, `PostReveal`, `PostTally`, `Cleanup`) in order.
+Time is passed in explicitly (`now: Instant`, `tick(now)`); randomness is an injected `Rng`;
+grading is an injected `Grader` (the crate's `grade()` function). Full API: rustdoc on
+`ragtime::round`.
+
+| Rule | Behaviour |
+|---|---|
+| One round per channel | `create` on a busy channel → `RoundAlreadyActive` |
+| Host | The mentioner; **not** auto-joined. Only the host can start/cancel (`NotHost`) |
+| Joining | Lobby only, idempotent. **Late joins are rejected** (`AlreadyStarted`) so the "everyone answered" early close stays well-defined |
+| Start | Up to 20 random questions; fewer → all of them. No joiners → silent `Cleanup(NoPlayers)`. Empty bank → `Cleanup(NoQuestions)` |
+| Answers | One per player per question (`AlreadyAnswered`); non-joined → `NotInRound` ("not in this round"); answer for a closed question → `StaleQuestion` |
+| Question close | All joined players answered, or `QUESTION_TIMEOUT` (2 min). Reveal lists correct players in join order |
+| Tally | 1 point per correct answer, descending. Ties share a rank (1, 2, 2, 4) and keep join order |
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `QUESTIONS_PER_ROUND` | 20 | Max questions per round |
+| `QUESTION_TIMEOUT` | 2 min | Per-question timer |
+| `LOBBY_TIMEOUT` | 10 min | Never-started lobby → `Cleanup(LobbyTimeout)` |
+| `HOST_ABANDON_TIMEOUT` | 6 min | In-progress round with **no answers** for 3 question windows → `Cleanup(Abandoned)`. Resets on every answer |
+
 ## Testing
 
 Contract tests: `crates/ragtime/tests/question_repository.rs` (`#[sqlx::test]`, `#[ignore]`d in
