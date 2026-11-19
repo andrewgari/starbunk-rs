@@ -40,6 +40,8 @@ jobs:
               - 'crates/djcova/**'
             ratbot:
               - 'crates/ratbot/**'
+            ragtime:
+              - 'crates/ragtime/**'
             shared_discord:
               - 'crates/starbunk/src/discord/**'
             shared_llm:
@@ -99,8 +101,8 @@ jobs:
           fi
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
-            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
-            for p in starbunk bluebot bunkbot covabot djcova ratbot; do
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot" "ragtime")
+            for p in starbunk bluebot bunkbot covabot djcova ratbot ragtime; do
               add_pkg "$p"
             done
           else
@@ -109,6 +111,7 @@ jobs:
             COVABOT_CHANGED="${{ steps.filter.outputs.covabot }}"
             DJCOVA_CHANGED="${{ steps.filter.outputs.djcova }}"
             RATBOT_CHANGED="${{ steps.filter.outputs.ratbot }}"
+            RAGTIME_CHANGED="${{ steps.filter.outputs.ragtime }}"
 
             # shared_replybot only affects bluebot
             if [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
@@ -128,6 +131,7 @@ jobs:
             [[ "$COVABOT_CHANGED"   == "true" ]] && BOTS+=("covabot")   && add_pkg "covabot"
             [[ "$DJCOVA_CHANGED"    == "true" ]] && BOTS+=("djcova")    && add_pkg "djcova"
             [[ "$RATBOT_CHANGED"    == "true" ]] && BOTS+=("ratbot")    && add_pkg "ratbot"
+            [[ "$RAGTIME_CHANGED"   == "true" ]] && BOTS+=("ragtime")   && add_pkg "ragtime"
           fi
 
           if [ ${#BOTS[@]} -eq 0 ]; then
@@ -183,6 +187,7 @@ jobs:
              [ "${{ steps.filter.outputs.shared_memory }}" == "true" ] || \
              [ "${{ steps.filter.outputs.djcova }}" == "true" ] || \
              [ "${{ steps.filter.outputs.ratbot }}" == "true" ] || \
+             [ "${{ steps.filter.outputs.ragtime }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ] || \
              [ "${{ steps.filter.outputs.shared_health }}" == "true" ]; then
             RUN_E2E="true"
@@ -389,6 +394,22 @@ jobs:
           E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
           E2E_SUITE_PATH: crates/e2e/suites/ratbot.json
           E2E_TEST_BOTS: ratbot
+        run: |
+          docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
+          EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT
+
+      # Webhook-drivable part of the Ragtime round flow (mention → lobby and
+      # mention guards). Reactions, /ragtime, buttons and modals can't be driven
+      # by the runner; see the suite's `not_covered` list.
+      - name: Run E2E — ragtime
+        if: env.DISCORD_TOKEN != ''
+        env:
+          E2E_CHANNEL_ID: ${{ vars.E2E_CHANNEL_ID }}
+          E2E_GUILD_ID: ${{ vars.E2E_GUILD_ID }}
+          E2E_SUITE_PATH: crates/e2e/suites/ragtime.json
+          E2E_TEST_BOTS: ragtime
+          # ragtime runs its Postgres migrations before it connects.
+          E2E_STARTUP_WAIT_SECS: '15'
         run: |
           docker compose -f docker/docker-compose.e2e.yml up --exit-code-from e2e
           EXIT=$?; docker compose -f docker/docker-compose.e2e.yml down -v --remove-orphans; exit $EXIT

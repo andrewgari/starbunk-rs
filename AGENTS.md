@@ -236,6 +236,7 @@ crates/
   covabot/                  # lib + bin
   djcova/                   # lib + bin
   ratbot/                   # lib + bin
+  ragtime/                  # lib + bin (sqlx migrations in crates/ragtime/migrations/)
 ```
 
 Per-bot module layout: `lib.rs` (wiring only) · `strategy.rs` · `<concern>.rs` · `main.rs`
@@ -253,6 +254,7 @@ Discord intents: `GUILD_MESSAGES | MESSAGE_CONTENT`. DJCova also needs `GUILD_VO
 | `covabot`   | LLM personality emulator, mimics a specific user's tone                          | `wiki/bots/CovaBot.md`   |
 | `djcova`    | Voice channel music streaming, YouTube queue per guild                            | `wiki/bots/DJCova.md`    |
 | `ratbot`    | Secret Santa organiser — sign-ups, matching, DM notifications                    | `wiki/bots/RatBot.md`    |
+| `ragtime`   | Trivia bot — Postgres question bank (foundation only; game logic is future work) | `wiki/bots/Ragtime.md`   |
 
 ---
 
