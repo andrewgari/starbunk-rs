@@ -40,6 +40,8 @@ jobs:
               - 'crates/djcova/**'
             ratbot:
               - 'crates/ratbot/**'
+            ragtime:
+              - 'crates/ragtime/**'
             shared_discord:
               - 'crates/starbunk/src/discord/**'
             shared_llm:
@@ -99,8 +101,8 @@ jobs:
           fi
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
-            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
-            for p in starbunk bluebot bunkbot covabot djcova ratbot; do
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot" "ragtime")
+            for p in starbunk bluebot bunkbot covabot djcova ratbot ragtime; do
               add_pkg "$p"
             done
           else
@@ -109,6 +111,7 @@ jobs:
             COVABOT_CHANGED="${{ steps.filter.outputs.covabot }}"
             DJCOVA_CHANGED="${{ steps.filter.outputs.djcova }}"
             RATBOT_CHANGED="${{ steps.filter.outputs.ratbot }}"
+            RAGTIME_CHANGED="${{ steps.filter.outputs.ragtime }}"
 
             # shared_replybot only affects bluebot
             if [ "${{ steps.filter.outputs.shared_replybot }}" == "true" ]; then
@@ -128,6 +131,7 @@ jobs:
             [[ "$COVABOT_CHANGED"   == "true" ]] && BOTS+=("covabot")   && add_pkg "covabot"
             [[ "$DJCOVA_CHANGED"    == "true" ]] && BOTS+=("djcova")    && add_pkg "djcova"
             [[ "$RATBOT_CHANGED"    == "true" ]] && BOTS+=("ratbot")    && add_pkg "ratbot"
+            [[ "$RAGTIME_CHANGED"   == "true" ]] && BOTS+=("ragtime")   && add_pkg "ragtime"
           fi
 
           if [ ${#BOTS[@]} -eq 0 ]; then

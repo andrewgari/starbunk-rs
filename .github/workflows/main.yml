@@ -49,6 +49,8 @@ jobs:
               - 'crates/djcova/**'
             ratbot:
               - 'crates/ratbot/**'
+            ragtime:
+              - 'crates/ragtime/**'
             ui:
               - 'starbunk-ui/**'
             shared:
@@ -84,13 +86,14 @@ jobs:
           fi
 
           if [ "$GLOBAL_CHANGE" == "true" ]; then
-            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot")
+            BOTS=("bluebot" "bunkbot" "covabot" "djcova" "ratbot" "ragtime")
           else
             [[ "${{ steps.filter.outputs.bluebot }}"   == "true" ]] && BOTS+=("bluebot")
             [[ "${{ steps.filter.outputs.bunkbot }}"   == "true" ]] && BOTS+=("bunkbot")
             [[ "${{ steps.filter.outputs.covabot }}"   == "true" ]] && BOTS+=("covabot")
             [[ "${{ steps.filter.outputs.djcova }}"    == "true" ]] && BOTS+=("djcova")
             [[ "${{ steps.filter.outputs.ratbot }}"    == "true" ]] && BOTS+=("ratbot")
+            [[ "${{ steps.filter.outputs.ragtime }}"   == "true" ]] && BOTS+=("ragtime")
           fi
 
           if [ ${#BOTS[@]} -eq 0 ]; then

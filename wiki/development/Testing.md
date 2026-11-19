@@ -44,6 +44,23 @@ cargo test test_blue_strategy_triggers
 cargo test -- --nocapture
 ```
 
+## Database Tests (`#[sqlx::test]`)
+
+Repository code that talks to Postgres is tested with `#[sqlx::test]` (first used by
+`crates/ragtime/tests/question_repository.rs`). Each test gets a fresh throwaway database and
+the crate's `migrations/` directory is applied automatically before the test body runs.
+
+CI has no Postgres service, so these tests are marked `#[ignore = "needs Postgres ..."]` and
+must be run locally against a real server:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d postgres
+DATABASE_URL=postgres://starbunk:starbunk@localhost:5432/starbunk_memory \
+    cargo test -p ragtime -- --ignored
+```
+
+The `DATABASE_URL` user needs `CREATEDB` (the compose `starbunk` superuser has it).
+
 ## Writing Tests
 
 Use Rust's assertion macros:
