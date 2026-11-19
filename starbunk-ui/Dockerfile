@@ -3,12 +3,12 @@
 
 FROM node:22-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm install --omit=dev
 
 FROM node:22-slim AS builder
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm install
 COPY . .
 RUN npm run build

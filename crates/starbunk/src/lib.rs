@@ -1,3 +1,4 @@
+#![allow(clippy::double_must_use)]
 pub mod api;
 pub mod audit;
 pub mod config_store;
