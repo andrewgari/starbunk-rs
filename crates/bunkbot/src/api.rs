@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Returns `true` for write errors that are expected and harmless in a
-/// Kubernetes environment (read-only config mounts).  Every other error is
+/// Returns `true` for write errors that are expected and harmless when the
+/// config directory is a read-only mount (e.g. a `:ro` Docker bind mount).  Every other error is
 /// unexpected and should surface as a 500.
 fn is_expected_write_error(e: &std::io::Error) -> bool {
     matches!(
@@ -49,7 +49,7 @@ pub fn router(state: ApiState) -> Router {
 }
 
 /// Liveness probe — always returns 200 OK.
-/// Used by Kubernetes to determine whether the process is alive.
+/// Used by container health checks to determine whether the process is alive.
 async fn live() -> axum::http::StatusCode {
     axum::http::StatusCode::OK
 }
@@ -156,7 +156,7 @@ async fn post_config(
             tracing::warn!(
                 path = %path,
                 err = %e,
-                "config write skipped — read-only filesystem (expected in K8s)"
+                "config write skipped — read-only filesystem (expected with a read-only config mount)"
             );
         } else {
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
@@ -385,7 +385,7 @@ async fn put_bots(
             tracing::warn!(
                 path = %path,
                 err = %e,
-                "config write skipped — read-only filesystem (expected in K8s)"
+                "config write skipped — read-only filesystem (expected with a read-only config mount)"
             );
         } else {
             tracing::error!(path = %path, err = %e, "unexpected config write failure");
@@ -577,7 +577,7 @@ mod tests {
         let e = std::io::Error::from(std::io::ErrorKind::ReadOnlyFilesystem);
         assert!(
             is_expected_write_error(&e),
-            "ReadOnlyFilesystem should be treated as an expected K8s error"
+            "ReadOnlyFilesystem should be treated as an expected read-only-mount error"
         );
     }
 
@@ -586,7 +586,7 @@ mod tests {
         let e = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
         assert!(
             is_expected_write_error(&e),
-            "PermissionDenied should be treated as an expected K8s error"
+            "PermissionDenied should be treated as an expected read-only-mount error"
         );
     }
 
