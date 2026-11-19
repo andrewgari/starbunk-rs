@@ -33,38 +33,14 @@ ${BOTNAME_TOKEN:-${STARBUNK_TOKEN}}
 BunkBot reads its reply bot routing and triggers configuration from a `bots.yml` file:
 
 - **Local Development**: Looks for `config/bunkbot/bots.yml` relative to the workspace root. This path is gitignored to avoid leaking custom reply personas to GitHub.
-- **Production (GKE)**: Mounted from the `bunkbot-configs` Kubernetes ConfigMap into the pod at `/app/config/bunkbot/bots.yml`.
-  - To update this configuration in production, you should use the UI which calls Bunkbot's API to update the ConfigMap and triggers a reload. Alternatively, you can run `./scripts/deploy_config.sh` from the workspace root.
-
-## Kubernetes Manifest Deployment (deploy_k8s.sh)
-
-To simplify and automate applying all Kubernetes manifests in the `kubernetes/` directory to the GKE cluster, use the `./scripts/deploy_k8s.sh` script from the workspace root:
-
-- **Usage**:
-  ```bash
-  ./scripts/deploy_k8s.sh [image-tag]
-  ```
-- **Arguments**:
-  - `image-tag` (optional): If specified, the script automatically pins all five bot deployments (`bluebot`, `bunkbot`, `covabot`, `djcova`, and `ratbot`) to that specific Docker image tag in the GKE registry. If omitted, it defaults to using `latest` (applying the manifests as configured in the files).
-- **Execution**: The script runs all steps inside a temporary `google/cloud-sdk:latest` Docker container, fetching credentials, applying the namespace and manifests, and verifying the rollout status of all pods.
-
-## Rolling Restart of Bots (restart_bots.sh)
-
-To perform a zero-downtime rolling restart of the bots or other infrastructure in GKE, use the `./scripts/restart_bots.sh` script:
-
-- **Usage**:
-  ```bash
-  ./scripts/restart_bots.sh [all|bot-name]
-  ```
-- **Arguments**:
-  - `all` (default): Triggers a rolling restart for all five bot deployments (`bluebot`, `bunkbot`, `covabot`, `djcova`, and `ratbot`).
-  - `bot-name`: Triggers a rolling restart for a specific deployment or statefulset (e.g. `bunkbot`, `postgres`, `otel-collector`).
+- **Production (Tower)**: Bind-mounted read-only from `/mnt/config/appdata/starbunk/config/bunkbot` on Tower into the container at `/app/config/bunkbot/bots.yml` (see `docker/docker-compose.tower.yml`).
+  - To update this configuration in production, edit the file on Tower and BunkBot hot-reloads it, or use the UI, which POSTs the new YAML to BunkBot's `/config` API for an in-memory reload.
 
 ## Docker Compose Files
 
 | File | Purpose |
 |---|---|
-| `docker-compose.yml` | **Production** — pulls pre-built GHCR images. Deployed to Tower by `deploy.yml`. Requires `stack.env` on the server. |
+| `docker/docker-compose.tower.yml` | **Production** — Tower/Portainer stack, builds from source. See [[Deployment]]. |
 | `docker/docker-compose.yml` | **Local dev** — builds from source using `docker/Dockerfile` with `BOT_NAME` build arg. |
 
 ## Local Dev Setup
