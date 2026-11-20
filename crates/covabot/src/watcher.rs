@@ -33,14 +33,14 @@ pub async fn watch_personality_file(
 
     if let Err(e) = watcher.watch(p, RecursiveMode::NonRecursive) {
         tracing::warn!("Failed to watch {}: {}", path_owned, e);
-        // Try watching the parent directory as a fallback for kubernetes configmaps
+        // Try watching the parent directory as a fallback for atomically-replaced (symlink-swapped) config mounts
         if let Some(parent) = p.parent() {
             if let Err(e2) = watcher.watch(parent, RecursiveMode::NonRecursive) {
                 tracing::error!("Failed to watch parent directory either: {}", e2);
                 return Err(e2.into());
             } else {
                 tracing::info!(
-                    "Watching parent directory {} instead (Kubernetes fallback)",
+                    "Watching parent directory {} instead (parent-directory fallback)",
                     parent.display()
                 );
             }
