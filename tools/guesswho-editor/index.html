@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guess Who Character Editor</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{font:14px system-ui,sans-serif;margin:0;background:#16181d;color:#e6e6e6}
+  header{padding:10px 16px;background:#20242c;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:2}
+  header h1{font-size:16px;margin:0 12px 0 0}
+  button,input[type=file]{font:inherit}
+  button{background:#3a6df0;color:#fff;border:0;padding:5px 12px;border-radius:4px;cursor:pointer}
+  button.sec{background:#444a57} button.del{background:#b43c3c;padding:3px 8px}
+  input[type=text]{background:#101216;color:#e6e6e6;border:1px solid #3a3f4b;border-radius:3px;padding:4px 6px;font:inherit}
+  main{display:flex;gap:16px;padding:16px;align-items:flex-start}
+  #tableWrap{flex:1;min-width:0}
+  table{border-collapse:collapse;width:100%}
+  th,td{border-bottom:1px solid #2c303a;padding:2px 4px;text-align:left;vertical-align:top}
+  td input{width:100%;box-sizing:border-box}
+  td.n{width:30%} td.s{width:25%} td.a{width:60px;text-align:center}
+  td.idx{width:36px;color:#777}
+  .bad input{border-color:#e05555;background:#3a1a1a}
+  .msg{color:#ff8a8a;font-size:12px;min-height:0}
+  #status{margin-left:auto}
+  #status.ok{color:#7fd48a} #status.err{color:#ff8a8a}
+  aside{width:300px;background:#20242c;padding:12px;border-radius:6px;position:sticky;top:60px;max-height:85vh;overflow:auto}
+  aside h2{font-size:14px;margin:0 0 8px} .cfg{margin-bottom:10px;border-top:1px solid #2c303a;padding-top:6px}
+  .chip{display:inline-block;background:#33384a;border-radius:10px;padding:1px 8px;margin:2px;font-size:12px}
+  .chip b{cursor:pointer;margin-left:4px;color:#ff8a8a}
+</style>
+</head>
+<body>
+<header>
+  <h1>Guess Who Editor</h1>
+  <input type="file" id="file" accept=".csv,text/csv">
+  <button id="add">+ Add row</button>
+  <button id="dl" class="sec">Download CSV</button>
+  <input type="text" id="filter" placeholder="Filter / search…" size="24">
+  <span id="status"></span>
+</header>
+<main>
+  <div id="tableWrap">
+    <table><thead><tr><th>#</th><th>name</th><th>source</th><th>tags (key:value;…)</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table>
+  </div>
+  <aside>
+    <h2>Config: allowed tags</h2>
+    <div id="cfg"></div>
+    <div><input type="text" id="newKey" placeholder="new key" size="12"> <button id="addKey" class="sec">Add key</button></div>
+    <p style="font-size:12px;color:#999">Saved to localStorage automatically.</p>
+  </aside>
+</main>
+<script>
+const DEFAULT_CFG={color:['black','blue','brown','gray','green','multi','orange','pink','purple','red','white','yellow'],
+ size:['giant','large','small','tiny'],species:['alien','animal','human','monster','object','other','plant','robot'],
+ era:['ancient','future','medieval','modern'],medium:['anime','book','cartoon','comic','film','game','myth','tv']};
+const LS='guesswho-editor-config';
+let cfg;try{cfg=JSON.parse(localStorage.getItem(LS))}catch(e){}
+if(!cfg||typeof cfg!=='object')cfg=JSON.parse(JSON.stringify(DEFAULT_CFG));
+let rows=[]; // {name,source,tags}
+const $=id=>document.getElementById(id);
+
+function parseCSV(text){
+  const out=[];let row=[],f='',q=false;
+  if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);out.push(row);row=[];f=''}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);out.push(row)}
+  return out.filter(r=>!(r.length===1&&r[0]===''));
+}
+const esc=v=>/[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+function toCSV(){return [['name','source','tags'],...rows.map(r=>[r.name,r.source,r.tags])].map(r=>r.map(esc).join(',')).join('\r\n')+'\r\n'}
+
+function tagErrors(t){
+  const errs=[];if(!t.trim())return errs;
+  for(const p of t.split(';')){
+    if(p===''){errs.push('empty tag segment');continue}
+    const m=p.split(':');
+    if(m.length!==2||!m[0]||!m[1]){errs.push(`"${p}" is not key:value`);continue}
+    if(!Object.hasOwn(cfg,m[0]))errs.push(`unknown key "${m[0]}"`);
+    else if(!/^[a-z]+$/.test(m[1]))errs.push(`value "${m[1]}" must be lowercase letters`);
+    else if(!cfg[m[0]].includes(m[1]))errs.push(`"${m[1]}" not allowed for ${m[0]}`);
+  }
+  return errs;
+}
+function validate(){
+  const seen=Object.create(null);rows.forEach((r,i)=>{const k=r.name.trim().toLowerCase();(seen[k]=seen[k]||[]).push(i)});
+  let bad=0;
+  rows.forEach((r,i)=>{
+    const e=[];const k=r.name.trim().toLowerCase();
+    if(!k)e.push('name required');else if(seen[k].length>1)e.push('duplicate name');
+    e.push(...tagErrors(r.tags));
+    r._err=e;if(e.length)bad++;
+    const tr=r._tr;if(tr){tr.classList.toggle('bad',e.length>0);tr.querySelector('.msg').textContent=e.join('; ')}
+  });
+  const s=$('status');s.className=bad?'err':'ok';
+  s.textContent=`${rows.length} rows, ${bad} invalid`;
+}
+function render(){
+  const tb=$('rows');tb.innerHTML='';const f=$('filter').value.toLowerCase();
+  rows.forEach((r,i)=>{
+    if(f&&!(r.name+' '+r.source+' '+r.tags).toLowerCase().includes(f))return;
+    const tr=document.createElement('tr');r._tr=tr;
+    tr.innerHTML='<td class="idx"></td><td class="n"><input type="text"></td><td class="s"><input type="text"></td><td><input type="text"><div class="msg"></div></td><td class="a"><button class="del" title="Delete row">✕</button></td>';
+    tr.children[0].textContent=i+1;
+    const ins=tr.querySelectorAll('input');
+    ['name','source','tags'].forEach((k,j)=>{ins[j].value=r[k];ins[j].addEventListener('input',()=>{r[k]=ins[j].value;validate()})});
+    tr.querySelector('.del').onclick=()=>{rows.splice(rows.indexOf(r),1);render()};
+    tb.appendChild(tr);
+  });
+  validate();
+}
+function renderCfg(){
+  const c=$('cfg');c.innerHTML='';
+  Object.keys(cfg).forEach(k=>{
+    const d=document.createElement('div');d.className='cfg';
+    const h=document.createElement('b');h.textContent=k+' ';
+    const rm=document.createElement('button');rm.className='del';rm.textContent='remove key';rm.onclick=()=>{delete cfg[k];saveCfg()};
+    d.append(h,rm,document.createElement('br'));
+    cfg[k].forEach(v=>{const s=document.createElement('span');s.className='chip';s.textContent=v;
+      const x=document.createElement('b');x.textContent='×';x.onclick=()=>{cfg[k]=cfg[k].filter(y=>y!==v);saveCfg()};s.appendChild(x);d.appendChild(s)});
+    const i=document.createElement('input');i.type='text';i.size=10;i.placeholder='new value';
+    const a=document.createElement('button');a.className='sec';a.textContent='Add';
+    a.onclick=()=>{const v=i.value.trim();if(!/^[a-z]+$/.test(v)){i.style.borderColor='#e05555';return}
+      if(!cfg[k].includes(v))cfg[k].push(v);saveCfg()};
+    d.append(document.createElement('br'),i,' ',a);c.appendChild(d);
+  });
+}
+function saveCfg(){localStorage.setItem(LS,JSON.stringify(cfg));renderCfg();validate()}
+$('addKey').onclick=()=>{const k=$('newKey').value.trim();if(/^[a-z]+$/.test(k)&&!Object.hasOwn(cfg,k)){cfg[k]=[];$('newKey').value='';saveCfg()}};
+$('filter').addEventListener('input',render);
+$('add').onclick=()=>{rows.push({name:'',source:'',tags:''});$('filter').value='';render();
+  const ins=$('rows').lastElementChild.querySelector('input');ins.focus();ins.scrollIntoView()};
+$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  const data=parseCSV(await f.text());const hdr=(data.shift()||[]).map(s=>s.trim().toLowerCase());
+  const ix=['name','source','tags'].map(k=>hdr.indexOf(k));
+  rows=data.map(r=>({name:r[ix[0]]||'',source:ix[1]>=0?r[ix[1]]||'':'',tags:ix[2]>=0?r[ix[2]]||'':''}));render()};
+$('dl').onclick=()=>{const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([toCSV()],{type:'text/csv'}));a.download='guesswho_characters.csv';
+  document.body.appendChild(a);a.click();a.remove()};
+renderCfg();render();
+</script>
+</body>
+</html>

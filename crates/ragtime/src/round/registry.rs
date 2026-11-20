@@ -193,7 +193,9 @@ impl RoundRegistry {
         if !game.is_player(user) {
             return Err(RoundError::NotInRound);
         }
-        if index != open {
+        if index != open || game.question_expired(now) {
+            // An answer at/after the deadline is stale: the scheduled `tick`
+            // owns the timeout transition, so scheduler order can't change scoring.
             return Err(RoundError::StaleQuestion);
         }
         if game.answers.contains_key(&user) {

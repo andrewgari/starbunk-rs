@@ -6,10 +6,8 @@
 #   - Prometheus remote-write (metrics)
 #   - Langfuse (traces)
 #
-# Tower variant of observability/otel-collector.yaml: the GCP Cloud Logging
-# Pub/Sub receiver and its gcp.container_name transform are removed, because
-# Tower has no GCP credentials and the GKE pipeline is retired. Keep the two
-# files in sync for everything else.
+# Tower variant of observability/otel-collector.yaml (local dev). The two
+# pipelines are identical — keep the files in sync.
 
 receivers:
   otlp:

@@ -160,6 +160,33 @@ async fn partial_update_leaves_other_fields_unchanged(pool: PgPool) -> anyhow::R
 
 #[sqlx::test]
 #[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+async fn update_with_some_empty_answers_clears_the_field(pool: PgPool) -> anyhow::Result<()> {
+    let repo = PgQuestionRepository::from_pool(pool);
+    let original = repo.create(new_q(1)).await?;
+    assert!(!original.acceptable_answers.is_empty());
+
+    let updated = repo
+        .update(
+            original.id,
+            QuestionUpdate {
+                acceptable_answers: Some(Vec::new()),
+                ..Default::default()
+            },
+        )
+        .await?
+        .expect("existing row must update");
+
+    assert!(
+        updated.acceptable_answers.is_empty(),
+        "Some(vec![]) clears, it is not 'unchanged'"
+    );
+    assert_eq!(updated.question, original.question);
+    assert_eq!(updated.display_answer, original.display_answer);
+    Ok(())
+}
+
+#[sqlx::test]
+#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
 async fn delete_removes_the_row(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let seeded = seed(&repo, 2).await?;
@@ -204,13 +231,23 @@ async fn random_returns_at_most_n_distinct_rows(pool: PgPool) -> anyhow::Result<
     let seeded = seed(&repo, 10).await?;
     let all_ids = ids(&seeded);
 
-    for _ in 0..5 {
+    let mut samples: Vec<Vec<i64>> = Vec::new();
+    for _ in 0..20 {
         let picked = repo.random(3).await?;
         assert_eq!(picked.len(), 3, "10 rows available, so exactly 3 returned");
         let picked_ids = ids(&picked);
         assert_eq!(picked_ids.len(), picked.len(), "rows are distinct");
         assert!(picked_ids.is_subset(&all_ids), "rows come from the table");
+        let mut sorted: Vec<i64> = picked.iter().map(|q| q.id).collect();
+        sorted.sort_unstable();
+        samples.push(sorted);
     }
+    // Chance of 20 identical samples from C(10,3)=120 combos is negligible
+    // for a genuinely random implementation; "always first 3 rows" fails here.
+    assert!(
+        samples.iter().any(|s| s != &samples[0]),
+        "random() must vary between calls, got the same sample 20 times"
+    );
     Ok(())
 }
 

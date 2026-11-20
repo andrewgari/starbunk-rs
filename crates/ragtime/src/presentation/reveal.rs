@@ -14,17 +14,31 @@ pub struct RevealInfo {
     pub correct_users: Vec<u64>,
 }
 
+/// Room for the mention list inside the 4096-character description limit,
+/// leaving headroom for the answer text and the "...and N more" marker.
+const MENTION_BUDGET: usize = 3000;
+
 /// Build the reveal embed for a question that just closed.
 pub fn reveal_embed(reveal: &RevealInfo) -> CreateEmbed {
     let who = if reveal.correct_users.is_empty() {
         "Nobody answered correctly.".to_string()
     } else {
-        let mentions: Vec<String> = reveal
-            .correct_users
-            .iter()
-            .map(|id| format!("<@{id}>"))
-            .collect();
-        format!("Correct: {}", mentions.join(", "))
+        let mut shown: Vec<String> = Vec::new();
+        let mut len = "Correct: ".len();
+        for id in &reveal.correct_users {
+            let m = format!("<@{id}>");
+            if len + m.len() + 2 > MENTION_BUDGET {
+                break;
+            }
+            len += m.len() + 2;
+            shown.push(m);
+        }
+        let hidden = reveal.correct_users.len() - shown.len();
+        let mut line = format!("Correct: {}", shown.join(", "));
+        if hidden > 0 {
+            line.push_str(&format!(" ...and {hidden} more"));
+        }
+        line
     };
 
     CreateEmbed::new().title("Reveal").description(format!(
@@ -39,6 +53,18 @@ mod tests {
 
     fn embed_json(embed: &CreateEmbed) -> serde_json::Value {
         serde_json::to_value(embed).expect("CreateEmbed must serialize")
+    }
+
+    #[test]
+    fn huge_correct_list_is_truncated_under_discord_limit() {
+        let reveal = RevealInfo {
+            display_answer: "Paris".to_string(),
+            correct_users: (0..1000u64).map(|n| 100_000_000_000_000_000 + n).collect(),
+        };
+        let json = embed_json(&reveal_embed(&reveal));
+        let description = json["description"].as_str().unwrap();
+        assert!(description.chars().count() <= 4096);
+        assert!(description.contains("more"));
     }
 
     #[test]

@@ -7,8 +7,7 @@ name: Weekly Release
 
 # Triggered by schedule every Sunday at midnight, or manually.
 # Lint → test → determine next semver (minor bump) → build all bots
-# → push :vX.Y.Z + :latest + :sha-<sha> → create git tag → GitHub Release
-# → deploy.yml fires automatically via the published release event.
+# → push :vX.Y.Z + :latest + :sha-<sha> → create git tag → GitHub Release.
 
 on:
   workflow_dispatch:
@@ -146,8 +145,7 @@ jobs:
 
   # ─── Tag + release ────────────────────────────────────────────────────────────
   #
-  # Creates the semver git tag and a GitHub Release. The published release event
-  # triggers deploy.yml automatically.
+  # Creates the semver git tag and a GitHub Release.
   release:
     if: ${{ vars.GCP_PIPELINES_ENABLED == 'true' }} # retired GCP pipeline
     name: Create Release

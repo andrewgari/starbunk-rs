@@ -514,6 +514,21 @@ fn timeout_closes_question_with_partial_answers() {
 }
 
 #[test]
+fn answer_at_or_after_deadline_is_rejected_and_not_scored() {
+    let t0 = Instant::now();
+    let (mut reg, qs) = started(&[ALICE, BOB], 3, t0);
+    reg.submit_answer(CH, ALICE, 0, &right(&qs[0]), t0).unwrap();
+
+    assert_eq!(
+        reg.submit_answer(CH, BOB, 0, &right(&qs[0]), t0 + QUESTION_TIMEOUT),
+        Err(RoundError::StaleQuestion),
+        "an answer at the deadline must not count, even if tick has not run yet"
+    );
+    let events = reg.tick(t0 + QUESTION_TIMEOUT);
+    assert_eq!(reveal(&events).correct, vec![ALICE]);
+}
+
+#[test]
 fn stale_timer_after_early_close_is_a_no_op() {
     let t0 = Instant::now();
     let t1 = t0 + Duration::from_secs(30);
