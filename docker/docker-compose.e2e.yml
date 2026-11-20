@@ -33,6 +33,7 @@ services:
       - E2E_SUITE_PATH=${E2E_SUITE_PATH:-crates/e2e/suites/bunkbot_bluebot.json}
       - E2E_START_BOTS=true
       - E2E_TEST_BOTS=${E2E_TEST_BOTS:-bunkbot,bluebot}
+      - E2E_STARTUP_WAIT_SECS=${E2E_STARTUP_WAIT_SECS:-5}
       - DATABASE_URL=postgresql://starbunk:starbunk@postgres:5432/starbunk_memory
       - ANTHROPIC_API_KEY
       - OPENAI_API_KEY
@@ -44,3 +45,7 @@ services:
       - LLM_TIER_MEDIUM_MODEL=${LLM_TIER_MEDIUM_MODEL:-gemini-1.5-flash}
       - LLM_TIER_LOW_PROVIDER=${LLM_TIER_LOW_PROVIDER:-openai}
       - LLM_TIER_LOW_MODEL=${LLM_TIER_LOW_MODEL:-text-embedding-3-small}
+    # The runtime image only contains the runner binary; mount the suites so
+    # E2E_SUITE_PATH (relative to WORKDIR /app) resolves.
+    volumes:
+      - ../crates/e2e/suites:/app/crates/e2e/suites:ro
