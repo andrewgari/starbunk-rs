@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 const BUNKBOT_API_URL = process.env.BUNKBOT_API_URL || "http://localhost:9082";
 import * as yaml from "js-yaml";
-import { updateBotConfig, setBotState } from "@/app/actions";
+import { updateBotConfig } from "@/app/actions";
 
 export async function getBunkBotConfig() {
   try {
@@ -32,7 +32,7 @@ export async function getBunkBotConfigJson() {
 
 export async function saveBunkBotConfig(yaml: string) {
   try {
-    // 1. Always persist to Kubernetes Secret / Disk first
+    // 1. Always persist to disk first
     const saveResult = await updateBotConfig("bunkbot", "bots.yml", yaml);
     if (!saveResult.success) {
       return saveResult;
