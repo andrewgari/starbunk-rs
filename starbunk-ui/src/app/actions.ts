@@ -1,170 +1,103 @@
 "use server";
 
-import * as k8s from "@kubernetes/client-node";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 
-const NAMESPACE = process.env.K8S_NAMESPACE || "starbunk";
 const LOCAL_CONFIG_PATH = path.join(process.cwd(), "..", "config");
 
-function isNotFound(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    ("code" in err || "statusCode" in err) &&
-    ((err as Record<string, unknown>).code === 404 ||
-      (err as Record<string, unknown>).statusCode === 404)
-  );
+const BUNKBOT_API_URL = process.env.BUNKBOT_API_URL || "http://localhost:9082";
+const COVABOT_API_URL = process.env.COVABOT_API_URL || "http://localhost:3004";
+const DJCOVA_API_URL = process.env.DJCOVA_API_URL || "http://localhost:9084";
+
+const STATUS_TIMEOUT_MS = 2000;
+
+const BOT_NAMES = new Set(["bluebot", "bunkbot", "covabot", "djcova", "ratbot"]);
+const CONFIG_FILENAME_RE = /^[A-Za-z0-9._-]+\.ya?ml$/;
+
+async function requireSession(): Promise<void> {
+  const session = await auth();
+  if (!session) throw new Error("Unauthorized");
+}
+
+/** Resolve a config path, rejecting unknown bots and any path escaping LOCAL_CONFIG_PATH. */
+function resolveConfigPath(botName: string, filename?: string): string {
+  if (!BOT_NAMES.has(botName)) throw new Error("Invalid bot name");
+  if (filename !== undefined && (filename.includes("..") || !CONFIG_FILENAME_RE.test(filename))) {
+    throw new Error("Invalid filename");
+  }
+  const resolved = path.resolve(LOCAL_CONFIG_PATH, botName, filename ?? "");
+  const root = path.resolve(LOCAL_CONFIG_PATH) + path.sep;
+  if (!resolved.startsWith(root)) throw new Error("Path escapes config directory");
+  return resolved;
 }
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-let k8sAppsApi: k8s.AppsV1Api | null = null;
-let k8sCoreApi: k8s.CoreV1Api | null = null;
+export type BotState = "Running" | "Starting" | "Down" | "Unknown";
 
-try {
-  const kc = new k8s.KubeConfig();
-  kc.loadFromDefault();
-  k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
-  k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
-} catch (error) {
-  console.warn("Failed to initialize Kubernetes client. Continuing in local mode.", error);
-}
-
-export interface BotDeploymentStatus {
+export interface BotStatus {
   name: string;
-  replicas: number;
-  readyReplicas: number;
-  availableReplicas: number;
-  status: "Running" | "Stopped" | "Degraded" | "Unknown";
+  status: BotState;
+  /** Human-readable note on how the status was determined. */
+  detail: string;
 }
 
-export async function getBotDeployments(): Promise<BotDeploymentStatus[]> {
-  const bots = ["bunkbot", "covabot", "djcova", "bluebot", "ratbot"];
+/**
+ * How each bot's status is probed, using the HTTP API each bot already
+ * exposes. bluebot and ratbot only run the shared health server, which binds
+ * 127.0.0.1 inside their own container and is unreachable from the UI, so
+ * their status is always reported as "Unknown".
+ */
+const STATUS_PROBES: Record<string, string | null> = {
+  bunkbot: `${BUNKBOT_API_URL}/health`,
+  covabot: `${COVABOT_API_URL}/api/personality`,
+  djcova: `${DJCOVA_API_URL}/state`,
+  bluebot: null,
+  ratbot: null,
+};
 
-  if (!k8sAppsApi) {
-    return bots.map(bot => ({
-      name: bot,
-      replicas: 1,
-      readyReplicas: 1,
-      availableReplicas: 1,
-      status: "Running",
-    }));
+async function probe(name: string, url: string | null): Promise<BotStatus> {
+  if (!url) {
+    return { name, status: "Unknown", detail: "No reachable HTTP endpoint" };
   }
-
   try {
-    const statuses = await Promise.all(bots.map(async (bot) => {
-      try {
-        const dep = await k8sAppsApi!.readNamespacedDeployment({ name: bot, namespace: NAMESPACE });
-        const replicas = dep.spec?.replicas ?? 0;
-        const ready = dep.status?.readyReplicas ?? 0;
-
-        let status: BotDeploymentStatus["status"] = "Unknown";
-        if (replicas === 0) status = "Stopped";
-        else if (ready === replicas) status = "Running";
-        else status = "Degraded";
-
-        return {
-          name: bot,
-          replicas,
-          readyReplicas: ready,
-          availableReplicas: dep.status?.availableReplicas ?? 0,
-          status,
-        };
-      } catch (err: unknown) {
-        if (isNotFound(err)) {
-          return { name: bot, replicas: 0, readyReplicas: 0, availableReplicas: 0, status: "Unknown" as const };
-        }
-        throw err;
-      }
-    }));
-    return statuses;
-  } catch (error) {
-    console.error("Error fetching deployments:", error);
-    return bots.map(bot => ({ name: bot, replicas: 0, readyReplicas: 0, availableReplicas: 0, status: "Unknown" as const }));
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+    });
+    if (res.ok) return { name, status: "Running", detail: `${url} → ${res.status}` };
+    if (res.status === 503) return { name, status: "Starting", detail: `${url} → 503` };
+    return { name, status: "Down", detail: `${url} → ${res.status}` };
+  } catch (err: unknown) {
+    return { name, status: "Unknown", detail: `${url} unreachable: ${errMsg(err)}` };
   }
 }
 
-export async function setBotState(botName: string, action: "start" | "stop" | "restart") {
-  if (!k8sAppsApi) {
-    console.log(`[Mock] Action ${action} performed on ${botName}`);
-    revalidatePath("/");
-    return { success: true };
-  }
-
-  try {
-    if (action === "start" || action === "stop") {
-      const replicas = action === "start" ? 1 : 0;
-      await k8sAppsApi.patchNamespacedDeployment({
-        name: botName,
-        namespace: NAMESPACE,
-        body: [{ op: "replace", path: "/spec/replicas", value: replicas }],
-      });
-    } else {
-      const timestamp = new Date().toISOString();
-      try {
-        await k8sAppsApi.patchNamespacedDeployment({
-          name: botName,
-          namespace: NAMESPACE,
-          body: [{
-            op: "replace",
-            path: "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
-            value: timestamp,
-          }],
-        });
-      } catch (e: unknown) {
-        if (typeof e === "object" && e !== null && ((e as Record<string, unknown>).code === 422 || (e as Record<string, unknown>).statusCode === 422)) {
-          await k8sAppsApi.patchNamespacedDeployment({
-            name: botName,
-            namespace: NAMESPACE,
-            body: [{
-              op: "add",
-              path: "/spec/template/metadata/annotations",
-              value: { "kubectl.kubernetes.io/restartedAt": timestamp },
-            }],
-          });
-        } else {
-          throw e;
-        }
-      }
-    }
-
-    revalidatePath("/");
-    return { success: true };
-  } catch (error: unknown) {
-    console.error(`Error performing ${action} on ${botName}:`, error);
-    return { success: false, error: errMsg(error) };
-  }
+export async function getBotStatuses(): Promise<BotStatus[]> {
+  return Promise.all(
+    Object.entries(STATUS_PROBES).map(([name, url]) => probe(name, url)),
+  );
 }
 
 export async function getBotConfigs(botName: string): Promise<Record<string, string>> {
-  if (!k8sCoreApi) {
-    try {
-      const dirPath = path.join(LOCAL_CONFIG_PATH, botName);
-      await fs.mkdir(dirPath, { recursive: true });
-      const files = await fs.readdir(dirPath);
-      const configs: Record<string, string> = {};
-      for (const file of files) {
-        if (file.endsWith(".yml") || file.endsWith(".yaml")) {
-          configs[file] = await fs.readFile(path.join(dirPath, file), "utf-8");
-        }
-      }
-      return configs;
-    } catch (e) {
-      console.error(`Failed to read local configs for ${botName}`, e);
-      return {};
-    }
-  }
-
   try {
-    const cm = await k8sCoreApi.readNamespacedConfigMap({ name: `${botName}-configs`, namespace: NAMESPACE });
-    return cm.data ?? {};
-  } catch (error: unknown) {
-    if (isNotFound(error)) return {};
-    console.error(`Error reading config for ${botName}:`, error);
+    await requireSession();
+    const dirPath = resolveConfigPath(botName);
+    await fs.mkdir(dirPath, { recursive: true });
+    const files = await fs.readdir(dirPath);
+    const configs: Record<string, string> = {};
+    for (const file of files) {
+      if (file.endsWith(".yml") || file.endsWith(".yaml")) {
+        configs[file] = await fs.readFile(path.join(dirPath, file), "utf-8");
+      }
+    }
+    return configs;
+  } catch (e) {
+    console.error(`Failed to read local configs for ${botName}`, e);
     return {};
   }
 }
@@ -174,69 +107,27 @@ export async function updateBotConfig(
   filename: string,
   content: string | null,
 ): Promise<{ success: boolean; error?: string }> {
-  if (!k8sCoreApi) {
-    try {
-      const filePath = path.join(LOCAL_CONFIG_PATH, botName, filename);
-      if (content === null) {
-        await fs.unlink(filePath).catch(() => {});
-      } else {
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, content, "utf-8");
-      }
-      revalidatePath(`/${botName}`);
-      return { success: true };
-    } catch (e: unknown) {
-      return { success: false, error: errMsg(e) };
-    }
-  }
-
   try {
-    const configMapName = `${botName}-configs`;
-    let currentData: Record<string, string> = {};
-    let isCreate = false;
-    try {
-      const cm = await k8sCoreApi.readNamespacedConfigMap({ name: configMapName, namespace: NAMESPACE });
-      currentData = cm.data ?? {};
-    } catch (e: unknown) {
-      if (!isNotFound(e)) throw e;
-      isCreate = true;
-    }
-
+    await requireSession();
+    const filePath = resolveConfigPath(botName, filename);
     if (content === null) {
-      delete currentData[filename];
-    } else {
-      currentData[filename] = content;
-    }
-
-    const body = {
-      apiVersion: "v1",
-      kind: "ConfigMap",
-      metadata: { name: configMapName, namespace: NAMESPACE },
-      data: currentData,
-    };
-
-    if (isCreate) {
-      if (content === null) return { success: true }; // short-circuit deletes when missing
-      await k8sCoreApi.createNamespacedConfigMap({ namespace: NAMESPACE, body });
-    } else {
-      await k8sCoreApi.replaceNamespacedConfigMap({
-        name: configMapName,
-        namespace: NAMESPACE,
-        body,
+      await fs.unlink(filePath).catch((e: NodeJS.ErrnoException) => {
+        if (e.code !== "ENOENT") throw e;
       });
+    } else {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content, "utf-8");
     }
-
     revalidatePath(`/${botName}`);
     return { success: true };
-  } catch (error: unknown) {
-    console.error(`Error writing config for ${botName}:`, error);
-    return { success: false, error: errMsg(error) };
+  } catch (e: unknown) {
+    return { success: false, error: errMsg(e) };
   }
 }
 
 export async function getPersonality() {
   try {
-    const res = await fetch("http://localhost:9083/api/personality", {
+    const res = await fetch(`${COVABOT_API_URL}/api/personality`, {
       cache: "no-store",
     });
     if (!res.ok) throw new Error("Failed to fetch personality");
@@ -247,9 +138,10 @@ export async function getPersonality() {
   }
 }
 
-export async function patchPersonality(update: any) {
+export async function patchPersonality(update: Record<string, unknown>) {
   try {
-    const res = await fetch("http://localhost:9083/api/personality", {
+    await requireSession();
+    const res = await fetch(`${COVABOT_API_URL}/api/personality`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(update),

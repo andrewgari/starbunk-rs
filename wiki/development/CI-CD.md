@@ -1,10 +1,10 @@
 # CI/CD
 
-> **Note:** The GCP pipelines (`release.yml`, `health-check.yml`, `main.yml`,
-> `deploy.yml`, `deploy-pr.yml`) are retired — production is the Tower/Portainer
-> stack. They are manual-dispatch only and every job is gated on the repository
-> variable `GCP_PIPELINES_ENABLED` (unset ⇒ a dispatch does nothing). Only
-> `ci.yml` runs automatically. See
+> **Note:** The GCP pipelines (`release.yml`, `main.yml`) are retired —
+> production is the Tower/Portainer stack. They are manual-dispatch only and
+> every job is gated on the repository variable `GCP_PIPELINES_ENABLED` (unset ⇒
+> a dispatch does nothing). The cluster deploy workflows (`deploy.yml`, `deploy-pr.yml`,
+> `health-check.yml`) have been deleted — see [[../Changelog|Changelog]]. Only `ci.yml` runs automatically. See
 > [[../infrastructure/Deployment|Deployment]].
 
 ## Workflows
@@ -36,6 +36,27 @@ The `ci.yml` workflow optimizes execution times by gating jobs based on changed 
 - **E2E Integration Tests**: The E2E container build and integration tests are only executed if `bluebot`, `bunkbot`, `covabot`, `djcova`, `ratbot`, `ragtime`, or global/shared dependencies changed. Each live suite step (bunkbot+bluebot, djcova, ratbot, ragtime, covabot) is skipped when the `DISCORD_TOKEN` secret is absent.
 - **Quick PRs / Docker Skipping**: If the PR has the `quick-pr` or `skip-docker` label, all Docker container builds, Docker smoke tests, and E2E integration test runs are skipped entirely, allowing for fast verification.
 
+#### Toolchain & Clippy drift
+
+CI installs the **latest stable** Rust via `dtolnay/rust-toolchain@stable` (no
+pinned version), so a new stable release can introduce lints that a local
+toolchain does not report. Before blaming a PR for a Clippy failure, compare
+`cargo clippy --version` in the CI log with your local version and reproduce
+with the CI version:
+
+```bash
+rustup toolchain install 1.99.0 --profile minimal -c clippy
+cargo +1.99.0 clippy --all-targets --all-features -- -D warnings
+```
+
+**Known case — `clippy::double_must_use` on rustc/clippy 1.99 (2026-09-28).**
+`async-trait` ≤ 0.1.89 emitted a bare `#[must_use]` on the boxed-future methods
+it generates, which clippy 1.99 flags as `double_must_use` (24 errors across the
+`#[async_trait]` traits in `crates/starbunk`), failing *Lint & DevOps* on every
+PR. Fixed by requiring `async-trait = "0.1.92"` in the workspace `Cargo.toml`
+(and the matching `Cargo.lock` bump). Do not lower that floor. Prefer a
+dependency bump over pinning the CI toolchain or adding `#[allow]`s.
+
 
 ### `main.yml` — Merge to Main (retired)
 
@@ -44,13 +65,6 @@ test, compute the next semver, publish images to GCP Artifact Registry, and
 create a GitHub Release. The `push` trigger and the `confirm` input are gone; the
 workflow is manual-dispatch only and every job is gated on
 `GCP_PIPELINES_ENABLED`, so it no longer publishes anything by default.
-
-### `deploy.yml` — Deploy to GKE (retired)
-
-**Retired.** Previously fired on a published GitHub Release and deployed to GKE
-via `kubectl`. It is now manual-dispatch only and gated on
-`GCP_PIPELINES_ENABLED`. Production deploys happen on Tower through Portainer —
-see [[../infrastructure/Deployment|Deployment]].
 
 ---
 

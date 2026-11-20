@@ -4,11 +4,24 @@ use serenity::all::{ButtonStyle, CreateActionRow, CreateButton, CreateEmbed};
 
 use super::custom_id::{encode_button, AnswerRoute};
 
+/// Discord's hard cap on an embed description, in characters.
+const DESCRIPTION_LIMIT: usize = 4096;
+
 /// Build the embed for question `index` (0-based) of `total`.
+///
+/// Question text longer than Discord's 4096-character description limit is
+/// truncated with an ellipsis so the send cannot fail.
 pub fn question_embed(index: usize, total: usize, question_text: &str) -> CreateEmbed {
+    let description = if question_text.chars().count() > DESCRIPTION_LIMIT {
+        let mut t: String = question_text.chars().take(DESCRIPTION_LIMIT - 1).collect();
+        t.push('…');
+        t
+    } else {
+        question_text.to_string()
+    };
     CreateEmbed::new()
         .title(format!("Question {}/{total}", index + 1))
-        .description(question_text)
+        .description(description)
 }
 
 /// Build the \[Answer\] button for question `route.index` of the round
@@ -50,6 +63,12 @@ mod tests {
         let embed = question_embed(19, 20, "last one");
         let json = embed_json(&embed);
         assert_eq!(json["title"], "Question 20/20");
+    }
+
+    #[test]
+    fn oversized_question_text_is_truncated_to_discord_limit() {
+        let json = embed_json(&question_embed(0, 1, &"x".repeat(5000)));
+        assert_eq!(json["description"].as_str().unwrap().chars().count(), 4096);
     }
 
     #[test]

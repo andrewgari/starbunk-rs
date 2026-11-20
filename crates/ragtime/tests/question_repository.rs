@@ -1,17 +1,15 @@
-//! Contract tests for `PgQuestionRepository` (TDD PR 1).
+//! Contract tests for `PgQuestionRepository`.
 //!
 //! These run against a real Postgres via `#[sqlx::test]`, which creates a fresh
 //! database per test and applies `crates/ragtime/migrations/` automatically.
 //!
-//! They are `#[ignore]`d so CI (which has no Postgres service) stays green while
-//! the repository is still `todo!()`. Run them locally with:
+//! They are `#[ignore]`d because CI has no Postgres service.
+//! Run them locally with:
 //!
 //! ```bash
 //! DATABASE_URL=postgres://starbunk:starbunk@localhost:5432/starbunk_memory \
 //!     cargo test -p ragtime -- --ignored
 //! ```
-//!
-//! PR 2 implements the repository; the tests must then pass unchanged.
 
 use ragtime::question::{NewQuestion, Question, QuestionUpdate};
 use ragtime::repository::{PgQuestionRepository, QuestionRepository};
@@ -39,7 +37,7 @@ fn ids(qs: &[Question]) -> HashSet<i64> {
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn create_then_get_round_trips_every_field(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let input = NewQuestion {
@@ -66,7 +64,7 @@ async fn create_then_get_round_trips_every_field(pool: PgPool) -> anyhow::Result
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn create_preserves_empty_acceptable_answers(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let created = repo
@@ -82,7 +80,7 @@ async fn create_preserves_empty_acceptable_answers(pool: PgPool) -> anyhow::Resu
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn list_returns_all_rows(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     assert!(repo.list().await?.is_empty(), "fresh table lists nothing");
@@ -95,7 +93,7 @@ async fn list_returns_all_rows(pool: PgPool) -> anyhow::Result<()> {
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn update_changes_fields_and_bumps_updated_at(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let original = repo.create(new_q(1)).await?;
@@ -136,7 +134,7 @@ async fn update_changes_fields_and_bumps_updated_at(pool: PgPool) -> anyhow::Res
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn partial_update_leaves_other_fields_unchanged(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let original = repo.create(new_q(1)).await?;
@@ -159,7 +157,7 @@ async fn partial_update_leaves_other_fields_unchanged(pool: PgPool) -> anyhow::R
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn delete_removes_the_row(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let seeded = seed(&repo, 2).await?;
@@ -176,7 +174,7 @@ async fn delete_removes_the_row(pool: PgPool) -> anyhow::Result<()> {
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn missing_id_returns_none_or_false(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let missing = 9_999_999;
@@ -198,7 +196,7 @@ async fn missing_id_returns_none_or_false(pool: PgPool) -> anyhow::Result<()> {
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn random_returns_at_most_n_distinct_rows(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let seeded = seed(&repo, 10).await?;
@@ -215,7 +213,7 @@ async fn random_returns_at_most_n_distinct_rows(pool: PgPool) -> anyhow::Result<
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn random_with_n_larger_than_table_returns_all_rows(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     let seeded = seed(&repo, 4).await?;
@@ -227,7 +225,7 @@ async fn random_with_n_larger_than_table_returns_all_rows(pool: PgPool) -> anyho
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn random_zero_returns_empty(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     seed(&repo, 3).await?;
@@ -237,7 +235,7 @@ async fn random_zero_returns_empty(pool: PgPool) -> anyhow::Result<()> {
 }
 
 #[sqlx::test]
-#[ignore = "needs Postgres (DATABASE_URL); repository implemented in PR 2"]
+#[ignore = "needs Postgres (DATABASE_URL)"]
 async fn random_on_empty_table_returns_empty(pool: PgPool) -> anyhow::Result<()> {
     let repo = PgQuestionRepository::from_pool(pool);
     assert!(repo.random(5).await?.is_empty());
