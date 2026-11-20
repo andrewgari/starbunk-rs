@@ -146,3 +146,26 @@ answer and acceptable answers, used until the fuzzy `grade()` (card t_a1639804) 
 
 Contract tests: `crates/ragtime/tests/question_repository.rs` (`#[sqlx::test]`, `#[ignore]`d in
 CI because they need Postgres). See [[development/Testing|Testing]] for how to run them.
+
+### End-to-end coverage of the round flow
+
+The round flow is checked end to end in two places, split by what can be driven automatically:
+
+| Step | Live Discord (`crates/e2e/suites/ragtime.json`) | Engine e2e (`discord_wiring.rs::e2e_round_flow_two_questions`) |
+|---|---|---|
+| @mention opens the "Ragtime contest" lobby | yes | yes |
+| second mention → "already running"; bot mentions and non-mentions ignored | yes | partly (`second_mention_in_same_channel_is_already_running`) |
+| join via 🙋 reaction | no: one token, and webhooks can't react | yes |
+| non-host `/ragtime start` rejected; host start posts Q1 | no: bots can't invoke slash commands | yes |
+| answer via button + modal recorded; non-joined user gets "not in this round" | no: needs a real user client; replies are ephemeral | yes |
+| early close when all answered; reveal mentions the correct players | no: depends on modal answers | yes |
+| final tally after the last question | no | yes |
+
+The engine test uses a 2-question in-memory bank and paused tokio time. The timeouts
+(`QUESTION_TIMEOUT`, `LOBBY_TIMEOUT`, `HOST_ABANDON_TIMEOUT`) are compile-time constants with no
+env override, so the live suite never waits on them. Everything in the "no" column is also
+part of the manual two-account guild run.
+
+To let the runner's webhook open a lobby, the handler classifies authors with
+`StarbunkMessage::from_serenity`: outside E2E mode every bot/webhook author is still ignored, and
+in E2E mode `[E2E_HUMAN]` / `[E2E_MOCK_USER:id]` webhook posts count as users.
