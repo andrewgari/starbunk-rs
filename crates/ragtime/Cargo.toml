@@ -21,7 +21,11 @@ tracing.workspace            = true
 sqlx.workspace               = true
 chrono.workspace             = true
 rand.workspace               = true
+axum.workspace               = true
+serde.workspace              = true
+serde_json.workspace         = true
 
 [dev-dependencies]
-serde_json.workspace         = true
+tower.workspace              = true
+http-body-util.workspace     = true
 tokio                        = { workspace = true, features = ["test-util"] }

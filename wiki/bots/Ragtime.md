@@ -169,3 +169,18 @@ part of the manual two-account guild run.
 To let the runner's webhook open a lobby, the handler classifies authors with
 `StarbunkMessage::from_serenity`: outside E2E mode every bot/webhook author is still ignored, and
 in E2E mode `[E2E_HUMAN]` / `[E2E_MOCK_USER:id]` webhook posts count as users.
+
+## Admin HTTP API
+
+Token-protected CRUD over the question bank (`crates/ragtime/src/api.rs`), served by `ragtime::run` on
+`RAGTIME_API_ADDR` (default `0.0.0.0:9085`). Mirrors bunkbot's `BUNKBOT_API_URL` / `BUNKBOT_ADMIN_TOKEN`
+pattern but uses its own variables: the UI reads `RAGTIME_API_URL` (default `http://localhost:9085`) and
+sends `Authorization: Bearer <RAGTIME_ADMIN_TOKEN>`. If `RAGTIME_ADMIN_TOKEN` is unset/blank every request gets 401 (fail closed).
+
+| Method | Path | Success |
+|---|---|---|
+| GET / POST | `/api/ragtime/questions` | 200 list / 201 created |
+| GET / PUT / DELETE | `/api/ragtime/questions/:id` | 200 / 200 (full replace) / 204 |
+
+Errors are `{"error": "..."}`: 400 bad id/JSON, 400/422 invalid body, 401, 404, 500 (generic message).
+Input is trimmed; blank acceptable answers are dropped.
