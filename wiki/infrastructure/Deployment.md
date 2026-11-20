@@ -25,11 +25,11 @@ All three build the bots from `docker/Dockerfile` with a `BOT_NAME` build arg.
 | Collector config | `observability/otel-collector.tower.yaml` (mounted from `/mnt/config/appdata/starbunk/observability/`) |
 | Host appdata root | `/mnt/config/appdata/starbunk/` |
 | Bot config (read-only bind mounts) | `/mnt/config/appdata/starbunk/config/{bunkbot,covabot}` |
-| Bot tokens | `BLUEBOT_TOKEN`, `BUNKBOT_TOKEN`, `COVABOT_TOKEN`, `DJCOVA_TOKEN`, `RATBOT_TOKEN` |
+| Bot tokens | `BLUEBOT_TOKEN`, `BUNKBOT_TOKEN`, `COVABOT_TOKEN`, `DJCOVA_TOKEN`, `RATBOT_TOKEN`, `RAGTIME_TOKEN` |
 
 Services: `otel-collector`, `loki`, `tempo`, `prometheus`, `grafana`,
-`postgres` (pgvector), and the five bots (`bluebot`, `bunkbot`, `covabot`,
-`djcova`, `ratbot`). Every service uses `restart: unless-stopped`; bots wait on
+`postgres` (pgvector), and the six bots (`bluebot`, `bunkbot`, `covabot`,
+`djcova`, `ratbot`, `ragtime`). Every service uses `restart: unless-stopped`; bots wait on
 `otel-collector` (and `postgres` where they need it) being healthy.
 
 ### Deploy / update
@@ -84,7 +84,7 @@ password:
 | `POSTGRES_PASSWORD` | required — no default |
 | `GRAFANA_ADMIN_PASSWORD` | required — no default |
 | `LANGFUSE_AUTH_STRING` | `base64(pk-lf-…:sk-lf-…)`; leave empty to disable export |
-| `BLUEBOT_TOKEN` … `RATBOT_TOKEN` | one per bot |
+| `BLUEBOT_TOKEN` … `RAGTIME_TOKEN` | one per bot |
 | `OLLAMA_BASE_URL` | defaults to the Framework desktop (`http://192.168.50.2:11434`) |
 
 See `.env.example` for the full list. Secrets are injected by 1Password into a
